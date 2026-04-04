@@ -1,0 +1,231 @@
+import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import fs from "node:fs/promises";
+import fssync from "node:fs";
+import { fileURLToPath } from "node:url";
+import os from "node:os";
+import path from "node:path";
+import { test } from "node:test";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+
+const projectService = await import(path.join(repoRoot, "dist/main/project-service.js"));
+const snapshotService = await import(path.join(repoRoot, "dist/main/snapshot-service.js"));
+
+async function createTempProject(prefix = "wit-core-") {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+  const projectPath = path.join(root, "project");
+  await fs.mkdir(projectPath, { recursive: true });
+  return { root, projectPath };
+}
+
+test("project initialization and metadata defaults", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+
+    assert.equal(fssync.existsSync(path.join(projectPath, ".wit", "config.json")), true);
+    assert.equal(fssync.existsSync(path.join(projectPath, ".wit", "stats.json")), true);
+    assert.equal(fssync.existsSync(path.join(projectPath, ".wit", "snapshots")), true);
+
+    const metadata = await projectService.getProjectMetadata(projectPath);
+    assert.equal(metadata.projectPath, projectPath);
+    assert.deepEqual(metadata.files, []);
+    assert.equal(metadata.wordCount, 0);
+    assert.equal(metadata.totalWritingSeconds, 0);
+    assert.equal(metadata.settings.autosaveIntervalSec, 60);
+    assert.equal(metadata.settings.showWordCount, true);
+    assert.equal(metadata.settings.smartQuotes, true);
+    assert.equal(metadata.settings.gitSnapshots, false);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("create/list/save/read files with word count and settings", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await projectService.createProjectFile(projectPath, "chapter-01.txt", "One two three");
+    await projectService.createProjectFile(projectPath, "notes/outline.md", "A B");
+
+    const files = await projectService.listProjectFiles(projectPath);
+    assert.deepEqual(files, ["chapter-01.txt", "notes/outline.md"]);
+
+    const readBefore = await projectService.readProjectFile(projectPath, "chapter-01.txt");
+    assert.equal(readBefore, "One two three");
+
+    await projectService.saveProjectFile(projectPath, "chapter-01.txt", "One two three four five");
+    const readAfter = await projectService.readProjectFile(projectPath, "chapter-01.txt");
+    assert.equal(readAfter, "One two three four five");
+
+    const totalWordCount = await projectService.calculateTotalWordCount(projectPath);
+    assert.equal(totalWordCount, 7);
+
+    const savedSettings = await projectService.saveSettings(projectPath, {
+      autosaveIntervalSec: 1,
+      showWordCount: false,
+      smartQuotes: false,
+      gitSnapshots: true
+    });
+
+    assert.equal(savedSettings.autosaveIntervalSec, 10);
+    assert.equal(savedSettings.showWordCount, false);
+    assert.equal(savedSettings.smartQuotes, false);
+    assert.equal(savedSettings.gitSnapshots, true);
+
+    await projectService.addWritingSeconds(projectPath, 25);
+    const stats = await projectService.getProjectStats(projectPath);
+    assert.equal(stats.totalWritingSeconds, 25);
+
+    await assert.rejects(
+      () => projectService.createProjectFile(projectPath, "chapter-01.txt", "duplicate"),
+      /File already exists/
+    );
+
+    await assert.rejects(
+      () => projectService.createProjectFile(projectPath, "outside/../..//escape.txt", "x"),
+      /Path escapes project root/
+    );
+
+    await assert.rejects(
+      () => projectService.createProjectFile(projectPath, "invalid.bin", "x"),
+      /Only plain text and markdown files are supported/
+    );
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("snapshot creation and git snapshot commit flow", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await fs.writeFile(path.join(projectPath, ".gitignore"), ".wit/\n", "utf8");
+    await projectService.createProjectFile(projectPath, "chapter.txt", "Initial");
+
+    const snapshotDir = projectService.getSnapshotDirectory(projectPath);
+    const files = await projectService.listProjectFiles(projectPath);
+    const snapshotName = await snapshotService.createSnapshot({
+      projectPath,
+      snapshotDirectory: snapshotDir,
+      filePaths: files,
+      createGitCommit: false
+    });
+
+    const snapshotFile = path.join(snapshotDir, snapshotName, "chapter.txt");
+    assert.equal(fssync.existsSync(snapshotFile), true);
+
+    await execFileAsync("git", ["init", "-q", projectPath]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.name", "QA"]);
+    await execFileAsync("git", ["-C", projectPath, "add", "."]);
+    await execFileAsync("git", ["-C", projectPath, "commit", "-m", "init", "--quiet"]);
+
+    await projectService.saveProjectFile(projectPath, "chapter.txt", "Changed for snapshot commit");
+
+    await snapshotService.createSnapshot({
+      projectPath,
+      snapshotDirectory: snapshotDir,
+      filePaths: await projectService.listProjectFiles(projectPath),
+      createGitCommit: true
+    });
+
+    const status = await execFileAsync("git", ["-C", projectPath, "status", "--porcelain"]);
+    assert.equal(status.stdout.trim(), "");
+
+    const witTracked = await execFileAsync("git", ["-C", projectPath, "ls-files", ".wit"]);
+    assert.equal(witTracked.stdout.trim(), "");
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("listProjectFiles filters by supported text extensions and ignores system directories", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await fs.mkdir(path.join(projectPath, "nested"), { recursive: true });
+    await fs.mkdir(path.join(projectPath, ".git"), { recursive: true });
+    await fs.mkdir(path.join(projectPath, "node_modules"), { recursive: true });
+
+    await fs.writeFile(path.join(projectPath, "book.txt"), "book", "utf8");
+    await fs.writeFile(path.join(projectPath, "chapter.md"), "chapter", "utf8");
+    await fs.writeFile(path.join(projectPath, "notes.markdown"), "notes", "utf8");
+    await fs.writeFile(path.join(projectPath, "scene.text"), "scene", "utf8");
+    await fs.writeFile(path.join(projectPath, "binary.bin"), "bin", "utf8");
+    await fs.writeFile(path.join(projectPath, ".git", "ignored.txt"), "ignored", "utf8");
+    await fs.writeFile(path.join(projectPath, "node_modules", "ignored.md"), "ignored", "utf8");
+    await fs.writeFile(path.join(projectPath, "nested", "nested.txt"), "nested", "utf8");
+
+    const files = await projectService.listProjectFiles(projectPath);
+    assert.deepEqual(files, [
+      "book.txt",
+      "chapter.md",
+      "nested/nested.txt",
+      "notes.markdown",
+      "scene.text"
+    ]);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("path traversal is blocked for read/save sync and async file operations", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await projectService.createProjectFile(projectPath, "safe.txt", "safe");
+
+    await assert.rejects(
+      () => projectService.readProjectFile(projectPath, "../escape.txt"),
+      /Path escapes project root/
+    );
+
+    await assert.rejects(
+      () => projectService.saveProjectFile(projectPath, "../escape.txt", "bad"),
+      /Path escapes project root/
+    );
+
+    assert.throws(
+      () => projectService.saveProjectFileSync(projectPath, "../escape.txt", "bad"),
+      /Path escapes project root/
+    );
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("snapshot pruning keeps at most 120 snapshots", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await projectService.createProjectFile(projectPath, "book.txt", "draft");
+
+    const snapshotDir = projectService.getSnapshotDirectory(projectPath);
+    for (let i = 0; i < 125; i += 1) {
+      const label = String(i).padStart(4, "0");
+      await fs.mkdir(path.join(snapshotDir, `2000-01-01T00-00-00-${label}Z`), { recursive: true });
+    }
+
+    await snapshotService.createSnapshot({
+      projectPath,
+      snapshotDirectory: snapshotDir,
+      filePaths: await projectService.listProjectFiles(projectPath),
+      createGitCommit: false
+    });
+
+    const entries = await fs.readdir(snapshotDir);
+    assert.equal(entries.length <= 120, true);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

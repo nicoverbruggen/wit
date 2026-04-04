@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wit</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h1>Wit</h1>
+          <button id="open-project-btn" class="ghost-button">Open Project</button>
+        </div>
+        <div class="sidebar-actions">
+          <button id="new-file-btn" class="ghost-button" disabled>New File</button>
+        </div>
+        <ul id="file-list" class="file-list" aria-label="Project files"></ul>
+      </aside>
+
+      <main class="editor-pane">
+        <header class="toolbar">
+          <div class="left-controls">
+            <span id="project-path" class="project-path">No project selected</span>
+          </div>
+          <div class="right-controls">
+            <label class="control-inline" title="Show total word count">
+              <input id="show-word-count-input" type="checkbox" checked />
+              Words
+            </label>
+            <label class="control-inline" title="Convert straight quotes into smart quotes while typing">
+              <input id="smart-quotes-input" type="checkbox" checked />
+              Smart Quotes
+            </label>
+            <label class="control-inline" title="Create git commits during snapshots">
+              <input id="git-snapshots-input" type="checkbox" />
+              Git Snapshot
+            </label>
+            <label class="control-inline" title="Autosave and snapshot interval in seconds">
+              Interval
+              <input id="autosave-interval-input" type="number" min="10" step="5" value="60" />
+            </label>
+            <button id="zoom-out-btn" class="ghost-button" title="Zoom out">A-</button>
+            <button id="zoom-reset-btn" class="ghost-button" title="Reset zoom">A</button>
+            <button id="zoom-in-btn" class="ghost-button" title="Zoom in">A+</button>
+          </div>
+        </header>
+
+        <section class="editor-wrap">
+          <div class="editor-header">
+            <span id="active-file-label">No file selected</span>
+            <span id="dirty-indicator" class="dirty-indicator" hidden>Unsaved</span>
+          </div>
+          <textarea id="editor" spellcheck="true" placeholder="Open a project and choose a text file to begin writing." disabled></textarea>
+        </section>
+
+        <footer class="status-bar">
+          <span id="status-message">Ready</span>
+          <div class="status-right">
+            <span id="writing-time">Writing: 0m</span>
+            <span id="word-count">Words: 0</span>
+            <span id="snapshot-label">Snapshot: --</span>
+          </div>
+        </footer>
+      </main>
+    </div>
+
+    <dialog id="new-file-dialog" class="new-file-dialog">
+      <form method="dialog" id="new-file-form">
+        <h2>Create New File</h2>
+        <p>Enter a relative path for a plain text or markdown file.</p>
+        <label for="new-file-path-input">File path</label>
+        <input id="new-file-path-input" name="new-file-path" type="text" value="chapter-01.txt" />
+        <div class="new-file-actions">
+          <button id="new-file-cancel-btn" value="cancel" class="ghost-button">Cancel</button>
+          <button id="new-file-create-btn" value="create" class="ghost-button">Create</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="./renderer.js"></script>
+  </body>
+</html>

@@ -1,0 +1,63 @@
+{
+  "name": "wit",
+  "version": "0.1.0",
+  "description": "Minimalist desktop writing app for plain text projects.",
+  "main": "dist/main/main.js",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "clean": "rimraf dist release",
+    "copy:renderer": "copyfiles -u 2 \"src/renderer/**/*.html\" \"src/renderer/**/*.css\" \"src/renderer/assets/**/*\" dist/renderer",
+    "build": "npm run clean && tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && npm run copy:renderer",
+    "start": "npm run build && electron .",
+    "dev": "npm run start",
+    "lint": "eslint \"src/**/*.ts\"",
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "test:core": "npm run build && node --test tests/core/**/*.test.mjs",
+    "test:e2e": "npm run build && playwright test",
+    "test": "npm run test:core && npm run test:e2e",
+    "dist": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
+    "dist:mac": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac",
+    "dist:linux": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --linux",
+    "dist:win": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win"
+  },
+  "build": {
+    "appId": "com.wit.app",
+    "productName": "Wit",
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "asar": true,
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity",
+      "identity": null
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Office"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "@playwright/test": "^1.54.2",
+    "@types/node": "^22.15.2",
+    "@typescript-eslint/eslint-plugin": "^8.29.1",
+    "@typescript-eslint/parser": "^8.29.1",
+    "copyfiles": "^2.4.1",
+    "electron": "^41.1.1",
+    "electron-builder": "^26.0.12",
+    "eslint": "^9.24.0",
+    "globals": "^15.15.0",
+    "playwright": "^1.54.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.8.3"
+  }
+}
