@@ -10,6 +10,7 @@ test("renderer markup contains core writing controls", async () => {
   const html = await fs.readFile(path.join(repoRoot, "src/renderer/index.html"), "utf8");
 
   const requiredIds = [
+    "toggle-sidebar-btn",
     "open-project-btn",
     "new-file-btn",
     "new-folder-btn",
@@ -25,11 +26,15 @@ test("renderer markup contains core writing controls", async () => {
     "editor-width-value",
     "new-file-error",
     "new-folder-error",
+    "new-file-cancel-btn",
+    "new-folder-cancel-btn",
+    "rename-entry-dialog",
+    "rename-entry-input",
+    "rename-entry-cancel-btn",
+    "rename-entry-confirm-btn",
     "text-zoom-select",
     "sidebar-project-title",
     "project-path",
-    "tree-context-menu",
-    "tree-context-delete-btn",
     "new-folder-dialog",
     "word-count",
     "writing-time",

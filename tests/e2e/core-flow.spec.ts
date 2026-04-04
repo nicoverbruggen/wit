@@ -8,6 +8,8 @@ import { promisify } from "node:util";
 
 const repoRoot = path.resolve(__dirname, "../..");
 const execFileAsync = promisify(execFile);
+const LAST_PROJECT_STATE_FILE_NAME = "last-project.json";
+let cachedUserDataPath: string | null = null;
 
 async function launchWithProject(projectPath: string): Promise<{ app: ElectronApplication; page: Page }> {
   const app = await electron.launch({
@@ -26,6 +28,29 @@ async function launchWithProject(projectPath: string): Promise<{ app: ElectronAp
   await page.waitForLoadState("domcontentloaded");
 
   return { app, page };
+}
+
+async function resolveUserDataPath(): Promise<string> {
+  if (cachedUserDataPath) {
+    return cachedUserDataPath;
+  }
+
+  const app = await electron.launch({
+    args: [repoRoot],
+    cwd: repoRoot
+  });
+
+  try {
+    cachedUserDataPath = await app.evaluate(({ app: electronApp }) => electronApp.getPath("userData"));
+    return cachedUserDataPath;
+  } finally {
+    await app.close();
+  }
+}
+
+async function clearLastProjectState(): Promise<void> {
+  const userDataPath = await resolveUserDataPath();
+  await fs.rm(path.join(userDataPath, LAST_PROJECT_STATE_FILE_NAME), { force: true });
 }
 
 async function ensureSettingsDialogOpen(page: Page): Promise<void> {
@@ -65,6 +90,14 @@ async function latestCommitMessage(projectPath: string): Promise<string> {
 }
 
 test.describe("Wit core app flow", () => {
+  test.beforeEach(async () => {
+    await clearLastProjectState();
+  });
+
+  test.afterAll(async () => {
+    await clearLastProjectState();
+  });
+
   test("settings dialog is accessible before a project is selected", async () => {
     const app = await electron.launch({
       args: [repoRoot],
@@ -85,6 +118,30 @@ test.describe("Wit core app flow", () => {
     await app.close();
   });
 
+  test("sidebar can be toggled from the status bar button", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-toggle-sidebar-"));
+    await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    const shell = page.locator("#app-shell");
+    const toggleButton = page.locator("#toggle-sidebar-btn");
+
+    await expect(shell).not.toHaveClass(/sidebar-hidden/);
+    await expect(toggleButton).toHaveAttribute("aria-label", "Hide sidebar");
+
+    await toggleButton.click();
+    await expect(shell).toHaveClass(/sidebar-hidden/);
+    await expect(page.locator(".sidebar")).toBeHidden();
+    await expect(toggleButton).toHaveAttribute("aria-label", "Show sidebar");
+
+    await toggleButton.click();
+    await expect(shell).not.toHaveClass(/sidebar-hidden/);
+    await expect(page.locator(".sidebar")).toBeVisible();
+    await expect(toggleButton).toHaveAttribute("aria-label", "Hide sidebar");
+
+    await app.close();
+  });
+
   test("opens a project and renders file list + word count", async () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-open-"));
     await fs.writeFile(path.join(projectPath, "a.txt"), "One two", "utf8");
@@ -94,10 +151,64 @@ test.describe("Wit core app flow", () => {
 
     await expect(page.locator(".file-button", { hasText: "a.txt" })).toBeVisible();
     await expect(page.locator(".file-button", { hasText: "b.md" })).toBeVisible();
+    await expect(page.locator("#open-project-btn")).toBeHidden();
     await expect(page.locator("#sidebar-project-title")).toHaveText(path.basename(projectPath));
     await expect(page.locator("#project-path")).toHaveAttribute("title", projectPath);
     await expect(page.locator("#word-count")).toContainText("Words: 5");
 
+    await app.close();
+  });
+
+  test("reopens the last project when the app is relaunched", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-reopen-"));
+    await fs.writeFile(path.join(projectPath, "persist.txt"), "One two three", "utf8");
+
+    const firstRun = await launchWithProject(projectPath);
+    await firstRun.app.close();
+
+    const secondRun = await electron.launch({
+      args: [repoRoot],
+      cwd: repoRoot
+    });
+
+    const secondPage = await secondRun.firstWindow();
+    await secondPage.waitForLoadState("domcontentloaded");
+    await expect(secondPage.locator("#sidebar-project-title")).toHaveText(path.basename(projectPath));
+    await expect(secondPage.locator(".file-button", { hasText: "persist.txt" })).toBeVisible();
+    await expect(secondPage.locator("#open-project-btn")).toBeHidden();
+
+    await secondRun.close();
+  });
+
+  test("does not restore the last project when the folder no longer exists", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-missing-"));
+    await fs.writeFile(path.join(projectPath, "draft.txt"), "still here", "utf8");
+
+    const firstRun = await launchWithProject(projectPath);
+    await firstRun.app.close();
+    await fs.rm(projectPath, { recursive: true, force: true });
+
+    const secondRun = await electron.launch({
+      args: [repoRoot],
+      cwd: repoRoot
+    });
+
+    const secondPage = await secondRun.firstWindow();
+    await secondPage.waitForLoadState("domcontentloaded");
+    await expect(secondPage.locator("#sidebar-project-title")).toHaveText("No Project");
+    await expect(secondPage.locator("#open-project-btn")).toBeEnabled();
+    await expect(secondPage.locator(".file-button", { hasText: "draft.txt" })).toHaveCount(0);
+
+    await secondRun.close();
+  });
+
+  test("editor placeholder is hidden when a file is selected", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-placeholder-"));
+    await fs.writeFile(path.join(projectPath, "empty.txt"), "", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await expect(page.locator("#active-file-label")).toHaveText("empty.txt");
+    await expect(page.locator("#editor")).toHaveAttribute("placeholder", "");
     await app.close();
   });
 
@@ -122,6 +233,7 @@ test.describe("Wit core app flow", () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-empty-"));
     const { app, page } = await launchWithProject(projectPath);
 
+    await expect(page.locator("#open-project-btn")).toBeHidden();
     await expect(page.locator("#new-file-btn")).toBeEnabled();
     await expect(page.locator("#active-file-label")).toHaveText("No file selected");
     await expect(page.locator("#settings-toggle-btn")).toBeEnabled();
@@ -177,6 +289,27 @@ test.describe("Wit core app flow", () => {
     await app.close();
   });
 
+  test("pressing Enter submits new file and new folder dialogs", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-enter-submit-"));
+    const { app, page } = await launchWithProject(projectPath);
+
+    await page.click("#new-folder-btn");
+    await expect(page.locator("#new-folder-dialog")).toBeVisible();
+    await page.fill("#new-folder-path-input", "drafts");
+    await page.press("#new-folder-path-input", "Enter");
+    await expect(page.locator(".folder-button", { hasText: "drafts" })).toBeVisible();
+
+    await page.click(".folder-button:has-text('drafts')");
+    await page.click("#new-file-btn");
+    await expect(page.locator("#new-file-dialog")).toBeVisible();
+    await page.fill("#new-file-path-input", "chapter-01");
+    await page.press("#new-file-path-input", "Enter");
+
+    await expect(page.locator("#active-file-label")).toHaveText("drafts/chapter-01.txt");
+    await expect(fs.stat(path.join(projectPath, "drafts", "chapter-01.txt"))).resolves.toBeTruthy();
+    await app.close();
+  });
+
   test("creates new file, applies smart quotes, and saves with keyboard shortcut", async () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-write-"));
     await fs.writeFile(path.join(projectPath, "start.txt"), "Start", "utf8");
@@ -222,33 +355,84 @@ test.describe("Wit core app flow", () => {
 
     const { app, page } = await launchWithProject(projectPath);
 
+    await page.evaluate(() => {
+      (window as Window & { __WIT_TEST_TREE_ACTION?: "rename" | "delete" }).__WIT_TEST_TREE_ACTION =
+        "delete";
+    });
+    acceptNextConfirmDialog(page);
     await page.dispatchEvent(".file-button:has-text('scene.txt')", "contextmenu", {
       button: 2,
       bubbles: true,
       clientX: 120,
       clientY: 120
     });
-    await expect(page.locator("#tree-context-menu")).toBeVisible();
-    acceptNextConfirmDialog(page);
-    await page.click("#tree-context-delete-btn");
 
     await expect(page.locator(".file-button", { hasText: "scene.txt" })).toBeHidden();
     await expect(page.locator("#active-file-label")).toHaveText("No file selected");
     await expect(fs.stat(path.join(projectPath, "drafts", "scene.txt")).catch(() => null)).resolves.toBeNull();
 
+    await page.evaluate(() => {
+      (window as Window & { __WIT_TEST_TREE_ACTION?: "rename" | "delete" }).__WIT_TEST_TREE_ACTION =
+        "delete";
+    });
+    acceptNextConfirmDialog(page);
     await page.dispatchEvent(".folder-button:has-text('drafts')", "contextmenu", {
       button: 2,
       bubbles: true,
       clientX: 140,
       clientY: 140
     });
-    await expect(page.locator("#tree-context-menu")).toBeVisible();
-    acceptNextConfirmDialog(page);
-    await page.click("#tree-context-delete-btn");
 
     await expect(page.locator(".folder-button", { hasText: "drafts" })).toBeHidden();
     await expect(fs.stat(path.join(projectPath, "drafts")).catch(() => null)).resolves.toBeNull();
     await expect(fs.stat(path.join(projectPath, "keep.txt"))).resolves.toBeTruthy();
+    await app.close();
+  });
+
+  test("renames files and folders from right-click context menu", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-rename-"));
+    await fs.mkdir(path.join(projectPath, "drafts"), { recursive: true });
+    await fs.writeFile(path.join(projectPath, "drafts", "scene.txt"), "hello", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+
+    await page.evaluate(() => {
+      (window as Window & { __WIT_TEST_TREE_ACTION?: "rename" | "delete" }).__WIT_TEST_TREE_ACTION =
+        "rename";
+    });
+    await page.dispatchEvent(".folder-button:has-text('drafts')", "contextmenu", {
+      button: 2,
+      bubbles: true,
+      clientX: 130,
+      clientY: 130
+    });
+    await expect(page.locator("#rename-entry-dialog")).toBeVisible();
+    await page.fill("#rename-entry-input", "chapters");
+    await page.press("#rename-entry-input", "Enter");
+
+    await expect(page.locator(".folder-button", { hasText: "chapters" })).toBeVisible();
+    await expect(fs.stat(path.join(projectPath, "chapters"))).resolves.toBeTruthy();
+    await expect(fs.stat(path.join(projectPath, "drafts")).catch(() => null)).resolves.toBeNull();
+
+    await page.click(".file-button:has-text('scene.txt')");
+    await page.evaluate(() => {
+      (window as Window & { __WIT_TEST_TREE_ACTION?: "rename" | "delete" }).__WIT_TEST_TREE_ACTION =
+        "rename";
+    });
+    await page.dispatchEvent(".file-button:has-text('scene.txt')", "contextmenu", {
+      button: 2,
+      bubbles: true,
+      clientX: 160,
+      clientY: 160
+    });
+    await expect(page.locator("#rename-entry-dialog")).toBeVisible();
+    await page.fill("#rename-entry-input", "opening");
+    await page.press("#rename-entry-input", "Enter");
+
+    await expect(page.locator("#active-file-label")).toHaveText("chapters/opening.txt");
+    await expect(page.locator(".file-button", { hasText: "opening.txt" })).toBeVisible();
+    await expect(fs.stat(path.join(projectPath, "chapters", "opening.txt"))).resolves.toBeTruthy();
+    await expect(fs.stat(path.join(projectPath, "chapters", "scene.txt")).catch(() => null)).resolves.toBeNull();
     await app.close();
   });
 
@@ -424,6 +608,32 @@ test.describe("Wit core app flow", () => {
     await expect(page.locator("#editor")).toHaveValue("replacement text");
     await expect(page.locator("#word-count")).toContainText("Words: 2");
 
+    await app.close();
+  });
+
+  test("editor uses default system context menu behavior", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-system-context-"));
+    await fs.writeFile(path.join(projectPath, "context.txt"), "alpha beta gamma", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await page.click(".file-button:has-text('context.txt')");
+
+    const dispatchReturned = await page.evaluate(() => {
+      const editor = document.querySelector("#editor");
+      if (!(editor instanceof HTMLTextAreaElement)) {
+        throw new Error("Editor is missing.");
+      }
+
+      const contextEvent = new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        button: 2
+      });
+
+      return editor.dispatchEvent(contextEvent);
+    });
+
+    expect(dispatchReturned).toBe(true);
     await app.close();
   });
 

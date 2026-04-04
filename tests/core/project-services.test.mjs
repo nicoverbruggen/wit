@@ -42,7 +42,7 @@ test("project initialization and metadata defaults", async () => {
     assert.equal(metadata.settings.smartQuotes, true);
     assert.equal(metadata.settings.gitSnapshots, false);
     assert.equal(metadata.settings.editorLineHeight, 1.68);
-    assert.equal(metadata.settings.editorMaxWidthPx, 500);
+    assert.equal(metadata.settings.editorMaxWidthPx, 750);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
@@ -227,6 +227,44 @@ test("moveProjectFile moves a file into an existing folder and prevents collisio
     assert.equal(movedBackPath, "chapter.txt");
     assert.equal(fssync.existsSync(path.join(projectPath, "chapter.txt")), true);
     assert.equal(fssync.existsSync(path.join(projectPath, "drafts", "chapter.txt")), false);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("renameProjectEntry renames files and folders while preserving project safety", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await projectService.createProjectFolder(projectPath, "drafts");
+    await projectService.createProjectFile(projectPath, "drafts/scene.txt", "hello");
+
+    const renamedFolder = await projectService.renameProjectEntry(
+      projectPath,
+      "drafts",
+      "folder",
+      "chapters"
+    );
+    assert.equal(renamedFolder, "chapters");
+    assert.equal(fssync.existsSync(path.join(projectPath, "chapters", "scene.txt")), true);
+    assert.equal(fssync.existsSync(path.join(projectPath, "drafts")), false);
+
+    const renamedFile = await projectService.renameProjectEntry(
+      projectPath,
+      "chapters/scene.txt",
+      "file",
+      "chapters/opening.txt"
+    );
+    assert.equal(renamedFile, "chapters/opening.txt");
+    assert.equal(fssync.existsSync(path.join(projectPath, "chapters", "opening.txt")), true);
+    assert.equal(fssync.existsSync(path.join(projectPath, "chapters", "scene.txt")), false);
+
+    await projectService.createProjectFile(projectPath, "chapters/existing.txt", "x");
+    await assert.rejects(
+      () => projectService.renameProjectEntry(projectPath, "chapters/opening.txt", "file", "chapters/existing.txt"),
+      /already exists/
+    );
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

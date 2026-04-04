@@ -15,7 +15,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   smartQuotes: true,
   gitSnapshots: false,
   editorLineHeight: 1.68,
-  editorMaxWidthPx: 500
+  editorMaxWidthPx: 750
 };
 
 type ProjectStats = {
@@ -321,6 +321,64 @@ export async function moveProjectFile(
 
   await fs.rename(fromAbsolutePath, targetAbsolutePath);
   return targetRelativePath;
+}
+
+export async function renameProjectEntry(
+  projectPath: string,
+  relativePath: string,
+  kind: "file" | "folder",
+  nextRelativePath: string
+): Promise<string> {
+  const normalizedCurrentPath = normalizePathInput(relativePath);
+  const normalizedNextPath = normalizePathInput(nextRelativePath);
+
+  if (!normalizedCurrentPath) {
+    throw new Error("Path cannot be empty.");
+  }
+
+  if (!normalizedNextPath) {
+    throw new Error("New name cannot be empty.");
+  }
+
+  const currentAbsolutePath = ensureInsideProject(projectPath, normalizedCurrentPath);
+  const nextAbsolutePath = ensureInsideProject(projectPath, normalizedNextPath);
+
+  let currentStats: Awaited<ReturnType<typeof fs.stat>>;
+  try {
+    currentStats = await fs.stat(currentAbsolutePath);
+  } catch (error) {
+    const fsError = error as { code?: string };
+    if (fsError.code === "ENOENT") {
+      throw new Error("Entry does not exist.");
+    }
+
+    throw error;
+  }
+
+  if (kind === "file" && !currentStats.isFile()) {
+    throw new Error("Selected path is not a file.");
+  }
+
+  if (kind === "folder" && !currentStats.isDirectory()) {
+    throw new Error("Selected path is not a folder.");
+  }
+
+  if (pathEquals(normalizedCurrentPath, normalizedNextPath)) {
+    return normalizedCurrentPath;
+  }
+
+  try {
+    await fs.access(nextAbsolutePath);
+    throw new Error("An entry with that name already exists.");
+  } catch (error) {
+    const fsError = error as { code?: string };
+    if (fsError.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  await fs.rename(currentAbsolutePath, nextAbsolutePath);
+  return normalizedNextPath;
 }
 
 function normalizePathInput(input: string): string {

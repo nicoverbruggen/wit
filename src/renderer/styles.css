@@ -63,6 +63,13 @@ body {
   height: 100vh;
 }
 
+.app-shell.sidebar-hidden {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "toolbar"
+    "editor";
+}
+
 .sidebar {
   grid-area: sidebar;
   border-right: 1px solid var(--line);
@@ -76,6 +83,10 @@ body {
 
 .app-shell.sidebar-faded .sidebar {
   opacity: 0.58;
+}
+
+.app-shell.sidebar-hidden .sidebar {
+  display: none;
 }
 
 .sidebar-header {
@@ -106,6 +117,10 @@ body {
 .open-project-action {
   width: 100%;
   justify-content: center;
+}
+
+.open-project-wrap.project-open {
+  display: none;
 }
 
 .files-heading {
@@ -245,7 +260,11 @@ body {
 }
 
 .settings-cog-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="%23687384" viewBox="0 0 24 24"><path d="M19.49 13.57c.04-.35.06-.71.06-1.07s-.02-.72-.06-1.07l1.62-1.26a.56.56 0 0 0 .13-.72l-1.53-2.64a.56.56 0 0 0-.68-.25l-1.91.77a7.6 7.6 0 0 0-1.85-1.07l-.29-2.03a.56.56 0 0 0-.55-.48h-3.06a.56.56 0 0 0-.55.48l-.29 2.03a7.6 7.6 0 0 0-1.85 1.07l-1.91-.77a.56.56 0 0 0-.68.25L2.76 9.45a.56.56 0 0 0 .13.72l1.62 1.26c-.04.35-.06.71-.06 1.07s.02.72.06 1.07l-1.62 1.26a.56.56 0 0 0-.13.72l1.53 2.64c.14.24.42.34.68.25l1.91-.77c.57.44 1.2.8 1.85 1.07l.29 2.03c.04.27.27.48.55.48h3.06c.28 0 .51-.21.55-.48l.29-2.03c.65-.27 1.28-.63 1.85-1.07l1.91.77c.26.09.54-.01.68-.25l1.53-2.64a.56.56 0 0 0-.13-.72l-1.62-1.26zM12 15.4A2.9 2.9 0 1 1 12 9.6a2.9 2.9 0 0 1 0 5.8z"/></svg>');
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="%23687384" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24"><path d="M4 6h8"/><path d="M16 6h4"/><circle cx="14" cy="6" r="2"/><path d="M4 12h4"/><path d="M12 12h8"/><circle cx="10" cy="12" r="2"/><path d="M4 18h10"/><path d="M18 18h2"/><circle cx="16" cy="18" r="2"/></svg>');
+}
+
+.sidebar-toggle-icon {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="%23687384" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9 4.5v15"/><path d="M6.2 9.5l-2.2 2.5 2.2 2.5"/></svg>');
 }
 
 .tree-item {
@@ -314,8 +333,7 @@ body {
 
 .tree-root-item {
   font-weight: 700;
-  border-bottom: 1px solid #e4e5e9;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .folder-button.drop-target {
@@ -353,41 +371,6 @@ body {
   padding: 6px;
 }
 
-.tree-context-menu {
-  position: fixed;
-  z-index: 1000;
-  min-width: 148px;
-  padding: 6px;
-  border: 1px solid #d7d7dd;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 8px 22px rgb(15 23 42 / 20%);
-}
-
-.tree-context-item {
-  width: 100%;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: #1f2328;
-  text-align: left;
-  padding: 7px 10px;
-  font-size: 0.78rem;
-  cursor: pointer;
-}
-
-.tree-context-item:hover {
-  background: #f1f4fb;
-}
-
-.tree-context-item.danger {
-  color: #b44141;
-}
-
-.tree-context-item.danger:hover {
-  background: #fdeeee;
-}
-
 .editor-pane {
   grid-area: editor;
   display: grid;
@@ -399,7 +382,7 @@ body {
   grid-area: toolbar;
   border-bottom: 1px solid var(--line);
   background: #f5f5f7;
-  padding: 6px 14px 5px;
+  padding: 7px 14px 6px;
   display: flex;
   justify-content: flex-start;
   align-items: center;
@@ -570,7 +553,7 @@ body.platform-linux .toolbar {
   resize: none;
   padding: 30px 24px;
   font-family: "WitWriter", "Palatino", "Times New Roman", serif;
-  font-size: clamp(1.1rem, 1.2vw + 0.9rem, 1.5rem);
+  font-size: 1.32rem;
   line-height: 1.68;
   color: var(--text);
   transition: max-width 100ms ease;
@@ -597,11 +580,35 @@ body.platform-linux .toolbar {
   gap: 10px;
 }
 
+.status-icon-button {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #d2d2d8;
+  border-radius: 6px;
+  background: white;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.status-icon-button:hover {
+  background: #fbfbfc;
+  border-color: #bfc4cf;
+}
+
+.status-icon-button[aria-pressed="true"] {
+  background: #eaf1ff;
+  border-color: #b8d0ff;
+  color: #3d5f9d;
+}
+
 .new-file-dialog {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0;
-  width: min(480px, calc(100vw - 36px));
+  width: 480px;
   background: white;
   color: var(--text);
 }
@@ -610,7 +617,9 @@ body.platform-linux .toolbar {
   background: rgb(31 35 40 / 25%);
 }
 
-#new-file-form {
+#new-file-form,
+#new-folder-form,
+#rename-entry-form {
   margin: 0;
   padding: 16px;
   display: flex;
@@ -618,31 +627,16 @@ body.platform-linux .toolbar {
   gap: 10px;
 }
 
-#new-folder-form {
-  margin: 0;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-#new-file-form h2 {
+#new-file-form h2,
+#new-folder-form h2,
+#rename-entry-form h2 {
   margin: 0;
   font-size: 1rem;
 }
 
-#new-folder-form h2 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-#new-file-form p {
-  margin: 0;
-  font-size: 0.82rem;
-  color: var(--muted);
-}
-
-#new-folder-form p {
+#new-file-form p,
+#new-folder-form p,
+#rename-entry-form p {
   margin: 0;
   font-size: 0.82rem;
   color: var(--muted);
@@ -655,17 +649,16 @@ body.platform-linux .toolbar {
   color: var(--danger);
 }
 
-#new-file-form label {
+#new-file-form label,
+#new-folder-form label,
+#rename-entry-form label {
   font-size: 0.78rem;
   color: var(--muted);
 }
 
-#new-folder-form label {
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
-#new-file-path-input {
+#new-file-path-input,
+#new-folder-path-input,
+#rename-entry-input {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -674,21 +667,9 @@ body.platform-linux .toolbar {
   color: var(--text);
 }
 
-#new-folder-path-input {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: #fbfbfc;
-  color: var(--text);
-}
-
-#new-file-path-input:focus {
-  outline: 2px solid color-mix(in srgb, var(--accent) 45%, white);
-  outline-offset: 1px;
-}
-
-#new-folder-path-input:focus {
+#new-file-path-input:focus,
+#new-folder-path-input:focus,
+#rename-entry-input:focus {
   outline: 2px solid color-mix(in srgb, var(--accent) 45%, white);
   outline-offset: 1px;
 }
@@ -704,7 +685,7 @@ body.platform-linux .toolbar {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0;
-  width: min(520px, calc(100vw - 36px));
+  width: 520px;
   background: white;
   color: var(--text);
 }
@@ -741,43 +722,4 @@ body.platform-linux .toolbar {
 
 .settings-grid .control-inline {
   justify-content: flex-start;
-}
-
-@media (max-width: 900px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto 1fr;
-    grid-template-areas:
-      "toolbar"
-      "sidebar"
-      "editor";
-  }
-
-  .sidebar {
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-    max-height: 37vh;
-  }
-
-  .left-controls {
-    display: none;
-  }
-
-  .project-actions {
-    grid-template-columns: 1fr;
-  }
-
-  .settings-grid {
-    grid-template-columns: 1fr;
-  }
-
-  #editor {
-    max-width: 100%;
-    padding: 20px 18px;
-  }
-
-  .status-bar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }

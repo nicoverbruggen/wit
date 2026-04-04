@@ -1,5 +1,13 @@
 import path from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, Menu, type MenuItemConstructorOptions } from "electron";
+import { promises as fs } from "node:fs";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  type MenuItemConstructorOptions
+} from "electron";
 import {
   addWritingSeconds,
   calculateTotalWordCount,
@@ -14,6 +22,7 @@ import {
   listProjectFolders,
   loadSettings,
   moveProjectFile,
+  renameProjectEntry,
   readProjectFile,
   saveProjectFile,
   saveProjectFileSync,
@@ -28,11 +37,49 @@ import type {
   MoveFilePayload,
   NewFilePayload,
   NewFolderPayload,
-  ProjectMetadata
+  ProjectMetadata,
+  RenameEntryPayload,
+  ShowTreeContextMenuPayload,
+  TreeContextAction
 } from "../shared/types";
 
 let mainWindow: BrowserWindow | null = null;
 let activeProjectPath: string | null = null;
+const LAST_PROJECT_STATE_FILE_NAME = "last-project.json";
+
+function getLastProjectStatePath(): string {
+  return path.join(app.getPath("userData"), LAST_PROJECT_STATE_FILE_NAME);
+}
+
+async function saveLastProjectPath(projectPath: string): Promise<void> {
+  const statePath = getLastProjectStatePath();
+  const payload = { projectPath };
+  await fs.mkdir(path.dirname(statePath), { recursive: true });
+  await fs.writeFile(statePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+}
+
+async function clearLastProjectPath(): Promise<void> {
+  try {
+    await fs.rm(getLastProjectStatePath(), { force: true });
+  } catch {
+    // Ignore best-effort cleanup failures.
+  }
+}
+
+async function loadLastProjectPath(): Promise<string | null> {
+  try {
+    const raw = await fs.readFile(getLastProjectStatePath(), "utf8");
+    const parsed = JSON.parse(raw) as { projectPath?: unknown };
+
+    if (typeof parsed.projectPath === "string" && parsed.projectPath.trim().length > 0) {
+      return parsed.projectPath;
+    }
+  } catch {
+    // Ignore malformed/missing state and start without an active project.
+  }
+
+  return null;
+}
 
 function resetWindowZoomToDefault(browserWindow: BrowserWindow): void {
   browserWindow.webContents.setZoomLevel(0);
@@ -63,7 +110,7 @@ function createMainWindow(): BrowserWindow {
           titleBarOverlay: {
             color: "#f6f6f8",
             symbolColor: "#4b5563",
-            height: 34
+            height: 36
           }
         };
 
@@ -116,6 +163,14 @@ function setupMenu(): void {
       label: "View",
       submenu: [
         {
+          label: "Toggle Sidebar",
+          accelerator: "CmdOrCtrl+B",
+          click: () => {
+            emitMenuEvent("menu:toggle-sidebar");
+          }
+        },
+        { type: "separator" },
+        {
           label: "Zoom In Editor Text",
           accelerator: "CmdOrCtrl+=",
           click: () => {
@@ -157,7 +212,34 @@ function requireActiveProjectPath(): string {
 async function openProject(projectPath: string): Promise<ProjectMetadata> {
   await ensureProjectInitialized(projectPath);
   activeProjectPath = projectPath;
+  void saveLastProjectPath(projectPath).catch(() => {
+    // Non-blocking persistence; keep project opening even if write fails.
+  });
   return getProjectMetadata(projectPath);
+}
+
+async function restoreLastProjectFromDisk(): Promise<void> {
+  const lastProjectPath = await loadLastProjectPath();
+  if (!lastProjectPath) {
+    return;
+  }
+
+  try {
+    const stats = await fs.stat(lastProjectPath);
+    if (!stats.isDirectory()) {
+      await clearLastProjectPath();
+      return;
+    }
+  } catch {
+    await clearLastProjectPath();
+    return;
+  }
+
+  try {
+    await openProject(lastProjectPath);
+  } catch {
+    await clearLastProjectPath();
+  }
 }
 
 async function runAutosaveTick(activeSeconds: number): Promise<AutosaveTickResult> {
@@ -275,6 +357,69 @@ function setupIpcHandlers(): void {
     };
   });
 
+  ipcMain.handle("project:rename-entry", async (_event, payload: RenameEntryPayload) => {
+    const projectPath = requireActiveProjectPath();
+    const nextRelativePath = await renameProjectEntry(
+      projectPath,
+      payload.relativePath,
+      payload.kind,
+      payload.nextRelativePath
+    );
+
+    return {
+      nextRelativePath,
+      metadata: await getProjectMetadata(projectPath)
+    };
+  });
+
+  ipcMain.handle("project:show-tree-context-menu", async (event, payload: ShowTreeContextMenuPayload) => {
+    if (payload.testAction) {
+      return payload.testAction;
+    }
+
+    const popupWindow = BrowserWindow.fromWebContents(event.sender);
+    if (!popupWindow) {
+      return null;
+    }
+
+    return new Promise<TreeContextAction | null>((resolve) => {
+      let resolved = false;
+      const resolveOnce = (action: TreeContextAction | null) => {
+        if (resolved) {
+          return;
+        }
+
+        resolved = true;
+        resolve(action);
+      };
+
+      const menu = Menu.buildFromTemplate([
+        {
+          label: "Rename",
+          click: () => {
+            resolveOnce("rename");
+          }
+        },
+        { type: "separator" },
+        {
+          label: "Delete",
+          click: () => {
+            resolveOnce("delete");
+          }
+        }
+      ]);
+
+      menu.popup({
+        window: popupWindow,
+        x: Math.round(payload.x),
+        y: Math.round(payload.y),
+        callback: () => {
+          resolveOnce(null);
+        }
+      });
+    });
+  });
+
   ipcMain.handle("project:update-settings", async (_event, settings: AppSettings) => {
     const saved = await saveSettings(requireActiveProjectPath(), settings);
     return saved;
@@ -287,9 +432,10 @@ function setupIpcHandlers(): void {
   ipcMain.handle("app:version", () => app.getVersion());
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   setupIpcHandlers();
   setupMenu();
+  await restoreLastProjectFromDisk();
 
   mainWindow = createMainWindow();
 

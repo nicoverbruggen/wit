@@ -5,7 +5,10 @@ import type {
   MoveFilePayload,
   NewFilePayload,
   NewFolderPayload,
-  ProjectMetadata
+  ProjectMetadata,
+  RenameEntryPayload,
+  ShowTreeContextMenuPayload,
+  TreeContextAction
 } from "../shared/types";
 
 type Unsubscribe = () => void;
@@ -23,7 +26,9 @@ type WitApi = {
   newFile: (payload: NewFilePayload) => Promise<string[]>;
   newFolder: (payload: NewFolderPayload) => Promise<string[]>;
   deleteEntry: (payload: DeleteEntryPayload) => Promise<ProjectMetadata>;
+  renameEntry: (payload: RenameEntryPayload) => Promise<{ nextRelativePath: string; metadata: ProjectMetadata }>;
   moveFile: (payload: MoveFilePayload) => Promise<{ nextFilePath: string; metadata: ProjectMetadata }>;
+  showTreeContextMenu: (payload: ShowTreeContextMenuPayload) => Promise<TreeContextAction | null>;
   updateSettings: (settings: AppSettings) => Promise<AppSettings>;
   autosaveTick: (activeSeconds: number) => Promise<AutosaveTickResult>;
   getAppVersion: () => Promise<string>;
@@ -32,6 +37,7 @@ type WitApi = {
   onMenuZoomInText: (listener: () => void) => Unsubscribe;
   onMenuZoomOutText: (listener: () => void) => Unsubscribe;
   onMenuZoomResetText: (listener: () => void) => Unsubscribe;
+  onMenuToggleSidebar: (listener: () => void) => Unsubscribe;
 };
 
 declare global {

@@ -6,7 +6,10 @@ import type {
   MoveFilePayload,
   NewFilePayload,
   NewFolderPayload,
-  ProjectMetadata
+  ProjectMetadata,
+  RenameEntryPayload,
+  ShowTreeContextMenuPayload,
+  TreeContextAction
 } from "../shared/types";
 
 type Unsubscribe = () => void;
@@ -30,10 +33,16 @@ const api = {
     ipcRenderer.invoke("project:new-folder", payload),
   deleteEntry: (payload: DeleteEntryPayload): Promise<ProjectMetadata> =>
     ipcRenderer.invoke("project:delete-entry", payload),
+  renameEntry: (
+    payload: RenameEntryPayload
+  ): Promise<{ nextRelativePath: string; metadata: ProjectMetadata }> =>
+    ipcRenderer.invoke("project:rename-entry", payload),
   moveFile: (
     payload: MoveFilePayload
   ): Promise<{ nextFilePath: string; metadata: ProjectMetadata }> =>
     ipcRenderer.invoke("project:move-file", payload),
+  showTreeContextMenu: (payload: ShowTreeContextMenuPayload): Promise<TreeContextAction | null> =>
+    ipcRenderer.invoke("project:show-tree-context-menu", payload),
   updateSettings: (settings: AppSettings): Promise<AppSettings> =>
     ipcRenderer.invoke("project:update-settings", settings),
   autosaveTick: (activeSeconds: number): Promise<AutosaveTickResult> =>
@@ -77,6 +86,15 @@ const api = {
   },
   onMenuZoomResetText: (listener: () => void): Unsubscribe => {
     const channel = "menu:zoom-reset-text";
+    const wrappedListener = () => listener();
+
+    ipcRenderer.on(channel, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(channel, wrappedListener);
+    };
+  },
+  onMenuToggleSidebar: (listener: () => void): Unsubscribe => {
+    const channel = "menu:toggle-sidebar";
     const wrappedListener = () => listener();
 
     ipcRenderer.on(channel, wrappedListener);

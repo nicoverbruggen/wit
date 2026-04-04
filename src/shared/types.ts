@@ -40,3 +40,19 @@ export type MoveFilePayload = {
   fromRelativePath: string;
   toFolderRelativePath: string;
 };
+
+export type RenameEntryPayload = {
+  relativePath: string;
+  kind: "file" | "folder";
+  nextRelativePath: string;
+};
+
+export type TreeContextAction = "rename" | "delete";
+
+export type ShowTreeContextMenuPayload = {
+  relativePath: string;
+  kind: "file" | "folder";
+  x: number;
+  y: number;
+  testAction?: TreeContextAction;
+};

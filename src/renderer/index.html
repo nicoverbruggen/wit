@@ -44,12 +44,6 @@
         </div>
       </aside>
 
-      <div id="tree-context-menu" class="tree-context-menu" role="menu" aria-label="File actions" hidden>
-        <button id="tree-context-delete-btn" type="button" class="tree-context-item danger" role="menuitem">
-          Delete
-        </button>
-      </div>
-
       <main class="editor-pane">
         <section class="editor-wrap">
           <div class="editor-header">
@@ -60,8 +54,17 @@
         </section>
 
         <footer class="status-bar">
-          <span id="status-message">Ready</span>
+          <span id="status-message"></span>
           <div class="status-right">
+            <button
+              id="toggle-sidebar-btn"
+              class="status-icon-button"
+              title="Hide sidebar"
+              aria-label="Hide sidebar"
+              aria-pressed="false"
+            >
+              <span class="button-icon sidebar-toggle-icon" aria-hidden="true"></span>
+            </button>
             <label class="zoom-control status-zoom-control" for="text-zoom-select">
               Zoom
               <select id="text-zoom-select">
@@ -94,8 +97,8 @@
         <input id="new-file-path-input" name="new-file-path" type="text" value="chapter-01.txt" />
         <p id="new-file-error" class="dialog-error" aria-live="polite"></p>
         <div class="new-file-actions">
-          <button id="new-file-cancel-btn" value="cancel" class="ghost-button">Cancel</button>
-          <button id="new-file-create-btn" value="create" class="ghost-button">Create</button>
+          <button id="new-file-cancel-btn" type="button" class="ghost-button">Cancel</button>
+          <button id="new-file-create-btn" type="submit" value="create" class="ghost-button">Create</button>
         </div>
       </form>
     </dialog>
@@ -108,8 +111,22 @@
         <input id="new-folder-path-input" name="new-folder-path" type="text" value="chapter-notes" />
         <p id="new-folder-error" class="dialog-error" aria-live="polite"></p>
         <div class="new-file-actions">
-          <button id="new-folder-cancel-btn" value="cancel" class="ghost-button">Cancel</button>
-          <button id="new-folder-create-btn" value="create" class="ghost-button">Create</button>
+          <button id="new-folder-cancel-btn" type="button" class="ghost-button">Cancel</button>
+          <button id="new-folder-create-btn" type="submit" value="create" class="ghost-button">Create</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="rename-entry-dialog" class="new-file-dialog">
+      <form method="dialog" id="rename-entry-form">
+        <h2 id="rename-entry-title">Rename</h2>
+        <p>Enter a new name.</p>
+        <label for="rename-entry-input">Name</label>
+        <input id="rename-entry-input" name="rename-entry" type="text" value="" />
+        <p id="rename-entry-error" class="dialog-error" aria-live="polite"></p>
+        <div class="new-file-actions">
+          <button id="rename-entry-cancel-btn" type="button" class="ghost-button">Cancel</button>
+          <button id="rename-entry-confirm-btn" type="submit" value="rename" class="ghost-button">Rename</button>
         </div>
       </form>
     </dialog>
@@ -147,8 +164,8 @@
           <label class="control-inline slider-control" title="Limit editor column width for readability">
             Editor max width
             <div class="slider-row">
-              <input id="editor-width-input" type="range" min="360" max="1200" step="10" value="500" />
-              <span id="editor-width-value">500px</span>
+              <input id="editor-width-input" type="range" min="360" max="1200" step="10" value="750" />
+              <span id="editor-width-value">750px</span>
             </div>
           </label>
         </div>

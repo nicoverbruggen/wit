@@ -1,26 +1,34 @@
 import type { AppSettings, ProjectMetadata } from "../shared/types";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
+const openProjectWrap = document.querySelector(".open-project-wrap") as HTMLElement;
 const newFileButton = document.getElementById("new-file-btn") as HTMLButtonElement;
 const newFolderButton = document.getElementById("new-folder-btn") as HTMLButtonElement;
 const projectActions = document.getElementById("project-actions") as HTMLElement;
 const settingsToggleButton = document.getElementById("settings-toggle-btn") as HTMLButtonElement;
 const settingsDialog = document.getElementById("settings-dialog") as HTMLDialogElement;
 const appShell = document.getElementById("app-shell") as HTMLElement;
+const toggleSidebarButton = document.getElementById("toggle-sidebar-btn") as HTMLButtonElement;
 const sidebar = document.querySelector(".sidebar") as HTMLElement;
 const editorWrap = document.querySelector(".editor-wrap") as HTMLElement;
 const sidebarProjectTitle = document.getElementById("sidebar-project-title") as HTMLHeadingElement;
 const fileList = document.getElementById("file-list") as HTMLUListElement;
-const treeContextMenu = document.getElementById("tree-context-menu") as HTMLDivElement;
-const treeContextDeleteButton = document.getElementById("tree-context-delete-btn") as HTMLButtonElement;
 const newFileDialog = document.getElementById("new-file-dialog") as HTMLDialogElement;
 const newFilePathInput = document.getElementById("new-file-path-input") as HTMLInputElement;
+const newFileCancelButton = document.getElementById("new-file-cancel-btn") as HTMLButtonElement;
 const newFileCreateButton = document.getElementById("new-file-create-btn") as HTMLButtonElement;
 const newFileError = document.getElementById("new-file-error") as HTMLParagraphElement;
 const newFolderDialog = document.getElementById("new-folder-dialog") as HTMLDialogElement;
 const newFolderPathInput = document.getElementById("new-folder-path-input") as HTMLInputElement;
+const newFolderCancelButton = document.getElementById("new-folder-cancel-btn") as HTMLButtonElement;
 const newFolderCreateButton = document.getElementById("new-folder-create-btn") as HTMLButtonElement;
 const newFolderError = document.getElementById("new-folder-error") as HTMLParagraphElement;
+const renameEntryDialog = document.getElementById("rename-entry-dialog") as HTMLDialogElement;
+const renameEntryTitle = document.getElementById("rename-entry-title") as HTMLHeadingElement;
+const renameEntryInput = document.getElementById("rename-entry-input") as HTMLInputElement;
+const renameEntryCancelButton = document.getElementById("rename-entry-cancel-btn") as HTMLButtonElement;
+const renameEntryConfirmButton = document.getElementById("rename-entry-confirm-btn") as HTMLButtonElement;
+const renameEntryError = document.getElementById("rename-entry-error") as HTMLParagraphElement;
 const editor = document.getElementById("editor") as HTMLTextAreaElement;
 const projectPathLabel = document.getElementById("project-path") as HTMLSpanElement;
 const activeFileLabel = document.getElementById("active-file-label") as HTMLSpanElement;
@@ -44,6 +52,8 @@ const EDITOR_ZOOM_PRESETS = [50, 75, 90, 100, 110, 125, 150, 175, 200, 225, 250]
 const LIVE_WORD_COUNT_DEBOUNCE_MS = 280;
 const MAX_TREE_INDENT = 4;
 const SNAPSHOT_LABEL_REFRESH_MS = 15_000;
+const DEFAULT_EDITOR_PLACEHOLDER = "Open a project and choose a text file to begin writing.";
+const DEFAULT_STATUS_MESSAGE = "";
 
 type FolderNode = {
   kind: "folder";
@@ -78,14 +88,17 @@ let snapshotCreatedAtMs: number | null = null;
 let snapshotLabelTimer: number | null = null;
 let editorWidthGuideTimer: number | null = null;
 let settingsPersistQueue: Promise<void> = Promise.resolve();
-let contextMenuPath: string | null = null;
-let contextMenuKind: SelectedTreeKind | null = null;
 let dragSourceFilePath: string | null = null;
 const collapsedFolderPaths = new Set<string>();
 let selectedTreePath: string | null = null;
 let selectedTreeKind: SelectedTreeKind | null = null;
+let sidebarVisible = true;
 
 const subscriptions: Array<() => void> = [];
+type TreeContextAction = "rename" | "delete";
+type TestWindowWithContextAction = Window & {
+  __WIT_TEST_TREE_ACTION?: TreeContextAction;
+};
 
 function formatWritingTime(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
@@ -133,6 +146,24 @@ function getDropDestinationLabel(relativeFolderPath: string): string {
   }
 
   return "project root";
+}
+
+function withOriginalFileExtension(newName: string, originalPath: string): string {
+  const originalBaseName = getBaseName(originalPath);
+  const extensionIndex = originalBaseName.lastIndexOf(".");
+  const hasExtension = extensionIndex > 0 && extensionIndex < originalBaseName.length - 1;
+  const newNameHasExtension = /\.[^./\\]+$/.test(newName);
+
+  if (!hasExtension || newNameHasExtension) {
+    return newName;
+  }
+
+  return `${newName}${originalBaseName.slice(extensionIndex)}`;
+}
+
+function buildSiblingPath(relativePath: string, nextName: string): string {
+  const parentPath = getParentFolderPath(relativePath);
+  return parentPath ? `${parentPath}/${nextName}` : nextName;
 }
 
 function normalizeEditorMaxWidth(value: number): number {
@@ -197,7 +228,7 @@ function setStatus(message: string, clearAfterMs?: number): void {
 
   if (clearAfterMs) {
     statusResetTimer = window.setTimeout(() => {
-      statusMessage.textContent = "Ready";
+      statusMessage.textContent = DEFAULT_STATUS_MESSAGE;
       statusResetTimer = null;
     }, clearAfterMs);
   }
@@ -255,34 +286,14 @@ function clearEditorWidthGuides(): void {
 }
 
 function closeTreeContextMenu(): void {
-  treeContextMenu.hidden = true;
-  contextMenuPath = null;
-  contextMenuKind = null;
+  // Native context menus are managed by the operating system.
 }
 
-function openTreeContextMenu(
-  position: { x: number; y: number },
-  relativePath: string,
-  kind: SelectedTreeKind
-): void {
-  contextMenuPath = relativePath;
-  contextMenuKind = kind;
-  selectedTreePath = relativePath;
-  selectedTreeKind = kind;
-  renderFileList();
-
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-  const menuWidth = 160;
-  const menuHeight = 48;
-  const margin = 8;
-
-  const clampedX = Math.max(margin, Math.min(position.x, viewportWidth - menuWidth - margin));
-  const clampedY = Math.max(margin, Math.min(position.y, viewportHeight - menuHeight - margin));
-
-  treeContextMenu.style.left = `${clampedX}px`;
-  treeContextMenu.style.top = `${clampedY}px`;
-  treeContextMenu.hidden = false;
+function consumeTestTreeContextAction(): TreeContextAction | undefined {
+  const testWindow = window as TestWindowWithContextAction;
+  const action = testWindow.__WIT_TEST_TREE_ACTION;
+  delete testWindow.__WIT_TEST_TREE_ACTION;
+  return action;
 }
 
 function setDirty(nextDirty: boolean): void {
@@ -292,6 +303,7 @@ function setDirty(nextDirty: boolean): void {
 
 function setProjectControlsEnabled(enabled: boolean): void {
   projectActions.classList.toggle("project-open", enabled);
+  openProjectWrap.classList.toggle("project-open", enabled);
   newFileButton.disabled = !enabled;
   newFolderButton.disabled = !enabled;
   showWordCountInput.disabled = !enabled;
@@ -303,8 +315,35 @@ function setProjectControlsEnabled(enabled: boolean): void {
 }
 
 function setSidebarFaded(nextFaded: boolean): void {
-  const shouldFade = Boolean(project && currentFilePath && nextFaded);
+  const shouldFade = Boolean(sidebarVisible && project && currentFilePath && nextFaded);
   appShell.classList.toggle("sidebar-faded", shouldFade);
+}
+
+function syncSidebarToggleButton(): void {
+  const nextActionLabel = sidebarVisible ? "Hide sidebar" : "Show sidebar";
+  toggleSidebarButton.title = nextActionLabel;
+  toggleSidebarButton.setAttribute("aria-label", nextActionLabel);
+  toggleSidebarButton.setAttribute("aria-pressed", String(!sidebarVisible));
+}
+
+function setSidebarVisibility(nextVisible: boolean, showStatus = true): void {
+  if (sidebarVisible === nextVisible) {
+    syncSidebarToggleButton();
+    return;
+  }
+
+  sidebarVisible = nextVisible;
+  appShell.classList.toggle("sidebar-hidden", !sidebarVisible);
+  appShell.classList.remove("sidebar-faded");
+  syncSidebarToggleButton();
+
+  if (showStatus) {
+    setStatus(sidebarVisible ? "Sidebar shown." : "Sidebar hidden.", 1200);
+  }
+}
+
+function toggleSidebarVisibility(): void {
+  setSidebarVisibility(!sidebarVisible);
 }
 
 function openSettingsDialog(): void {
@@ -431,6 +470,7 @@ function resetActiveFile(): void {
   suppressDirtyEvents = true;
   editor.value = "";
   suppressDirtyEvents = false;
+  editor.placeholder = DEFAULT_EDITOR_PLACEHOLDER;
 
   setDirty(false);
   setEditorWritable(false);
@@ -1027,6 +1067,7 @@ async function openFile(relativePath: string): Promise<void> {
     currentFileWordCount = countWordsInText(content);
     activeFileLabel.textContent = relativePath;
     activeFileLabel.title = relativePath;
+    editor.placeholder = "";
     setDirty(false);
     setSidebarFaded(false);
     renderFileList();
@@ -1199,6 +1240,60 @@ function askForNewFolderPath(defaultPath: string): Promise<string | null> {
   });
 }
 
+function askForRenameValue(kind: SelectedTreeKind, currentName: string): Promise<string | null> {
+  if (typeof renameEntryDialog.showModal !== "function") {
+    try {
+      return Promise.resolve(window.prompt(`Rename ${kind}`, currentName));
+    } catch {
+      setStatus("Rename dialog is unavailable.");
+      return Promise.resolve(null);
+    }
+  }
+
+  renameEntryTitle.textContent = `Rename ${kind === "folder" ? "Folder" : "File"}`;
+  renameEntryInput.value = currentName;
+  renameEntryError.textContent = "";
+  renameEntryConfirmButton.disabled = false;
+
+  if (!renameEntryDialog.open) {
+    renameEntryDialog.showModal();
+  }
+
+  const validate = () => {
+    const value = renameEntryInput.value.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+    const invalid = value.length === 0 || value.includes("/");
+    renameEntryError.textContent = invalid ? "Use a single name without slashes." : "";
+    renameEntryConfirmButton.disabled = invalid;
+  };
+
+  renameEntryInput.addEventListener("input", validate);
+  validate();
+
+  window.requestAnimationFrame(() => {
+    renameEntryInput.focus();
+    renameEntryInput.select();
+  });
+
+  return new Promise((resolve) => {
+    renameEntryDialog.addEventListener(
+      "close",
+      () => {
+        renameEntryInput.removeEventListener("input", validate);
+        renameEntryError.textContent = "";
+        renameEntryConfirmButton.disabled = false;
+
+        if (renameEntryDialog.returnValue === "rename") {
+          resolve(renameEntryInput.value);
+          return;
+        }
+
+        resolve(null);
+      },
+      { once: true }
+    );
+  });
+}
+
 async function createNewFile(): Promise<void> {
   if (!project) {
     return;
@@ -1317,6 +1412,73 @@ async function deleteEntryByPath(relativePath: string, kind: SelectedTreeKind): 
     setStatus(`Deleted ${label} ${relativePath}`, 2000);
   } catch {
     setStatus("Could not delete selected item.");
+  }
+}
+
+async function renameEntryByPath(relativePath: string, kind: SelectedTreeKind): Promise<void> {
+  if (!project) {
+    return;
+  }
+
+  closeTreeContextMenu();
+
+  const currentName = getBaseName(relativePath);
+  const proposedName = await askForRenameValue(kind, currentName);
+  if (proposedName === null) {
+    return;
+  }
+
+  const trimmedName = proposedName.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+  if (!trimmedName || trimmedName.includes("/")) {
+    setStatus("Name must be a single file or folder name.");
+    return;
+  }
+
+  const normalizedName =
+    kind === "file" ? withOriginalFileExtension(trimmedName, relativePath) : trimmedName;
+  const nextRelativePath = buildSiblingPath(relativePath, normalizedName);
+
+  if (pathEquals(nextRelativePath, relativePath)) {
+    setStatus("Name is unchanged.", 1200);
+    return;
+  }
+
+  if (kind === "file" && dirty && currentFilePath && pathEquals(currentFilePath, relativePath)) {
+    const saved = await persistCurrentFile(false);
+    if (!saved) {
+      setStatus("Save failed. Could not rename file.");
+      return;
+    }
+  }
+
+  try {
+    const result = await window.witApi.renameEntry({ relativePath, kind, nextRelativePath });
+    const previousCurrentFilePath = currentFilePath;
+    const renamedPath = result.nextRelativePath;
+
+    if (previousCurrentFilePath) {
+      if (kind === "file" && pathEquals(previousCurrentFilePath, relativePath)) {
+        currentFilePath = renamedPath;
+      }
+
+      if (kind === "folder" && (pathEquals(previousCurrentFilePath, relativePath) || previousCurrentFilePath.startsWith(`${relativePath}/`))) {
+        const suffix = previousCurrentFilePath.slice(relativePath.length).replace(/^\/+/, "");
+        currentFilePath = suffix.length > 0 ? `${renamedPath}/${suffix}` : renamedPath;
+      }
+    }
+
+    if (currentFilePath) {
+      activeFileLabel.textContent = currentFilePath;
+      activeFileLabel.title = currentFilePath;
+    }
+
+    selectedTreePath = renamedPath;
+    selectedTreeKind = kind;
+
+    applyProjectMetadataAfterMutation(result.metadata);
+    setStatus(`Renamed to ${normalizedName}`, 1700);
+  } catch {
+    setStatus("Could not rename item. Check for duplicate names.");
   }
 }
 
@@ -1470,6 +1632,8 @@ async function initialize(): Promise<void> {
   document.body.classList.add(`platform-${platform}`);
 
   setProjectControlsEnabled(false);
+  syncSidebarToggleButton();
+  setSidebarVisibility(true, false);
   setSidebarFaded(false);
   setEditorWritable(false);
   applyEditorLineHeight(Number.parseFloat(lineHeightInput.value));
@@ -1518,6 +1682,12 @@ async function initialize(): Promise<void> {
       resetEditorZoom();
     })
   );
+
+  subscriptions.push(
+    window.witApi.onMenuToggleSidebar(() => {
+      toggleSidebarVisibility();
+    })
+  );
 }
 
 openProjectButton.addEventListener("click", () => {
@@ -1535,18 +1705,32 @@ newFolderButton.addEventListener("click", () => {
   void createNewFolder();
 });
 
-treeContextDeleteButton.addEventListener("click", () => {
-  if (!contextMenuPath || !contextMenuKind) {
-    closeTreeContextMenu();
-    return;
+newFileCancelButton.addEventListener("click", () => {
+  if (newFileDialog.open) {
+    newFileDialog.close("cancel");
   }
+});
 
-  void deleteEntryByPath(contextMenuPath, contextMenuKind);
+newFolderCancelButton.addEventListener("click", () => {
+  if (newFolderDialog.open) {
+    newFolderDialog.close("cancel");
+  }
+});
+
+renameEntryCancelButton.addEventListener("click", () => {
+  if (renameEntryDialog.open) {
+    renameEntryDialog.close("cancel");
+  }
 });
 
 settingsToggleButton.addEventListener("click", () => {
   closeTreeContextMenu();
   openSettingsDialog();
+});
+
+toggleSidebarButton.addEventListener("click", () => {
+  closeTreeContextMenu();
+  toggleSidebarVisibility();
 });
 
 showWordCountInput.addEventListener("change", () => {
@@ -1669,8 +1853,34 @@ fileList.addEventListener("contextmenu", (event) => {
   }
 
   const kind: SelectedTreeKind = itemKind === "folder" ? "folder" : "file";
+  selectedTreePath = relativePath;
+  selectedTreeKind = kind;
+  renderFileList();
   setSidebarFaded(false);
-  openTreeContextMenu({ x: event.clientX, y: event.clientY }, relativePath, kind);
+
+  const testAction = consumeTestTreeContextAction();
+  void (async () => {
+    try {
+      const action = await window.witApi.showTreeContextMenu({
+        relativePath,
+        kind,
+        x: event.clientX,
+        y: event.clientY,
+        testAction
+      });
+
+      if (action === "delete") {
+        await deleteEntryByPath(relativePath, kind);
+        return;
+      }
+
+      if (action === "rename") {
+        await renameEntryByPath(relativePath, kind);
+      }
+    } catch {
+      setStatus("Could not open file actions menu.");
+    }
+  })();
 });
 
 settingsDialog.addEventListener("close", () => {
@@ -1678,33 +1888,11 @@ settingsDialog.addEventListener("close", () => {
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !treeContextMenu.hidden) {
-    closeTreeContextMenu();
-    return;
-  }
-
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
     event.preventDefault();
     closeTreeContextMenu();
     void persistCurrentFile(true);
   }
-});
-
-document.addEventListener("pointerdown", (event) => {
-  if (treeContextMenu.hidden) {
-    return;
-  }
-
-  if (event.button !== 0) {
-    return;
-  }
-
-  const target = event.target as Node | null;
-  if (target && treeContextMenu.contains(target)) {
-    return;
-  }
-
-  closeTreeContextMenu();
 });
 
 window.addEventListener("beforeunload", () => {
@@ -1736,10 +1924,6 @@ window.addEventListener("unhandledrejection", (event) => {
   closeTreeContextMenu();
   setStatus("An unexpected async error occurred.");
   event.preventDefault();
-});
-
-window.addEventListener("blur", () => {
-  closeTreeContextMenu();
 });
 
 void initialize();
