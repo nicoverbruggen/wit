@@ -34,12 +34,15 @@ test("project initialization and metadata defaults", async () => {
     const metadata = await projectService.getProjectMetadata(projectPath);
     assert.equal(metadata.projectPath, projectPath);
     assert.deepEqual(metadata.files, []);
+    assert.deepEqual(metadata.folders, []);
     assert.equal(metadata.wordCount, 0);
     assert.equal(metadata.totalWritingSeconds, 0);
     assert.equal(metadata.settings.autosaveIntervalSec, 60);
     assert.equal(metadata.settings.showWordCount, true);
     assert.equal(metadata.settings.smartQuotes, true);
     assert.equal(metadata.settings.gitSnapshots, false);
+    assert.equal(metadata.settings.editorLineHeight, 1.68);
+    assert.equal(metadata.settings.editorMaxWidthPx, 500);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
@@ -70,13 +73,17 @@ test("create/list/save/read files with word count and settings", async () => {
       autosaveIntervalSec: 1,
       showWordCount: false,
       smartQuotes: false,
-      gitSnapshots: true
+      gitSnapshots: true,
+      editorLineHeight: 9,
+      editorMaxWidthPx: 9999
     });
 
     assert.equal(savedSettings.autosaveIntervalSec, 10);
     assert.equal(savedSettings.showWordCount, false);
     assert.equal(savedSettings.smartQuotes, false);
     assert.equal(savedSettings.gitSnapshots, true);
+    assert.equal(savedSettings.editorLineHeight, 2.4);
+    assert.equal(savedSettings.editorMaxWidthPx, 1200);
 
     await projectService.addWritingSeconds(projectPath, 25);
     const stats = await projectService.getProjectStats(projectPath);
@@ -172,6 +179,79 @@ test("listProjectFiles filters by supported text extensions and ignores system d
       "notes.markdown",
       "scene.text"
     ]);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("createProjectFolder creates nested folders and exposes them in metadata", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await projectService.createProjectFolder(projectPath, "notes/ideas");
+    await projectService.createProjectFile(projectPath, "notes/ideas/chapter.txt", "hello");
+
+    const folders = await projectService.listProjectFolders(projectPath);
+    assert.deepEqual(folders, ["notes", "notes/ideas"]);
+
+    const metadata = await projectService.getProjectMetadata(projectPath);
+    assert.deepEqual(metadata.folders, ["notes", "notes/ideas"]);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("moveProjectFile moves a file into an existing folder and prevents collisions", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await projectService.createProjectFolder(projectPath, "drafts");
+    await projectService.createProjectFile(projectPath, "chapter.txt", "hello");
+    await projectService.createProjectFile(projectPath, "drafts/chapter.txt", "existing");
+
+    await assert.rejects(
+      () => projectService.moveProjectFile(projectPath, "chapter.txt", "drafts"),
+      /already exists/
+    );
+
+    await projectService.deleteProjectEntry(projectPath, "drafts/chapter.txt", "file");
+    const movedPath = await projectService.moveProjectFile(projectPath, "chapter.txt", "drafts");
+    assert.equal(movedPath, "drafts/chapter.txt");
+
+    assert.equal(fssync.existsSync(path.join(projectPath, "chapter.txt")), false);
+    assert.equal(fssync.existsSync(path.join(projectPath, "drafts", "chapter.txt")), true);
+
+    const movedBackPath = await projectService.moveProjectFile(projectPath, "drafts/chapter.txt", "");
+    assert.equal(movedBackPath, "chapter.txt");
+    assert.equal(fssync.existsSync(path.join(projectPath, "chapter.txt")), true);
+    assert.equal(fssync.existsSync(path.join(projectPath, "drafts", "chapter.txt")), false);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("deleteProjectEntry removes files and folders safely", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await projectService.createProjectFolder(projectPath, "drafts/ch1");
+    await projectService.createProjectFile(projectPath, "drafts/ch1/scene.txt", "hello");
+    await projectService.createProjectFile(projectPath, "keep.txt", "keep");
+
+    await projectService.deleteProjectEntry(projectPath, "drafts/ch1/scene.txt", "file");
+    assert.equal(fssync.existsSync(path.join(projectPath, "drafts", "ch1", "scene.txt")), false);
+
+    await projectService.deleteProjectEntry(projectPath, "drafts", "folder");
+    assert.equal(fssync.existsSync(path.join(projectPath, "drafts")), false);
+    assert.equal(fssync.existsSync(path.join(projectPath, "keep.txt")), true);
+
+    await assert.rejects(
+      () => projectService.deleteProjectEntry(projectPath, "missing.txt", "file"),
+      /does not exist/
+    );
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

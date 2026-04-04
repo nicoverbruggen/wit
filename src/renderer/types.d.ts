@@ -1,16 +1,29 @@
-import type { AppSettings, AutosaveTickResult, NewFilePayload, ProjectMetadata } from "../shared/types";
+import type {
+  AppSettings,
+  AutosaveTickResult,
+  DeleteEntryPayload,
+  MoveFilePayload,
+  NewFilePayload,
+  NewFolderPayload,
+  ProjectMetadata
+} from "../shared/types";
 
 type Unsubscribe = () => void;
 
 type WitApi = {
+  getPlatform: () => NodeJS.Platform;
   selectProject: () => Promise<ProjectMetadata | null>;
   getActiveProject: () => Promise<ProjectMetadata | null>;
   openProjectPath: (projectPath: string) => Promise<ProjectMetadata>;
   openFile: (relativePath: string) => Promise<string>;
   saveFile: (relativePath: string, content: string) => Promise<boolean>;
   getWordCount: () => Promise<number>;
+  countPreviewWords: (text: string) => Promise<number>;
   saveFileSync: (relativePath: string, content: string) => boolean;
   newFile: (payload: NewFilePayload) => Promise<string[]>;
+  newFolder: (payload: NewFolderPayload) => Promise<string[]>;
+  deleteEntry: (payload: DeleteEntryPayload) => Promise<ProjectMetadata>;
+  moveFile: (payload: MoveFilePayload) => Promise<{ nextFilePath: string; metadata: ProjectMetadata }>;
   updateSettings: (settings: AppSettings) => Promise<AppSettings>;
   autosaveTick: (activeSeconds: number) => Promise<AutosaveTickResult>;
   getAppVersion: () => Promise<string>;

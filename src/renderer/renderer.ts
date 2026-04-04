@@ -2,9 +2,25 @@ import type { AppSettings, ProjectMetadata } from "../shared/types";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
 const newFileButton = document.getElementById("new-file-btn") as HTMLButtonElement;
+const newFolderButton = document.getElementById("new-folder-btn") as HTMLButtonElement;
+const projectActions = document.getElementById("project-actions") as HTMLElement;
+const settingsToggleButton = document.getElementById("settings-toggle-btn") as HTMLButtonElement;
+const settingsDialog = document.getElementById("settings-dialog") as HTMLDialogElement;
+const appShell = document.getElementById("app-shell") as HTMLElement;
+const sidebar = document.querySelector(".sidebar") as HTMLElement;
+const editorWrap = document.querySelector(".editor-wrap") as HTMLElement;
+const sidebarProjectTitle = document.getElementById("sidebar-project-title") as HTMLHeadingElement;
 const fileList = document.getElementById("file-list") as HTMLUListElement;
+const treeContextMenu = document.getElementById("tree-context-menu") as HTMLDivElement;
+const treeContextDeleteButton = document.getElementById("tree-context-delete-btn") as HTMLButtonElement;
 const newFileDialog = document.getElementById("new-file-dialog") as HTMLDialogElement;
 const newFilePathInput = document.getElementById("new-file-path-input") as HTMLInputElement;
+const newFileCreateButton = document.getElementById("new-file-create-btn") as HTMLButtonElement;
+const newFileError = document.getElementById("new-file-error") as HTMLParagraphElement;
+const newFolderDialog = document.getElementById("new-folder-dialog") as HTMLDialogElement;
+const newFolderPathInput = document.getElementById("new-folder-path-input") as HTMLInputElement;
+const newFolderCreateButton = document.getElementById("new-folder-create-btn") as HTMLButtonElement;
+const newFolderError = document.getElementById("new-folder-error") as HTMLParagraphElement;
 const editor = document.getElementById("editor") as HTMLTextAreaElement;
 const projectPathLabel = document.getElementById("project-path") as HTMLSpanElement;
 const activeFileLabel = document.getElementById("active-file-label") as HTMLSpanElement;
@@ -17,16 +33,37 @@ const showWordCountInput = document.getElementById("show-word-count-input") as H
 const smartQuotesInput = document.getElementById("smart-quotes-input") as HTMLInputElement;
 const gitSnapshotsInput = document.getElementById("git-snapshots-input") as HTMLInputElement;
 const autosaveIntervalInput = document.getElementById("autosave-interval-input") as HTMLInputElement;
-const zoomOutButton = document.getElementById("zoom-out-btn") as HTMLButtonElement;
-const zoomResetButton = document.getElementById("zoom-reset-btn") as HTMLButtonElement;
-const zoomInButton = document.getElementById("zoom-in-btn") as HTMLButtonElement;
+const lineHeightInput = document.getElementById("line-height-input") as HTMLInputElement;
+const lineHeightValue = document.getElementById("line-height-value") as HTMLSpanElement;
+const editorWidthInput = document.getElementById("editor-width-input") as HTMLInputElement;
+const editorWidthValue = document.getElementById("editor-width-value") as HTMLSpanElement;
+const settingsCloseButton = document.getElementById("settings-close-btn") as HTMLButtonElement;
+const textZoomSelect = document.getElementById("text-zoom-select") as HTMLSelectElement;
 
-const EDITOR_ZOOM_MIN = 0.7;
-const EDITOR_ZOOM_MAX = 2.2;
-const EDITOR_ZOOM_STEP = 0.1;
+const EDITOR_ZOOM_PRESETS = [50, 75, 90, 100, 110, 125, 150, 175, 200, 225, 250];
+const LIVE_WORD_COUNT_DEBOUNCE_MS = 280;
+const MAX_TREE_INDENT = 4;
+const SNAPSHOT_LABEL_REFRESH_MS = 15_000;
+
+type FolderNode = {
+  kind: "folder";
+  name: string;
+  relativePath: string;
+  children: TreeNode[];
+};
+
+type FileNode = {
+  kind: "file";
+  name: string;
+  relativePath: string;
+};
+
+type TreeNode = FolderNode | FileNode;
+type SelectedTreeKind = "file" | "folder";
 
 let project: ProjectMetadata | null = null;
 let currentFilePath: string | null = null;
+let currentFileWordCount = 0;
 let dirty = false;
 let typedSinceLastTick = false;
 let autosaveTimer: number | null = null;
@@ -35,6 +72,18 @@ let statusResetTimer: number | null = null;
 let suppressDirtyEvents = false;
 let editorBaseFontSizePx = 0;
 let editorZoomFactor = 1;
+let liveWordCountTimer: number | null = null;
+let liveWordCountRequestToken = 0;
+let snapshotCreatedAtMs: number | null = null;
+let snapshotLabelTimer: number | null = null;
+let editorWidthGuideTimer: number | null = null;
+let settingsPersistQueue: Promise<void> = Promise.resolve();
+let contextMenuPath: string | null = null;
+let contextMenuKind: SelectedTreeKind | null = null;
+let dragSourceFilePath: string | null = null;
+const collapsedFolderPaths = new Set<string>();
+let selectedTreePath: string | null = null;
+let selectedTreeKind: SelectedTreeKind | null = null;
 
 const subscriptions: Array<() => void> = [];
 
@@ -47,6 +96,95 @@ function formatWritingTime(totalSeconds: number): string {
   }
 
   return `${minutes}m`;
+}
+
+function countWordsInText(text: string): number {
+  const tokens = text.trim().match(/\S+/g);
+  return tokens?.length ?? 0;
+}
+
+function normalizePathInput(input: string): string {
+  return input.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+}
+
+function pathEquals(left: string, right: string): boolean {
+  return left.toLocaleLowerCase() === right.toLocaleLowerCase();
+}
+
+function getBaseName(relativePath: string): string {
+  const normalized = normalizePathInput(relativePath);
+  const parts = normalized.split("/").filter((part) => part.length > 0);
+  return parts.at(-1) ?? normalized;
+}
+
+function getParentFolderPath(relativePath: string): string | null {
+  const normalized = normalizePathInput(relativePath);
+  const slashIndex = normalized.lastIndexOf("/");
+  if (slashIndex < 0) {
+    return null;
+  }
+
+  return normalized.slice(0, slashIndex);
+}
+
+function getDropDestinationLabel(relativeFolderPath: string): string {
+  if (relativeFolderPath.length > 0) {
+    return relativeFolderPath;
+  }
+
+  return "project root";
+}
+
+function normalizeEditorMaxWidth(value: number): number {
+  return Math.max(360, Math.min(1200, Math.round(value)));
+}
+
+function formatRelativeElapsed(milliseconds: number): string {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+
+  if (seconds < 10) {
+    return "just now";
+  }
+
+  if (seconds < 60) {
+    return `${seconds}s ago`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function parseSnapshotTimestamp(snapshotName: string): number | null {
+  const matches = snapshotName.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})(?:-(\d{3}))?Z$/
+  );
+
+  if (!matches) {
+    return null;
+  }
+
+  const [, year, month, day, hour, minute, second, millisecond] = matches;
+  const timestamp = Date.UTC(
+    Number.parseInt(year, 10),
+    Number.parseInt(month, 10) - 1,
+    Number.parseInt(day, 10),
+    Number.parseInt(hour, 10),
+    Number.parseInt(minute, 10),
+    Number.parseInt(second, 10),
+    Number.parseInt(millisecond ?? "0", 10)
+  );
+
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function setStatus(message: string, clearAfterMs?: number): void {
@@ -65,21 +203,157 @@ function setStatus(message: string, clearAfterMs?: number): void {
   }
 }
 
+function renderSnapshotLabel(): void {
+  if (!snapshotCreatedAtMs) {
+    snapshotLabel.textContent = "✓ --";
+    snapshotLabel.title = "No snapshot yet";
+    return;
+  }
+
+  const elapsedMs = Date.now() - snapshotCreatedAtMs;
+  const relative = formatRelativeElapsed(elapsedMs);
+  snapshotLabel.textContent = `✓ ${relative}`;
+  snapshotLabel.title = `Last snapshot at ${new Date(snapshotCreatedAtMs).toLocaleString()}`;
+}
+
+function restartSnapshotLabelTimer(): void {
+  if (snapshotLabelTimer) {
+    window.clearInterval(snapshotLabelTimer);
+    snapshotLabelTimer = null;
+  }
+
+  snapshotLabelTimer = window.setInterval(() => {
+    if (!snapshotCreatedAtMs) {
+      return;
+    }
+
+    renderSnapshotLabel();
+  }, SNAPSHOT_LABEL_REFRESH_MS);
+}
+
+function showEditorWidthGuides(): void {
+  editorWrap.classList.add("show-width-guides");
+
+  if (editorWidthGuideTimer) {
+    window.clearTimeout(editorWidthGuideTimer);
+    editorWidthGuideTimer = null;
+  }
+
+  editorWidthGuideTimer = window.setTimeout(() => {
+    editorWrap.classList.remove("show-width-guides");
+    editorWidthGuideTimer = null;
+  }, 900);
+}
+
+function clearEditorWidthGuides(): void {
+  if (editorWidthGuideTimer) {
+    window.clearTimeout(editorWidthGuideTimer);
+    editorWidthGuideTimer = null;
+  }
+
+  editorWrap.classList.remove("show-width-guides");
+}
+
+function closeTreeContextMenu(): void {
+  treeContextMenu.hidden = true;
+  contextMenuPath = null;
+  contextMenuKind = null;
+}
+
+function openTreeContextMenu(
+  position: { x: number; y: number },
+  relativePath: string,
+  kind: SelectedTreeKind
+): void {
+  contextMenuPath = relativePath;
+  contextMenuKind = kind;
+  selectedTreePath = relativePath;
+  selectedTreeKind = kind;
+  renderFileList();
+
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const menuWidth = 160;
+  const menuHeight = 48;
+  const margin = 8;
+
+  const clampedX = Math.max(margin, Math.min(position.x, viewportWidth - menuWidth - margin));
+  const clampedY = Math.max(margin, Math.min(position.y, viewportHeight - menuHeight - margin));
+
+  treeContextMenu.style.left = `${clampedX}px`;
+  treeContextMenu.style.top = `${clampedY}px`;
+  treeContextMenu.hidden = false;
+}
+
 function setDirty(nextDirty: boolean): void {
   dirty = nextDirty;
   dirtyIndicator.hidden = !nextDirty;
 }
 
 function setProjectControlsEnabled(enabled: boolean): void {
+  projectActions.classList.toggle("project-open", enabled);
   newFileButton.disabled = !enabled;
+  newFolderButton.disabled = !enabled;
   showWordCountInput.disabled = !enabled;
   smartQuotesInput.disabled = !enabled;
   gitSnapshotsInput.disabled = !enabled;
   autosaveIntervalInput.disabled = !enabled;
+  lineHeightInput.disabled = !enabled;
+  editorWidthInput.disabled = !enabled;
+}
+
+function setSidebarFaded(nextFaded: boolean): void {
+  const shouldFade = Boolean(project && currentFilePath && nextFaded);
+  appShell.classList.toggle("sidebar-faded", shouldFade);
+}
+
+function openSettingsDialog(): void {
+  if (settingsToggleButton.disabled) {
+    return;
+  }
+
+  if (typeof settingsDialog.showModal !== "function") {
+    setStatus("Settings dialog is unavailable.");
+    return;
+  }
+
+  if (!settingsDialog.open) {
+    settingsDialog.showModal();
+  }
+
+  window.requestAnimationFrame(() => {
+    if (autosaveIntervalInput.disabled) {
+      settingsCloseButton.focus();
+      return;
+    }
+
+    autosaveIntervalInput.focus();
+    autosaveIntervalInput.select();
+  });
 }
 
 function setEditorWritable(enabled: boolean): void {
   editor.disabled = !enabled;
+}
+
+function normalizeLineHeightValue(value: number): number {
+  const bounded = Math.max(1.2, Math.min(2.4, value));
+  return Number(bounded.toFixed(2));
+}
+
+function applyEditorLineHeight(lineHeight: number): void {
+  const normalized = normalizeLineHeightValue(lineHeight);
+  editor.style.lineHeight = String(normalized);
+  lineHeightValue.textContent = normalized.toFixed(2);
+  lineHeightInput.value = normalized.toFixed(2);
+}
+
+function applyEditorMaxWidth(editorWidth: number): void {
+  const normalized = normalizeEditorMaxWidth(editorWidth);
+  const widthValue = `${normalized}px`;
+  editorWrap.style.setProperty("--editor-max-width", widthValue);
+  editorWidthValue.textContent = widthValue;
+  editorWidthInput.value = String(normalized);
 }
 
 function ensureEditorBaseFontSize(): void {
@@ -91,28 +365,493 @@ function ensureEditorBaseFontSize(): void {
   editorBaseFontSizePx = Number.isFinite(computedSize) && computedSize > 0 ? computedSize : 20;
 }
 
+function findClosestZoomPreset(targetPercent: number): number {
+  return EDITOR_ZOOM_PRESETS.reduce((closest, current) =>
+    Math.abs(current - targetPercent) < Math.abs(closest - targetPercent) ? current : closest
+  );
+}
+
+function syncZoomControlWithState(): void {
+  const currentPercent = Math.round(editorZoomFactor * 100);
+  textZoomSelect.value = String(findClosestZoomPreset(currentPercent));
+}
+
 function applyEditorZoom(showStatus = true): void {
   ensureEditorBaseFontSize();
   const nextFontSize = Number((editorBaseFontSizePx * editorZoomFactor).toFixed(2));
   editor.style.fontSize = `${nextFontSize}px`;
+  syncZoomControlWithState();
 
   if (showStatus) {
     setStatus(`Text zoom ${Math.round(editorZoomFactor * 100)}%`, 1200);
   }
 }
 
-function adjustEditorZoom(delta: number): void {
-  const nextFactor = Math.max(
-    EDITOR_ZOOM_MIN,
-    Math.min(EDITOR_ZOOM_MAX, Number((editorZoomFactor + delta).toFixed(2)))
-  );
-  editorZoomFactor = nextFactor;
-  applyEditorZoom();
+function setEditorZoomFromPercent(percent: number, showStatus = true): void {
+  const bounded = Math.max(50, Math.min(250, Math.round(percent)));
+  editorZoomFactor = bounded / 100;
+  applyEditorZoom(showStatus);
+}
+
+function stepEditorZoom(direction: 1 | -1): void {
+  const currentPercent = Math.round(editorZoomFactor * 100);
+
+  if (direction > 0) {
+    const next = EDITOR_ZOOM_PRESETS.find((preset) => preset > currentPercent) ?? 250;
+    setEditorZoomFromPercent(next);
+    return;
+  }
+
+  const previous = [...EDITOR_ZOOM_PRESETS].reverse().find((preset) => preset < currentPercent) ?? 50;
+  setEditorZoomFromPercent(previous);
 }
 
 function resetEditorZoom(): void {
-  editorZoomFactor = 1;
-  applyEditorZoom();
+  setEditorZoomFromPercent(100);
+}
+
+function getProjectDisplayTitle(projectPath: string): string {
+  const trimmed = projectPath.replace(/[\\/]+$/, "");
+  const segments = trimmed.split(/[\\/]/).filter((segment) => segment.length > 0);
+  return segments.at(-1) ?? projectPath;
+}
+
+function resetTreeState(): void {
+  collapsedFolderPaths.clear();
+  selectedTreePath = null;
+  selectedTreeKind = null;
+}
+
+function resetActiveFile(): void {
+  currentFilePath = null;
+  currentFileWordCount = 0;
+  activeFileLabel.textContent = "No file selected";
+  activeFileLabel.removeAttribute("title");
+
+  suppressDirtyEvents = true;
+  editor.value = "";
+  suppressDirtyEvents = false;
+
+  setDirty(false);
+  setEditorWritable(false);
+}
+
+function toIndentClass(depth: number): string {
+  return `tree-indent-${Math.min(depth, MAX_TREE_INDENT)}`;
+}
+
+function compareTreeNodes(left: TreeNode, right: TreeNode): number {
+  if (left.kind !== right.kind) {
+    return left.kind === "folder" ? -1 : 1;
+  }
+
+  return left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
+}
+
+function insertPathIntoTree(root: FolderNode, filePath: string): void {
+  const parts = filePath.split("/").filter((part) => part.length > 0);
+  if (parts.length === 0) {
+    return;
+  }
+
+  let parent = root;
+  let accumulatedPath = "";
+
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    accumulatedPath = accumulatedPath ? `${accumulatedPath}/${part}` : part;
+    const isLeaf = index === parts.length - 1;
+
+    if (isLeaf) {
+      parent.children.push({
+        kind: "file",
+        name: part,
+        relativePath: accumulatedPath
+      });
+      continue;
+    }
+
+    let folder = parent.children.find(
+      (child): child is FolderNode => child.kind === "folder" && child.relativePath === accumulatedPath
+    );
+
+    if (!folder) {
+      folder = {
+        kind: "folder",
+        name: part,
+        relativePath: accumulatedPath,
+        children: []
+      };
+      parent.children.push(folder);
+    }
+
+    parent = folder;
+  }
+}
+
+function insertFolderIntoTree(root: FolderNode, folderPath: string): void {
+  const parts = folderPath.split("/").filter((part) => part.length > 0);
+  if (parts.length === 0) {
+    return;
+  }
+
+  let parent = root;
+  let accumulatedPath = "";
+
+  for (const part of parts) {
+    accumulatedPath = accumulatedPath ? `${accumulatedPath}/${part}` : part;
+
+    let folder = parent.children.find(
+      (child): child is FolderNode => child.kind === "folder" && child.relativePath === accumulatedPath
+    );
+
+    if (!folder) {
+      folder = {
+        kind: "folder",
+        name: part,
+        relativePath: accumulatedPath,
+        children: []
+      };
+      parent.children.push(folder);
+    }
+
+    parent = folder;
+  }
+}
+
+function sortTree(nodes: TreeNode[]): TreeNode[] {
+  const sorted = [...nodes].sort(compareTreeNodes);
+
+  return sorted.map((node) => {
+    if (node.kind === "folder") {
+      return {
+        ...node,
+        children: sortTree(node.children)
+      };
+    }
+
+    return node;
+  });
+}
+
+function buildProjectTree(paths: string[], folders: string[]): TreeNode[] {
+  const root: FolderNode = {
+    kind: "folder",
+    name: "",
+    relativePath: "",
+    children: []
+  };
+
+  for (const folderPath of folders) {
+    insertFolderIntoTree(root, folderPath);
+  }
+
+  for (const filePath of paths) {
+    insertPathIntoTree(root, filePath);
+  }
+
+  return sortTree(root.children);
+}
+
+function renderTreeNodes(nodes: TreeNode[], depth: number): void {
+  for (const node of nodes) {
+    if (node.kind === "folder") {
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      const icon = document.createElement("span");
+      const label = document.createElement("span");
+      const isCollapsed = collapsedFolderPaths.has(node.relativePath);
+
+      button.type = "button";
+      const selectedClass =
+        selectedTreeKind === "folder" && selectedTreePath === node.relativePath ? "active" : "";
+      button.className = `tree-item folder-button ${toIndentClass(depth)} ${selectedClass}`;
+      button.dataset.relativePath = node.relativePath;
+      button.dataset.itemKind = "folder";
+      button.title = node.relativePath;
+      button.setAttribute("aria-expanded", String(!isCollapsed));
+      icon.className = "folder-icon";
+      icon.setAttribute("aria-hidden", "true");
+      label.className = "tree-label";
+      label.textContent = node.name;
+
+      button.append(icon, label);
+      button.addEventListener("click", () => {
+        selectedTreePath = node.relativePath;
+        selectedTreeKind = "folder";
+        closeTreeContextMenu();
+
+        collapsedFolderPaths.delete(node.relativePath);
+
+        setSidebarFaded(false);
+        renderFileList();
+      });
+      button.addEventListener("dragenter", () => {
+        if (!dragSourceFilePath) {
+          return;
+        }
+
+        button.classList.add("drop-target");
+      });
+      button.addEventListener("dragover", (event) => {
+        if (!dragSourceFilePath && !event.dataTransfer?.types.includes("text/wit-file-path")) {
+          return;
+        }
+
+        event.preventDefault();
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = "move";
+        }
+        button.classList.add("drop-target");
+      });
+      button.addEventListener("dragleave", () => {
+        button.classList.remove("drop-target");
+      });
+      button.addEventListener("drop", (event) => {
+        event.preventDefault();
+        button.classList.remove("drop-target");
+        const sourcePath =
+          event.dataTransfer?.getData("text/wit-file-path") || dragSourceFilePath;
+
+        if (!sourcePath) {
+          return;
+        }
+
+        void moveFileToFolder(sourcePath, node.relativePath);
+      });
+
+      item.appendChild(button);
+      fileList.appendChild(item);
+
+      if (!isCollapsed) {
+        renderTreeNodes(node.children, depth + 1);
+      }
+
+      continue;
+    }
+
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    const icon = document.createElement("span");
+    const label = document.createElement("span");
+
+    button.type = "button";
+    const selectedClass =
+      selectedTreeKind === "file" && selectedTreePath === node.relativePath ? "active" : "";
+    button.className = `tree-item file-button ${toIndentClass(depth)} ${selectedClass}`;
+    button.dataset.relativePath = node.relativePath;
+    button.dataset.itemKind = "file";
+    button.draggable = true;
+    button.title = node.relativePath;
+    icon.className = "file-icon";
+    icon.setAttribute("aria-hidden", "true");
+    label.className = "tree-label";
+    label.textContent = node.name;
+
+    button.append(icon, label);
+    button.addEventListener("click", () => {
+      selectedTreePath = node.relativePath;
+      selectedTreeKind = "file";
+      closeTreeContextMenu();
+      void openFile(node.relativePath);
+    });
+    button.addEventListener("dragstart", (event) => {
+      dragSourceFilePath = node.relativePath;
+      closeTreeContextMenu();
+      button.classList.add("dragging");
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/wit-file-path", node.relativePath);
+      }
+    });
+    button.addEventListener("dragend", () => {
+      dragSourceFilePath = null;
+      button.classList.remove("dragging");
+      fileList.querySelectorAll(".drop-target").forEach((element) => {
+        element.classList.remove("drop-target");
+      });
+    });
+
+    item.appendChild(button);
+    fileList.appendChild(item);
+  }
+}
+
+function renderRootTreeItem(): void {
+  if (!project) {
+    return;
+  }
+
+  const item = document.createElement("li");
+  const button = document.createElement("button");
+  const icon = document.createElement("span");
+  const label = document.createElement("span");
+  const selectedClass = selectedTreeKind === "folder" && selectedTreePath === "" ? "active" : "";
+
+  button.type = "button";
+  button.className = `tree-item folder-button tree-root-item ${selectedClass}`;
+  button.dataset.relativePath = "";
+  button.dataset.itemKind = "root";
+  button.title = project.projectPath;
+  icon.className = "folder-icon";
+  icon.setAttribute("aria-hidden", "true");
+  label.className = "tree-label";
+  label.textContent = getProjectDisplayTitle(project.projectPath);
+
+  button.append(icon, label);
+  button.addEventListener("click", () => {
+    selectedTreePath = "";
+    selectedTreeKind = "folder";
+    closeTreeContextMenu();
+    setSidebarFaded(false);
+    renderFileList();
+  });
+  button.addEventListener("dragenter", () => {
+    if (!dragSourceFilePath) {
+      return;
+    }
+
+    button.classList.add("drop-target");
+  });
+  button.addEventListener("dragover", (event) => {
+    if (!dragSourceFilePath && !event.dataTransfer?.types.includes("text/wit-file-path")) {
+      return;
+    }
+
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+
+    button.classList.add("drop-target");
+  });
+  button.addEventListener("dragleave", () => {
+    button.classList.remove("drop-target");
+  });
+  button.addEventListener("drop", (event) => {
+    event.preventDefault();
+    button.classList.remove("drop-target");
+    const sourcePath =
+      event.dataTransfer?.getData("text/wit-file-path") || dragSourceFilePath;
+
+    if (!sourcePath) {
+      return;
+    }
+
+    void moveFileToFolder(sourcePath, "");
+  });
+
+  item.appendChild(button);
+  fileList.appendChild(item);
+}
+
+function syncProjectPathLabels(projectPath: string): void {
+  const displayName = getProjectDisplayTitle(projectPath);
+  sidebarProjectTitle.textContent = displayName;
+  sidebarProjectTitle.title = projectPath;
+  projectPathLabel.textContent = displayName;
+  projectPathLabel.title = projectPath;
+}
+
+function getSelectedFolderPath(): string | null {
+  if (selectedTreeKind === "folder" && selectedTreePath !== null) {
+    return selectedTreePath;
+  }
+
+  return null;
+}
+
+function resolveNewFilePath(rawInput: string): { relativePath: string | null; error: string | null } {
+  if (!project) {
+    return { relativePath: null, error: "Open a project first." };
+  }
+
+  let relativePath = normalizePathInput(rawInput);
+  if (!relativePath) {
+    return { relativePath: null, error: "File name cannot be empty." };
+  }
+
+  if (relativePath.endsWith("/")) {
+    return { relativePath: null, error: "File path cannot end with '/'." };
+  }
+
+  const selectedFolder = getSelectedFolderPath();
+  if (selectedFolder && !relativePath.includes("/")) {
+    relativePath = `${selectedFolder}/${relativePath}`;
+  }
+
+  if (!/\.(txt|md|markdown|text)$/i.test(relativePath)) {
+    relativePath = `${relativePath}.txt`;
+  }
+
+  const existingFile = project.files.find((filePath) => pathEquals(filePath, relativePath));
+  if (existingFile) {
+    return { relativePath: null, error: "A file with that path already exists." };
+  }
+
+  const existingFolder = project.folders.find((folderPath) => pathEquals(folderPath, relativePath));
+  if (existingFolder) {
+    return { relativePath: null, error: "A folder already exists at that path." };
+  }
+
+  return { relativePath, error: null };
+}
+
+function resolveNewFolderPath(rawInput: string): { relativePath: string | null; error: string | null } {
+  if (!project) {
+    return { relativePath: null, error: "Open a project first." };
+  }
+
+  let relativePath = normalizePathInput(rawInput);
+  if (!relativePath) {
+    return { relativePath: null, error: "Folder name cannot be empty." };
+  }
+
+  const selectedFolder = getSelectedFolderPath();
+  if (selectedFolder && !relativePath.includes("/")) {
+    relativePath = `${selectedFolder}/${relativePath}`;
+  }
+
+  const existingFolder = project.folders.find((folderPath) => pathEquals(folderPath, relativePath));
+  if (existingFolder) {
+    return { relativePath: null, error: "A folder with that path already exists." };
+  }
+
+  const existingFile = project.files.find((filePath) => pathEquals(filePath, relativePath));
+  if (existingFile) {
+    return { relativePath: null, error: "A file already exists at that path." };
+  }
+
+  return { relativePath, error: null };
+}
+
+function syncNewFileDialogValidation(): void {
+  const validation = resolveNewFilePath(newFilePathInput.value);
+  newFileError.textContent = validation.error ?? "";
+  newFileCreateButton.disabled = validation.relativePath === null;
+}
+
+function syncNewFolderDialogValidation(): void {
+  const validation = resolveNewFolderPath(newFolderPathInput.value);
+  newFolderError.textContent = validation.error ?? "";
+  newFolderCreateButton.disabled = validation.relativePath === null;
+}
+
+function updateWordCountFromEditorPreview(): void {
+  if (!project || !currentFilePath) {
+    return;
+  }
+
+  const nextWordCount = countWordsInText(editor.value);
+  const delta = nextWordCount - currentFileWordCount;
+
+  if (delta === 0) {
+    return;
+  }
+
+  currentFileWordCount = nextWordCount;
+  project.wordCount = Math.max(0, project.wordCount + delta);
+  renderStatusFooter();
 }
 
 function renderStatusFooter(): void {
@@ -140,29 +879,18 @@ function renderFileList(): void {
     return;
   }
 
-  if (project.files.length === 0) {
+  renderRootTreeItem();
+
+  if (project.files.length === 0 && project.folders.length === 0) {
     const emptyItem = document.createElement("li");
-    emptyItem.textContent = "No text files yet. Create one with New File.";
+    emptyItem.textContent = "No files yet. Create one with New File or add a folder.";
     emptyItem.className = "empty-state";
     fileList.appendChild(emptyItem);
     return;
   }
 
-  for (const relativePath of project.files) {
-    const listItem = document.createElement("li");
-    const fileButton = document.createElement("button");
-
-    fileButton.className = `file-button ${relativePath === currentFilePath ? "active" : ""}`;
-    fileButton.textContent = relativePath;
-    fileButton.type = "button";
-
-    fileButton.addEventListener("click", () => {
-      void openFile(relativePath);
-    });
-
-    listItem.appendChild(fileButton);
-    fileList.appendChild(listItem);
-  }
+  // Depth starts at 1 so all project contents are visually nested under the root project item.
+  renderTreeNodes(buildProjectTree(project.files, project.folders), 1);
 }
 
 function syncSettingsInputs(settings: AppSettings): void {
@@ -170,20 +898,74 @@ function syncSettingsInputs(settings: AppSettings): void {
   smartQuotesInput.checked = settings.smartQuotes;
   gitSnapshotsInput.checked = settings.gitSnapshots;
   autosaveIntervalInput.value = String(settings.autosaveIntervalSec);
+  applyEditorLineHeight(settings.editorLineHeight);
+  applyEditorMaxWidth(settings.editorMaxWidthPx);
 }
 
 function applyProjectMetadata(metadata: ProjectMetadata): void {
+  cancelPendingLiveWordCount();
+  resetTreeState();
   project = metadata;
-  currentFilePath = null;
-  setDirty(false);
+  snapshotCreatedAtMs = null;
+  renderSnapshotLabel();
+  resetActiveFile();
 
-  projectPathLabel.textContent = metadata.projectPath;
+  syncProjectPathLabels(metadata.projectPath);
   syncSettingsInputs(metadata.settings);
   renderStatusFooter();
   renderFileList();
   setProjectControlsEnabled(true);
+  setSidebarFaded(false);
   setEditorWritable(false);
   restartAutosaveTimer();
+}
+
+function cancelPendingLiveWordCount(): void {
+  liveWordCountRequestToken += 1;
+
+  if (liveWordCountTimer) {
+    window.clearTimeout(liveWordCountTimer);
+    liveWordCountTimer = null;
+  }
+}
+
+function scheduleLiveWordCountRefresh(): void {
+  if (!project || !currentFilePath) {
+    return;
+  }
+
+  cancelPendingLiveWordCount();
+
+  const contentSnapshot = editor.value;
+  const filePathSnapshot = currentFilePath;
+  const requestToken = liveWordCountRequestToken;
+
+  liveWordCountTimer = window.setTimeout(async () => {
+    liveWordCountTimer = null;
+
+    try {
+      const nextWordCount = await window.witApi.countPreviewWords(contentSnapshot);
+
+      if (requestToken !== liveWordCountRequestToken) {
+        return;
+      }
+
+      if (!project || currentFilePath !== filePathSnapshot) {
+        return;
+      }
+
+      const delta = nextWordCount - currentFileWordCount;
+      if (delta === 0) {
+        return;
+      }
+
+      project.wordCount = Math.max(0, project.wordCount + delta);
+      currentFileWordCount = nextWordCount;
+      renderStatusFooter();
+    } catch {
+      // Keep typing responsive if preview count fails temporarily.
+    }
+  }, LIVE_WORD_COUNT_DEBOUNCE_MS);
 }
 
 async function persistCurrentFile(showStatus = true): Promise<boolean> {
@@ -192,8 +974,10 @@ async function persistCurrentFile(showStatus = true): Promise<boolean> {
   }
 
   try {
+    cancelPendingLiveWordCount();
     await window.witApi.saveFile(currentFilePath, editor.value);
     project.wordCount = await window.witApi.getWordCount();
+    currentFileWordCount = countWordsInText(editor.value);
     setDirty(false);
     renderStatusFooter();
 
@@ -230,6 +1014,7 @@ async function openFile(relativePath: string): Promise<void> {
   }
 
   try {
+    cancelPendingLiveWordCount();
     const content = await window.witApi.openFile(relativePath);
 
     suppressDirtyEvents = true;
@@ -237,8 +1022,13 @@ async function openFile(relativePath: string): Promise<void> {
     suppressDirtyEvents = false;
 
     currentFilePath = relativePath;
+    selectedTreePath = relativePath;
+    selectedTreeKind = "file";
+    currentFileWordCount = countWordsInText(content);
     activeFileLabel.textContent = relativePath;
+    activeFileLabel.title = relativePath;
     setDirty(false);
+    setSidebarFaded(false);
     renderFileList();
     setEditorWritable(true);
     editor.focus();
@@ -280,7 +1070,8 @@ async function runAutosaveTick(): Promise<void> {
     const result = await window.witApi.autosaveTick(activeSeconds);
     project.wordCount = result.wordCount;
     project.totalWritingSeconds = result.totalWritingSeconds;
-    snapshotLabel.textContent = `Snapshot: ${result.snapshotCreatedAt}`;
+    snapshotCreatedAtMs = parseSnapshotTimestamp(result.snapshotCreatedAt) ?? Date.now();
+    renderSnapshotLabel();
     renderStatusFooter();
 
     setStatus(`Autosaved (${project.settings.autosaveIntervalSec}s interval)`, 2000);
@@ -309,11 +1100,7 @@ async function openProjectPicker(): Promise<void> {
   if (selectedProject.files.length > 0) {
     await openFile(selectedProject.files[0]);
   } else {
-    activeFileLabel.textContent = "No file selected";
-    suppressDirtyEvents = true;
-    editor.value = "";
-    suppressDirtyEvents = false;
-    setEditorWritable(false);
+    resetActiveFile();
     setStatus("Project opened. Create your first file.", 2000);
   }
 }
@@ -329,10 +1116,16 @@ function askForNewFilePath(defaultPath: string): Promise<string | null> {
   }
 
   newFilePathInput.value = defaultPath;
+  syncNewFileDialogValidation();
 
   if (!newFileDialog.open) {
     newFileDialog.showModal();
   }
+
+  const handleInput = () => {
+    syncNewFileDialogValidation();
+  };
+  newFilePathInput.addEventListener("input", handleInput);
 
   window.requestAnimationFrame(() => {
     newFilePathInput.focus();
@@ -343,8 +1136,59 @@ function askForNewFilePath(defaultPath: string): Promise<string | null> {
     newFileDialog.addEventListener(
       "close",
       () => {
+        newFilePathInput.removeEventListener("input", handleInput);
+        newFileError.textContent = "";
+        newFileCreateButton.disabled = false;
+
         if (newFileDialog.returnValue === "create") {
           resolve(newFilePathInput.value);
+          return;
+        }
+
+        resolve(null);
+      },
+      { once: true }
+    );
+  });
+}
+
+function askForNewFolderPath(defaultPath: string): Promise<string | null> {
+  if (typeof newFolderDialog.showModal !== "function") {
+    try {
+      return Promise.resolve(window.prompt("New folder path", defaultPath));
+    } catch {
+      setStatus("New folder dialog is unavailable.");
+      return Promise.resolve(null);
+    }
+  }
+
+  newFolderPathInput.value = defaultPath;
+  syncNewFolderDialogValidation();
+
+  if (!newFolderDialog.open) {
+    newFolderDialog.showModal();
+  }
+
+  const handleInput = () => {
+    syncNewFolderDialogValidation();
+  };
+  newFolderPathInput.addEventListener("input", handleInput);
+
+  window.requestAnimationFrame(() => {
+    newFolderPathInput.focus();
+    newFolderPathInput.select();
+  });
+
+  return new Promise((resolve) => {
+    newFolderDialog.addEventListener(
+      "close",
+      () => {
+        newFolderPathInput.removeEventListener("input", handleInput);
+        newFolderError.textContent = "";
+        newFolderCreateButton.disabled = false;
+
+        if (newFolderDialog.returnValue === "create") {
+          resolve(newFolderPathInput.value);
           return;
         }
 
@@ -360,21 +1204,20 @@ async function createNewFile(): Promise<void> {
     return;
   }
 
-  const proposedName = await askForNewFilePath("chapter-01.txt");
+  const selectedFolder = getSelectedFolderPath();
+  const defaultPath = selectedFolder ? `${selectedFolder}/chapter-01.txt` : "chapter-01.txt";
+  const proposedName = await askForNewFilePath(defaultPath);
   if (!proposedName) {
     return;
   }
 
-  let relativePath = proposedName.trim().replaceAll("\\", "/");
-
-  if (!relativePath) {
-    setStatus("File name cannot be empty.");
+  const validation = resolveNewFilePath(proposedName);
+  if (!validation.relativePath) {
+    setStatus(validation.error ?? "Could not create file.");
     return;
   }
 
-  if (!/\.(txt|md|markdown|text)$/i.test(relativePath)) {
-    relativePath = `${relativePath}.txt`;
-  }
+  const relativePath = validation.relativePath;
 
   try {
     const files = await window.witApi.newFile({ relativePath });
@@ -387,26 +1230,184 @@ async function createNewFile(): Promise<void> {
   }
 }
 
-async function persistSettings(update: Partial<AppSettings>): Promise<void> {
+async function createNewFolder(): Promise<void> {
   if (!project) {
     return;
   }
 
-  const nextSettings: AppSettings = {
-    ...project.settings,
-    ...update
-  };
+  const selectedFolder = getSelectedFolderPath();
+  const defaultPath = selectedFolder ? `${selectedFolder}/chapter-notes` : "chapter-notes";
+  const proposedPath = await askForNewFolderPath(defaultPath);
+  if (!proposedPath) {
+    return;
+  }
+
+  const validation = resolveNewFolderPath(proposedPath);
+  if (!validation.relativePath) {
+    setStatus(validation.error ?? "Could not create folder.");
+    return;
+  }
+
+  const relativePath = validation.relativePath;
 
   try {
-    const savedSettings = await window.witApi.updateSettings(nextSettings);
-    project.settings = savedSettings;
-    syncSettingsInputs(savedSettings);
-    renderStatusFooter();
-    restartAutosaveTimer();
-    setStatus("Settings saved.", 1300);
+    const folders = await window.witApi.newFolder({ relativePath });
+    project.folders = folders;
+    renderFileList();
+    setStatus(`Created folder ${relativePath}`, 2000);
   } catch {
-    setStatus("Could not save settings.");
+    setStatus("Could not create folder. Check the path and try again.");
   }
+}
+
+function currentFileWillBeDeleted(relativePath: string, kind: SelectedTreeKind): boolean {
+  if (!currentFilePath) {
+    return false;
+  }
+
+  if (kind === "file") {
+    return pathEquals(currentFilePath, relativePath);
+  }
+
+  return pathEquals(currentFilePath, relativePath) || currentFilePath.startsWith(`${relativePath}/`);
+}
+
+function applyProjectMetadataAfterMutation(metadata: ProjectMetadata): void {
+  if (!project) {
+    return;
+  }
+
+  project.files = metadata.files;
+  project.folders = metadata.folders;
+  project.wordCount = metadata.wordCount;
+  project.totalWritingSeconds = metadata.totalWritingSeconds;
+  project.settings = metadata.settings;
+  renderStatusFooter();
+  renderFileList();
+}
+
+async function deleteEntryByPath(relativePath: string, kind: SelectedTreeKind): Promise<void> {
+  if (!project) {
+    return;
+  }
+
+  closeTreeContextMenu();
+  const label = kind === "folder" ? "folder" : "file";
+
+  const confirmed = window.confirm(
+    `Delete ${label} "${relativePath}"?\n\nThis action cannot be undone.`
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const metadata = await window.witApi.deleteEntry({ relativePath, kind });
+    const deletingActiveFile = currentFileWillBeDeleted(relativePath, kind);
+
+    selectedTreePath = null;
+    selectedTreeKind = null;
+
+    if (deletingActiveFile) {
+      resetActiveFile();
+      setSidebarFaded(false);
+    }
+
+    applyProjectMetadataAfterMutation(metadata);
+    setStatus(`Deleted ${label} ${relativePath}`, 2000);
+  } catch {
+    setStatus("Could not delete selected item.");
+  }
+}
+
+async function moveFileToFolder(fromRelativePath: string, toFolderRelativePath: string): Promise<void> {
+  if (!project) {
+    return;
+  }
+
+  closeTreeContextMenu();
+
+  const normalizedFrom = normalizePathInput(fromRelativePath);
+  const normalizedToFolder = normalizePathInput(toFolderRelativePath);
+  if (!normalizedFrom) {
+    return;
+  }
+
+  const sourceParentPath = getParentFolderPath(normalizedFrom);
+  if (
+    (sourceParentPath && pathEquals(sourceParentPath, normalizedToFolder)) ||
+    (!sourceParentPath && normalizedToFolder.length === 0)
+  ) {
+    setStatus("File is already in that folder.", 1200);
+    return;
+  }
+
+  const fileName = getBaseName(normalizedFrom);
+  const nextRelativePath =
+    normalizedToFolder.length > 0 ? `${normalizedToFolder}/${fileName}` : fileName;
+  if (pathEquals(normalizedFrom, nextRelativePath)) {
+    setStatus("File is already in that folder.", 1200);
+    return;
+  }
+
+  if (dirty && currentFilePath && pathEquals(currentFilePath, normalizedFrom)) {
+    const saved = await persistCurrentFile(false);
+    if (!saved) {
+      setStatus("Save failed. Could not move file.");
+      return;
+    }
+  }
+
+  try {
+    const result = await window.witApi.moveFile({
+      fromRelativePath: normalizedFrom,
+      toFolderRelativePath: normalizedToFolder
+    });
+
+    selectedTreePath = result.nextFilePath;
+    selectedTreeKind = "file";
+
+    if (currentFilePath && pathEquals(currentFilePath, normalizedFrom)) {
+      currentFilePath = result.nextFilePath;
+      activeFileLabel.textContent = result.nextFilePath;
+      activeFileLabel.title = result.nextFilePath;
+    }
+
+    applyProjectMetadataAfterMutation(result.metadata);
+    setStatus(`Moved ${fileName} to ${getDropDestinationLabel(normalizedToFolder)}`, 1700);
+  } catch {
+    setStatus("Could not move file. Check destination and file conflicts.");
+  }
+}
+
+async function persistSettings(update: Partial<AppSettings>): Promise<void> {
+  settingsPersistQueue = settingsPersistQueue
+    .then(async () => {
+      if (!project) {
+        return;
+      }
+
+      const nextSettings: AppSettings = {
+        ...project.settings,
+        ...update
+      };
+
+      const savedSettings = await window.witApi.updateSettings(nextSettings);
+      if (!project) {
+        return;
+      }
+
+      project.settings = savedSettings;
+      syncSettingsInputs(savedSettings);
+      renderStatusFooter();
+      restartAutosaveTimer();
+      setStatus("Settings saved.", 1300);
+    })
+    .catch(() => {
+      setStatus("Could not save settings.");
+    });
+
+  return settingsPersistQueue;
 }
 
 function insertSmartQuote(quoteCharacter: string): void {
@@ -438,6 +1439,9 @@ function insertSmartQuote(quoteCharacter: string): void {
 
   typedSinceLastTick = true;
   setDirty(true);
+  updateWordCountFromEditorPreview();
+  scheduleLiveWordCountRefresh();
+  setSidebarFaded(true);
 }
 
 function handleEditorKeydown(event: KeyboardEvent): void {
@@ -462,9 +1466,17 @@ function handleEditorKeydown(event: KeyboardEvent): void {
 }
 
 async function initialize(): Promise<void> {
+  const platform = window.witApi.getPlatform();
+  document.body.classList.add(`platform-${platform}`);
+
   setProjectControlsEnabled(false);
+  setSidebarFaded(false);
   setEditorWritable(false);
+  applyEditorLineHeight(Number.parseFloat(lineHeightInput.value));
+  applyEditorMaxWidth(Number.parseInt(editorWidthInput.value, 10));
   applyEditorZoom(false);
+  renderSnapshotLabel();
+  restartSnapshotLabelTimer();
   renderFileList();
   renderStatusFooter();
 
@@ -491,13 +1503,13 @@ async function initialize(): Promise<void> {
 
   subscriptions.push(
     window.witApi.onMenuZoomInText(() => {
-      adjustEditorZoom(EDITOR_ZOOM_STEP);
+      stepEditorZoom(1);
     })
   );
 
   subscriptions.push(
     window.witApi.onMenuZoomOutText(() => {
-      adjustEditorZoom(-EDITOR_ZOOM_STEP);
+      stepEditorZoom(-1);
     })
   );
 
@@ -509,11 +1521,32 @@ async function initialize(): Promise<void> {
 }
 
 openProjectButton.addEventListener("click", () => {
+  closeTreeContextMenu();
   void openProjectPicker();
 });
 
 newFileButton.addEventListener("click", () => {
+  closeTreeContextMenu();
   void createNewFile();
+});
+
+newFolderButton.addEventListener("click", () => {
+  closeTreeContextMenu();
+  void createNewFolder();
+});
+
+treeContextDeleteButton.addEventListener("click", () => {
+  if (!contextMenuPath || !contextMenuKind) {
+    closeTreeContextMenu();
+    return;
+  }
+
+  void deleteEntryByPath(contextMenuPath, contextMenuKind);
+});
+
+settingsToggleButton.addEventListener("click", () => {
+  closeTreeContextMenu();
+  openSettingsDialog();
 });
 
 showWordCountInput.addEventListener("change", () => {
@@ -534,16 +1567,54 @@ autosaveIntervalInput.addEventListener("change", () => {
   void persistSettings({ autosaveIntervalSec: safeValue });
 });
 
-zoomOutButton.addEventListener("click", () => {
-  adjustEditorZoom(-EDITOR_ZOOM_STEP);
+lineHeightInput.addEventListener("input", () => {
+  const parsed = Number.parseFloat(lineHeightInput.value);
+  if (!Number.isFinite(parsed)) {
+    return;
+  }
+
+  applyEditorLineHeight(parsed);
 });
 
-zoomResetButton.addEventListener("click", () => {
-  resetEditorZoom();
+lineHeightInput.addEventListener("change", () => {
+  const parsed = Number.parseFloat(lineHeightInput.value);
+  if (!Number.isFinite(parsed)) {
+    return;
+  }
+
+  applyEditorLineHeight(parsed);
+  void persistSettings({ editorLineHeight: normalizeLineHeightValue(parsed) });
 });
 
-zoomInButton.addEventListener("click", () => {
-  adjustEditorZoom(EDITOR_ZOOM_STEP);
+editorWidthInput.addEventListener("input", () => {
+  const parsed = Number.parseInt(editorWidthInput.value, 10);
+  if (!Number.isFinite(parsed)) {
+    return;
+  }
+
+  applyEditorMaxWidth(parsed);
+  showEditorWidthGuides();
+});
+
+editorWidthInput.addEventListener("change", () => {
+  const parsed = Number.parseInt(editorWidthInput.value, 10);
+  if (!Number.isFinite(parsed)) {
+    return;
+  }
+
+  const normalized = normalizeEditorMaxWidth(parsed);
+  applyEditorMaxWidth(normalized);
+  showEditorWidthGuides();
+  void persistSettings({ editorMaxWidthPx: normalized });
+});
+
+textZoomSelect.addEventListener("change", () => {
+  const selectedPercent = Number.parseInt(textZoomSelect.value, 10);
+  if (!Number.isFinite(selectedPercent)) {
+    return;
+  }
+
+  setEditorZoomFromPercent(selectedPercent);
 });
 
 editor.addEventListener("input", () => {
@@ -553,24 +1624,101 @@ editor.addEventListener("input", () => {
 
   typedSinceLastTick = true;
   setDirty(true);
+  updateWordCountFromEditorPreview();
+  scheduleLiveWordCountRefresh();
+  setSidebarFaded(true);
 });
 
 editor.addEventListener("keydown", (event) => {
   handleEditorKeydown(event);
 });
 
+editor.addEventListener("blur", () => {
+  setSidebarFaded(false);
+});
+
+sidebar.addEventListener("mouseenter", () => {
+  setSidebarFaded(false);
+});
+
+sidebar.addEventListener("focusin", () => {
+  setSidebarFaded(false);
+});
+
+fileList.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+
+  const target = event.target as HTMLElement | null;
+  const treeItem = target?.closest("button.tree-item") as HTMLButtonElement | null;
+
+  if (!treeItem) {
+    closeTreeContextMenu();
+    return;
+  }
+
+  const itemKind = treeItem.dataset.itemKind;
+  if (itemKind !== "file" && itemKind !== "folder") {
+    closeTreeContextMenu();
+    return;
+  }
+
+  const relativePath = treeItem.dataset.relativePath;
+  if (relativePath === undefined) {
+    closeTreeContextMenu();
+    return;
+  }
+
+  const kind: SelectedTreeKind = itemKind === "folder" ? "folder" : "file";
+  setSidebarFaded(false);
+  openTreeContextMenu({ x: event.clientX, y: event.clientY }, relativePath, kind);
+});
+
+settingsDialog.addEventListener("close", () => {
+  clearEditorWidthGuides();
+});
+
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !treeContextMenu.hidden) {
+    closeTreeContextMenu();
+    return;
+  }
+
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
     event.preventDefault();
+    closeTreeContextMenu();
     void persistCurrentFile(true);
   }
 });
 
+document.addEventListener("pointerdown", (event) => {
+  if (treeContextMenu.hidden) {
+    return;
+  }
+
+  if (event.button !== 0) {
+    return;
+  }
+
+  const target = event.target as Node | null;
+  if (target && treeContextMenu.contains(target)) {
+    return;
+  }
+
+  closeTreeContextMenu();
+});
+
 window.addEventListener("beforeunload", () => {
+  cancelPendingLiveWordCount();
   saveCurrentFileSynchronously();
+  clearEditorWidthGuides();
+  closeTreeContextMenu();
 
   if (autosaveTimer) {
     window.clearInterval(autosaveTimer);
+  }
+
+  if (snapshotLabelTimer) {
+    window.clearInterval(snapshotLabelTimer);
   }
 
   for (const unsubscribe of subscriptions) {
@@ -579,13 +1727,19 @@ window.addEventListener("beforeunload", () => {
 });
 
 window.addEventListener("error", () => {
+  closeTreeContextMenu();
   setStatus("A UI error occurred. Check logs.");
 });
 
 window.addEventListener("unhandledrejection", (event) => {
   console.error("Unhandled renderer rejection:", event.reason);
+  closeTreeContextMenu();
   setStatus("An unexpected async error occurred.");
   event.preventDefault();
+});
+
+window.addEventListener("blur", () => {
+  closeTreeContextMenu();
 });
 
 void initialize();

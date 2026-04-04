@@ -1,9 +1,18 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AppSettings, AutosaveTickResult, NewFilePayload, ProjectMetadata } from "../shared/types";
+import type {
+  AppSettings,
+  AutosaveTickResult,
+  DeleteEntryPayload,
+  MoveFilePayload,
+  NewFilePayload,
+  NewFolderPayload,
+  ProjectMetadata
+} from "../shared/types";
 
 type Unsubscribe = () => void;
 
 const api = {
+  getPlatform: (): NodeJS.Platform => process.platform,
   selectProject: (): Promise<ProjectMetadata | null> => ipcRenderer.invoke("project:select"),
   getActiveProject: (): Promise<ProjectMetadata | null> => ipcRenderer.invoke("project:get-active"),
   openProjectPath: (projectPath: string): Promise<ProjectMetadata> =>
@@ -13,9 +22,18 @@ const api = {
   saveFile: (relativePath: string, content: string): Promise<boolean> =>
     ipcRenderer.invoke("project:save-file", relativePath, content),
   getWordCount: (): Promise<number> => ipcRenderer.invoke("project:get-word-count"),
+  countPreviewWords: (text: string): Promise<number> => ipcRenderer.invoke("project:count-preview-words", text),
   saveFileSync: (relativePath: string, content: string): boolean =>
     ipcRenderer.sendSync("project:save-file-sync", relativePath, content),
   newFile: (payload: NewFilePayload): Promise<string[]> => ipcRenderer.invoke("project:new-file", payload),
+  newFolder: (payload: NewFolderPayload): Promise<string[]> =>
+    ipcRenderer.invoke("project:new-folder", payload),
+  deleteEntry: (payload: DeleteEntryPayload): Promise<ProjectMetadata> =>
+    ipcRenderer.invoke("project:delete-entry", payload),
+  moveFile: (
+    payload: MoveFilePayload
+  ): Promise<{ nextFilePath: string; metadata: ProjectMetadata }> =>
+    ipcRenderer.invoke("project:move-file", payload),
   updateSettings: (settings: AppSettings): Promise<AppSettings> =>
     ipcRenderer.invoke("project:update-settings", settings),
   autosaveTick: (activeSeconds: number): Promise<AutosaveTickResult> =>
