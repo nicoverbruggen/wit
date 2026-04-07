@@ -5,6 +5,7 @@ export type AppSettings = {
   gitSnapshots: boolean;
   editorLineHeight: number;
   editorMaxWidthPx: number;
+  editorZoomPercent: number;
 };
 
 export type ProjectMetadata = {

@@ -89,6 +89,8 @@ export async function countWordsUsingSystemTool(text: string): Promise<number> {
   }
 }
 
+const WC_BATCH_SIZE = 200;
+
 export async function countWordsInFilesUsingSystemTool(filePaths: string[]): Promise<number> {
   if (filePaths.length === 0) {
     return 0;
@@ -99,11 +101,18 @@ export async function countWordsInFilesUsingSystemTool(filePaths: string[]): Pro
   }
 
   try {
-    const { stdout } = await execFileAsync("wc", ["-w", ...filePaths], {
-      maxBuffer: 10_000_000
-    });
+    let total = 0;
 
-    return parseWcCount(stdout);
+    for (let i = 0; i < filePaths.length; i += WC_BATCH_SIZE) {
+      const batch = filePaths.slice(i, i + WC_BATCH_SIZE);
+      const { stdout } = await execFileAsync("wc", ["-w", ...batch], {
+        maxBuffer: 10_000_000
+      });
+
+      total += parseWcCount(stdout);
+    }
+
+    return total;
   } catch {
     return fallbackCountWordsInFiles(filePaths);
   }

@@ -43,6 +43,7 @@ test("project initialization and metadata defaults", async () => {
     assert.equal(metadata.settings.gitSnapshots, false);
     assert.equal(metadata.settings.editorLineHeight, 1.68);
     assert.equal(metadata.settings.editorMaxWidthPx, 750);
+    assert.equal(metadata.settings.editorZoomPercent, 100);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
@@ -75,7 +76,8 @@ test("create/list/save/read files with word count and settings", async () => {
       smartQuotes: false,
       gitSnapshots: true,
       editorLineHeight: 9,
-      editorMaxWidthPx: 9999
+      editorMaxWidthPx: 9999,
+      editorZoomPercent: 999
     });
 
     assert.equal(savedSettings.autosaveIntervalSec, 10);
@@ -84,6 +86,7 @@ test("create/list/save/read files with word count and settings", async () => {
     assert.equal(savedSettings.gitSnapshots, true);
     assert.equal(savedSettings.editorLineHeight, 2.4);
     assert.equal(savedSettings.editorMaxWidthPx, 1200);
+    assert.equal(savedSettings.editorZoomPercent, 250);
 
     await projectService.addWritingSeconds(projectPath, 25);
     const stats = await projectService.getProjectStats(projectPath);

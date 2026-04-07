@@ -33,6 +33,7 @@ type WitApi = {
   autosaveTick: (activeSeconds: number) => Promise<AutosaveTickResult>;
   getAppVersion: () => Promise<string>;
   onMenuOpenProject: (listener: () => void) => Unsubscribe;
+  onMenuNewFile: (listener: () => void) => Unsubscribe;
   onMenuSaveCurrentFile: (listener: () => void) => Unsubscribe;
   onMenuZoomInText: (listener: () => void) => Unsubscribe;
   onMenuZoomOutText: (listener: () => void) => Unsubscribe;

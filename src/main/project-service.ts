@@ -15,7 +15,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   smartQuotes: true,
   gitSnapshots: false,
   editorLineHeight: 1.68,
-  editorMaxWidthPx: 750
+  editorMaxWidthPx: 750,
+  editorZoomPercent: 100
 };
 
 type ProjectStats = {
@@ -64,6 +65,10 @@ function normalizeEditorLineHeight(value: number): number {
 
 function normalizeEditorMaxWidth(value: number): number {
   return Math.max(360, Math.min(1200, Math.round(value)));
+}
+
+function normalizeEditorZoomPercent(value: number): number {
+  return Math.max(50, Math.min(250, Math.round(value)));
 }
 
 export async function ensureProjectInitialized(projectPath: string): Promise<void> {
@@ -386,7 +391,7 @@ function normalizePathInput(input: string): string {
 }
 
 function pathEquals(left: string, right: string): boolean {
-  return left.toLocaleLowerCase() === right.toLocaleLowerCase();
+  return left.toLowerCase() === right.toLowerCase();
 }
 
 export async function loadSettings(projectPath: string): Promise<AppSettings> {
@@ -417,7 +422,11 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
     editorMaxWidthPx:
       typeof parsed.editorMaxWidthPx === "number" && Number.isFinite(parsed.editorMaxWidthPx)
         ? normalizeEditorMaxWidth(parsed.editorMaxWidthPx)
-        : DEFAULT_SETTINGS.editorMaxWidthPx
+        : DEFAULT_SETTINGS.editorMaxWidthPx,
+    editorZoomPercent:
+      typeof parsed.editorZoomPercent === "number" && Number.isFinite(parsed.editorZoomPercent)
+        ? normalizeEditorZoomPercent(parsed.editorZoomPercent)
+        : DEFAULT_SETTINGS.editorZoomPercent
   };
 }
 
@@ -428,7 +437,8 @@ export async function saveSettings(projectPath: string, settings: AppSettings): 
     smartQuotes: Boolean(settings.smartQuotes),
     gitSnapshots: Boolean(settings.gitSnapshots),
     editorLineHeight: normalizeEditorLineHeight(settings.editorLineHeight),
-    editorMaxWidthPx: normalizeEditorMaxWidth(settings.editorMaxWidthPx)
+    editorMaxWidthPx: normalizeEditorMaxWidth(settings.editorMaxWidthPx),
+    editorZoomPercent: normalizeEditorZoomPercent(settings.editorZoomPercent)
   };
 
   await ensureProjectInitialized(projectPath);

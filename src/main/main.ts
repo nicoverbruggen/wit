@@ -98,7 +98,7 @@ function createMainWindow(): BrowserWindow {
       preload: path.join(__dirname, "../preload/preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true
     }
   };
 
@@ -145,6 +145,13 @@ function setupMenu(): void {
           accelerator: "CmdOrCtrl+O",
           click: () => {
             emitMenuEvent("menu:open-project");
+          }
+        },
+        {
+          label: "New File",
+          accelerator: "CmdOrCtrl+N",
+          click: () => {
+            emitMenuEvent("menu:new-file");
           }
         },
         {

@@ -75,7 +75,9 @@ let project: ProjectMetadata | null = null;
 let currentFilePath: string | null = null;
 let currentFileWordCount = 0;
 let dirty = false;
-let typedSinceLastTick = false;
+let lastTypedAtMs: number | null = null;
+let activeTypingSeconds = 0;
+const TYPING_IDLE_THRESHOLD_MS = 5_000;
 let autosaveTimer: number | null = null;
 let autosaveInFlight = false;
 let statusResetTimer: number | null = null;
@@ -111,17 +113,13 @@ function formatWritingTime(totalSeconds: number): string {
   return `${minutes}m`;
 }
 
-function countWordsInText(text: string): number {
-  const tokens = text.trim().match(/\S+/g);
-  return tokens?.length ?? 0;
-}
 
 function normalizePathInput(input: string): string {
   return input.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
 }
 
 function pathEquals(left: string, right: string): boolean {
-  return left.toLocaleLowerCase() === right.toLocaleLowerCase();
+  return left.toLowerCase() === right.toLowerCase();
 }
 
 function getBaseName(relativePath: string): string {
@@ -296,6 +294,26 @@ function consumeTestTreeContextAction(): TreeContextAction | undefined {
   return action;
 }
 
+function recordTypingActivity(): void {
+  const now = Date.now();
+
+  if (lastTypedAtMs !== null) {
+    const gap = now - lastTypedAtMs;
+    if (gap < TYPING_IDLE_THRESHOLD_MS) {
+      activeTypingSeconds += gap / 1000;
+    }
+  }
+
+  lastTypedAtMs = now;
+}
+
+function consumeActiveTypingSeconds(): number {
+  const seconds = Math.floor(activeTypingSeconds);
+  activeTypingSeconds = 0;
+  lastTypedAtMs = null;
+  return seconds;
+}
+
 function setDirty(nextDirty: boolean): void {
   dirty = nextDirty;
   dirtyIndicator.hidden = !nextDirty;
@@ -430,6 +448,10 @@ function setEditorZoomFromPercent(percent: number, showStatus = true): void {
   const bounded = Math.max(50, Math.min(250, Math.round(percent)));
   editorZoomFactor = bounded / 100;
   applyEditorZoom(showStatus);
+
+  if (showStatus) {
+    void persistSettings({ editorZoomPercent: bounded });
+  }
 }
 
 function stepEditorZoom(direction: 1 | -1): void {
@@ -453,6 +475,55 @@ function getProjectDisplayTitle(projectPath: string): string {
   const trimmed = projectPath.replace(/[\\/]+$/, "");
   const segments = trimmed.split(/[\\/]/).filter((segment) => segment.length > 0);
   return segments.at(-1) ?? projectPath;
+}
+
+function collapsedFoldersStorageKey(): string | null {
+  if (!project) {
+    return null;
+  }
+
+  return `wit:collapsed:${project.projectPath}`;
+}
+
+function saveCollapsedFolders(): void {
+  const key = collapsedFoldersStorageKey();
+  if (!key) {
+    return;
+  }
+
+  try {
+    if (collapsedFolderPaths.size === 0) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify([...collapsedFolderPaths]));
+    }
+  } catch {
+    // localStorage may be unavailable; ignore silently.
+  }
+}
+
+function restoreCollapsedFolders(): void {
+  collapsedFolderPaths.clear();
+  const key = collapsedFoldersStorageKey();
+  if (!key) {
+    return;
+  }
+
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (typeof item === "string") {
+            collapsedFolderPaths.add(item);
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore malformed data.
+  }
 }
 
 function resetTreeState(): void {
@@ -617,12 +688,17 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
 
       button.append(icon, label);
       button.addEventListener("click", () => {
-        selectedTreePath = node.relativePath;
-        selectedTreeKind = "folder";
         closeTreeContextMenu();
 
-        collapsedFolderPaths.delete(node.relativePath);
+        if (selectedTreePath === node.relativePath && selectedTreeKind === "folder" && !isCollapsed) {
+          collapsedFolderPaths.add(node.relativePath);
+        } else {
+          collapsedFolderPaths.delete(node.relativePath);
+        }
 
+        selectedTreePath = node.relativePath;
+        selectedTreeKind = "folder";
+        saveCollapsedFolders();
         setSidebarFaded(false);
         renderFileList();
       });
@@ -877,23 +953,6 @@ function syncNewFolderDialogValidation(): void {
   newFolderCreateButton.disabled = validation.relativePath === null;
 }
 
-function updateWordCountFromEditorPreview(): void {
-  if (!project || !currentFilePath) {
-    return;
-  }
-
-  const nextWordCount = countWordsInText(editor.value);
-  const delta = nextWordCount - currentFileWordCount;
-
-  if (delta === 0) {
-    return;
-  }
-
-  currentFileWordCount = nextWordCount;
-  project.wordCount = Math.max(0, project.wordCount + delta);
-  renderStatusFooter();
-}
-
 function renderStatusFooter(): void {
   const totalWords = project?.wordCount ?? 0;
   const totalWritingSeconds = project?.totalWritingSeconds ?? 0;
@@ -940,12 +999,14 @@ function syncSettingsInputs(settings: AppSettings): void {
   autosaveIntervalInput.value = String(settings.autosaveIntervalSec);
   applyEditorLineHeight(settings.editorLineHeight);
   applyEditorMaxWidth(settings.editorMaxWidthPx);
+  setEditorZoomFromPercent(settings.editorZoomPercent, false);
 }
 
 function applyProjectMetadata(metadata: ProjectMetadata): void {
   cancelPendingLiveWordCount();
   resetTreeState();
   project = metadata;
+  restoreCollapsedFolders();
   snapshotCreatedAtMs = null;
   renderSnapshotLabel();
   resetActiveFile();
@@ -1017,7 +1078,7 @@ async function persistCurrentFile(showStatus = true): Promise<boolean> {
     cancelPendingLiveWordCount();
     await window.witApi.saveFile(currentFilePath, editor.value);
     project.wordCount = await window.witApi.getWordCount();
-    currentFileWordCount = countWordsInText(editor.value);
+    currentFileWordCount = await window.witApi.countPreviewWords(editor.value);
     setDirty(false);
     renderStatusFooter();
 
@@ -1064,7 +1125,7 @@ async function openFile(relativePath: string): Promise<void> {
     currentFilePath = relativePath;
     selectedTreePath = relativePath;
     selectedTreeKind = "file";
-    currentFileWordCount = countWordsInText(content);
+    currentFileWordCount = await window.witApi.countPreviewWords(content);
     activeFileLabel.textContent = relativePath;
     activeFileLabel.title = relativePath;
     editor.placeholder = "";
@@ -1105,8 +1166,7 @@ async function runAutosaveTick(): Promise<void> {
   try {
     await persistCurrentFile(false);
 
-    const activeSeconds = typedSinceLastTick ? project.settings.autosaveIntervalSec : 0;
-    typedSinceLastTick = false;
+    const activeSeconds = consumeActiveTypingSeconds();
 
     const result = await window.witApi.autosaveTick(activeSeconds);
     project.wordCount = result.wordCount;
@@ -1579,29 +1639,24 @@ function insertSmartQuote(quoteCharacter: string): void {
 
   const quotePair = quoteCharacter === "'" ? ["‘", "’"] : ["“", "”"];
 
-  let replacement = quotePair[0];
-  let nextCursor = start + 1;
+  let replacement: string;
 
   if (start !== end) {
     const selected = value.slice(start, end);
     replacement = `${quotePair[0]}${selected}${quotePair[1]}`;
-    nextCursor = start + replacement.length;
   } else {
     const previousCharacter = start > 0 ? value[start - 1] : "";
     const shouldUseOpeningQuote = start === 0 || /[\s([{<-]/.test(previousCharacter);
     replacement = shouldUseOpeningQuote ? quotePair[0] : quotePair[1];
   }
 
-  const nextValue = `${value.slice(0, start)}${replacement}${value.slice(end)}`;
-
+  // Use insertText to preserve the browser undo stack (Cmd/Ctrl+Z).
   suppressDirtyEvents = true;
-  editor.value = nextValue;
+  document.execCommand("insertText", false, replacement);
   suppressDirtyEvents = false;
-  editor.setSelectionRange(nextCursor, nextCursor);
 
-  typedSinceLastTick = true;
+  recordTypingActivity();
   setDirty(true);
-  updateWordCountFromEditorPreview();
   scheduleLiveWordCountRefresh();
   setSidebarFaded(true);
 }
@@ -1656,6 +1711,12 @@ async function initialize(): Promise<void> {
   subscriptions.push(
     window.witApi.onMenuOpenProject(() => {
       void openProjectPicker();
+    })
+  );
+
+  subscriptions.push(
+    window.witApi.onMenuNewFile(() => {
+      void createNewFile();
     })
   );
 
@@ -1806,9 +1867,8 @@ editor.addEventListener("input", () => {
     return;
   }
 
-  typedSinceLastTick = true;
+  recordTypingActivity();
   setDirty(true);
-  updateWordCountFromEditorPreview();
   scheduleLiveWordCountRefresh();
   setSidebarFaded(true);
 });
@@ -1893,6 +1953,17 @@ document.addEventListener("keydown", (event) => {
     closeTreeContextMenu();
     void persistCurrentFile(true);
   }
+});
+
+document.addEventListener("dragend", () => {
+  dragSourceFilePath = null;
+  fileList.querySelectorAll(".drop-target").forEach((element) => {
+    element.classList.remove("drop-target");
+  });
+});
+
+document.addEventListener("drop", () => {
+  dragSourceFilePath = null;
 });
 
 window.addEventListener("beforeunload", () => {

@@ -57,6 +57,15 @@ const api = {
       ipcRenderer.removeListener(channel, wrappedListener);
     };
   },
+  onMenuNewFile: (listener: () => void): Unsubscribe => {
+    const channel = "menu:new-file";
+    const wrappedListener = () => listener();
+
+    ipcRenderer.on(channel, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(channel, wrappedListener);
+    };
+  },
   onMenuSaveCurrentFile: (listener: () => void): Unsubscribe => {
     const channel = "menu:save-current-file";
     const wrappedListener = () => listener();

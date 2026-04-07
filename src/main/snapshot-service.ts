@@ -43,7 +43,11 @@ async function pruneSnapshots(snapshotDirectory: string): Promise<void> {
   );
 }
 
-async function commitSnapshotToGit(projectPath: string, snapshotTimestamp: string): Promise<void> {
+async function commitSnapshotToGit(
+  projectPath: string,
+  snapshotTimestamp: string,
+  filePaths: string[]
+): Promise<void> {
   const gitDirectoryPath = path.join(projectPath, ".git");
 
   try {
@@ -56,8 +60,9 @@ async function commitSnapshotToGit(projectPath: string, snapshotTimestamp: strin
   }
 
   try {
-    await execFileAsync("git", ["-C", projectPath, "add", "-A"]);
-    await execFileAsync("git", ["-C", projectPath, "reset", "--quiet", "--", ".wit"]);
+    if (filePaths.length > 0) {
+      await execFileAsync("git", ["-C", projectPath, "add", "--", ...filePaths]);
+    }
     await execFileAsync("git", [
       "-C",
       projectPath,
@@ -74,17 +79,62 @@ async function commitSnapshotToGit(projectPath: string, snapshotTimestamp: strin
   }
 }
 
+async function getLatestSnapshotTimestamp(snapshotDirectory: string): Promise<Date | null> {
+  try {
+    const entries = await fs.readdir(snapshotDirectory, { withFileTypes: true });
+    const names = entries.filter((e) => e.isDirectory()).map((e) => e.name).sort();
+    if (names.length === 0) {
+      return null;
+    }
+
+    const latest = names[names.length - 1];
+    const parsed = latest.replace(/-/g, (m, offset: number) => {
+      if (offset === 4 || offset === 7) return "-";
+      if (offset === 10) return "T";
+      if (offset === 13 || offset === 16) return ":";
+      if (offset === 19) return ".";
+      return m;
+    }).replace(/Z$/, "Z");
+
+    const date = new Date(parsed);
+    return Number.isFinite(date.getTime()) ? date : null;
+  } catch {
+    return null;
+  }
+}
+
+async function anyFileModifiedSince(projectPath: string, filePaths: string[], since: Date): Promise<boolean> {
+  for (const relativePath of filePaths) {
+    try {
+      const stat = await fs.stat(path.resolve(projectPath, relativePath));
+      if (stat.mtimeMs > since.getTime()) {
+        return true;
+      }
+    } catch {
+      // File may have been removed; treat as changed.
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export async function createSnapshot(options: {
   projectPath: string;
   snapshotDirectory: string;
   filePaths: string[];
   createGitCommit: boolean;
 }): Promise<string> {
+  await ensureSnapshotDirectory(options.snapshotDirectory);
+
+  const lastSnapshotDate = await getLatestSnapshotTimestamp(options.snapshotDirectory);
+  if (lastSnapshotDate && !(await anyFileModifiedSince(options.projectPath, options.filePaths, lastSnapshotDate))) {
+    return timestampForFilename(lastSnapshotDate);
+  }
+
   const snapshotDate = new Date();
   const snapshotTimestamp = timestampForFilename(snapshotDate);
   const snapshotRoot = path.join(options.snapshotDirectory, snapshotTimestamp);
-
-  await ensureSnapshotDirectory(options.snapshotDirectory);
 
   for (const relativePath of options.filePaths) {
     try {
@@ -97,7 +147,7 @@ export async function createSnapshot(options: {
   await pruneSnapshots(options.snapshotDirectory);
 
   if (options.createGitCommit) {
-    await commitSnapshotToGit(options.projectPath, snapshotTimestamp);
+    await commitSnapshotToGit(options.projectPath, snapshotTimestamp, options.filePaths);
   }
 
   return snapshotTimestamp;
