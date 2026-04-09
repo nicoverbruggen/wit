@@ -132,8 +132,11 @@ async function commitSnapshotToGit(
   }
 
   try {
-    if (filePaths.length > 0) {
-      await execFileAsync("git", ["-C", projectPath, "add", "--", ...filePaths]);
+    const deletedWritingFiles = await getDeletedTrackedWritingFiles(projectPath);
+    const stagedWritingPaths = [...new Set([...filePaths, ...deletedWritingFiles])];
+
+    if (stagedWritingPaths.length > 0) {
+      await execFileAsync("git", ["-C", projectPath, "add", "-A", "--", ...stagedWritingPaths]);
     }
     await execFileAsync("git", [
       "-C",
@@ -150,6 +153,28 @@ async function commitSnapshotToGit(
       console.warn("Git snapshot commit failed.", error);
     }
     return false;
+  }
+}
+
+async function getDeletedTrackedWritingFiles(projectPath: string): Promise<string[]> {
+  try {
+    const result = await execFileAsync("git", [
+      "-C",
+      projectPath,
+      "ls-files",
+      "--deleted",
+      "--",
+      "*.txt",
+      "*.md",
+      "*.wxt"
+    ]);
+
+    return result.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+  } catch {
+    return [];
   }
 }
 

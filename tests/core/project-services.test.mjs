@@ -219,6 +219,49 @@ test("snapshot creation and git snapshot commit flow", async () => {
   }
 });
 
+test("git snapshot commit stages deleted writing files", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await fs.writeFile(path.join(projectPath, ".gitignore"), ".wit/\n", "utf8");
+    await projectService.createProjectFile(projectPath, "chapter.txt", "Initial");
+
+    await execFileAsync("git", ["init", "-q", projectPath]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.name", "QA"]);
+    await execFileAsync("git", ["-C", projectPath, "add", "."]);
+    await execFileAsync("git", ["-C", projectPath, "commit", "-m", "init", "--quiet"]);
+
+    await projectService.deleteProjectEntry(projectPath, "chapter.txt", "file");
+
+    const snapshotDir = projectService.getSnapshotDirectory(projectPath);
+    await snapshotService.createSnapshot({
+      projectPath,
+      snapshotDirectory: snapshotDir,
+      filePaths: await projectService.listProjectFiles(projectPath),
+      createGitCommit: true,
+      pushGitCommit: false,
+      gitPushRemote: null
+    });
+
+    const status = await execFileAsync("git", ["-C", projectPath, "status", "--porcelain"]);
+    assert.equal(status.stdout.trim(), "");
+
+    const lastCommitFiles = await execFileAsync("git", [
+      "-C",
+      projectPath,
+      "show",
+      "--name-status",
+      "--format=",
+      "HEAD"
+    ]);
+    assert.match(lastCommitFiles.stdout, /^D\tchapter\.txt$/m);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 test("project metadata reports git repository status", async () => {
   const { root, projectPath } = await createTempProject();
 
