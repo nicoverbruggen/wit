@@ -644,7 +644,9 @@ function applyEditorMaxWidth(editorWidth: number): void {
 }
 
 function applyEditorFont(fontFamily: string): void {
-  editor.setFontFamily(`"${fontFamily}", "Palatino", "Times New Roman", serif`);
+  const fontStack = `"${fontFamily}", "Palatino", "Times New Roman", serif`;
+  editor.setFontFamily(fontStack);
+  fontSelect.style.fontFamily = fontStack;
 }
 
 function populateFontSelect(selectedFont: string): void {
@@ -659,6 +661,7 @@ function populateFontSelect(selectedFont: string): void {
     const option = document.createElement("option");
     option.value = value;
     option.textContent = label;
+    option.style.fontFamily = `"${value}", "Palatino", "Times New Roman", serif`;
     fontSelect.appendChild(option);
     seenValues.add(value);
   };
@@ -671,6 +674,7 @@ function populateFontSelect(selectedFont: string): void {
     const separator = document.createElement("option");
     separator.disabled = true;
     separator.textContent = "\u2014\u2014 System Fonts \u2014\u2014";
+    separator.style.fontFamily = '"Inter", system-ui, -apple-system, "Segoe UI", sans-serif';
     fontSelect.appendChild(separator);
 
     for (const fontName of systemFontFamilies) {
@@ -683,6 +687,7 @@ function populateFontSelect(selectedFont: string): void {
   }
 
   fontSelect.value = seenValues.has(selectedFont) ? selectedFont : DEFAULT_EDITOR_FONT;
+  fontSelect.style.fontFamily = `"${fontSelect.value}", "Palatino", "Times New Roman", serif`;
 }
 
 async function loadSystemFonts(): Promise<void> {
