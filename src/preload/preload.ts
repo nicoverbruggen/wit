@@ -1,6 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
-import type { Platform } from "node:process";
 import type {
   AppSettings,
   AutosaveTickResult,
@@ -15,6 +14,7 @@ import type {
 } from "../shared/types";
 
 type Unsubscribe = () => void;
+type NodePlatform = typeof process.platform;
 type AppInfo = {
   version: string;
   description: string;
@@ -23,7 +23,7 @@ type AppInfo = {
 };
 
 const api = {
-  getPlatform: (): Platform => process.platform,
+  getPlatform: (): NodePlatform => process.platform,
   selectProject: (): Promise<ProjectMetadata | null> => ipcRenderer.invoke("project:select"),
   getActiveProject: (): Promise<ProjectMetadata | null> => ipcRenderer.invoke("project:get-active"),
   closeProject: (): Promise<null> => ipcRenderer.invoke("project:close"),
