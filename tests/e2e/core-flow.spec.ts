@@ -118,7 +118,7 @@ test.describe("Wit core app flow", () => {
     await app.close();
   });
 
-  test("sidebar can be toggled from the status bar button", async () => {
+  test("sidebar can be toggled from the top-left toolbar button", async () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-toggle-sidebar-"));
     await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
 
@@ -138,6 +138,48 @@ test.describe("Wit core app flow", () => {
     await expect(shell).not.toHaveClass(/sidebar-hidden/);
     await expect(page.locator(".sidebar")).toBeVisible();
     await expect(toggleButton).toHaveAttribute("aria-label", "Hide sidebar");
+
+    await app.close();
+  });
+
+  test("fullscreen can be toggled from the top-left toolbar button", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-fullscreen-"));
+    await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    const fullscreenButton = page.locator("#toggle-fullscreen-btn");
+    const shell = page.locator("#app-shell");
+
+    await expect(fullscreenButton).toHaveAttribute("aria-label", "Enter fullscreen");
+    await fullscreenButton.click();
+    await expect(fullscreenButton).toHaveAttribute("aria-label", "Exit fullscreen");
+    await expect(shell).toHaveClass(/sidebar-hidden/);
+    await fullscreenButton.click();
+    await expect(fullscreenButton).toHaveAttribute("aria-label", "Enter fullscreen");
+    await expect(shell).not.toHaveClass(/sidebar-hidden/);
+
+    await app.close();
+  });
+
+  test("project can be closed from the root project context menu", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-close-project-"));
+    await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+
+    await page.evaluate(() => {
+      (window as typeof window & { __WIT_TEST_TREE_ACTION?: "close-project" }).__WIT_TEST_TREE_ACTION =
+        "close-project";
+    });
+    await page.dispatchEvent(".tree-root-item", "contextmenu", {
+      button: 2,
+      clientX: 40,
+      clientY: 40
+    });
+
+    await expect(page.locator("#sidebar-project-title")).toHaveText("No Project");
+    await expect(page.locator("#open-project-btn")).toBeVisible();
+    await expect(page.locator(".file-button", { hasText: "draft.txt" })).toHaveCount(0);
 
     await app.close();
   });
@@ -389,6 +431,60 @@ test.describe("Wit core app flow", () => {
     await app.close();
   });
 
+  test("creates files and folders from project and folder context menus", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-context-create-"));
+    const { app, page } = await launchWithProject(projectPath);
+
+    await page.evaluate(() => {
+      (window as Window & { __WIT_TEST_TREE_ACTION?: "new-file" | "new-folder" }).__WIT_TEST_TREE_ACTION =
+        "new-folder";
+    });
+    await page.dispatchEvent(".tree-root-item", "contextmenu", {
+      button: 2,
+      bubbles: true,
+      clientX: 80,
+      clientY: 80
+    });
+    await expect(page.locator("#new-folder-dialog")).toBeVisible();
+    await page.fill("#new-folder-path-input", "drafts");
+    await page.click("#new-folder-create-btn");
+    await expect(page.locator(".folder-button", { hasText: "drafts" })).toBeVisible();
+
+    await page.evaluate(() => {
+      (window as Window & { __WIT_TEST_TREE_ACTION?: "new-file" | "new-folder" }).__WIT_TEST_TREE_ACTION =
+        "new-file";
+    });
+    await page.dispatchEvent(".tree-root-item", "contextmenu", {
+      button: 2,
+      bubbles: true,
+      clientX: 82,
+      clientY: 82
+    });
+    await expect(page.locator("#new-file-dialog")).toBeVisible();
+    await page.fill("#new-file-path-input", "root-note");
+    await page.click("#new-file-create-btn");
+    await expect(page.locator("#active-file-label")).toHaveText("root-note.txt");
+    await expect(fs.stat(path.join(projectPath, "root-note.txt"))).resolves.toBeTruthy();
+
+    await page.evaluate(() => {
+      (window as Window & { __WIT_TEST_TREE_ACTION?: "new-file" | "new-folder" }).__WIT_TEST_TREE_ACTION =
+        "new-file";
+    });
+    await page.dispatchEvent(".folder-button:has-text('drafts')", "contextmenu", {
+      button: 2,
+      bubbles: true,
+      clientX: 110,
+      clientY: 110
+    });
+    await expect(page.locator("#new-file-dialog")).toBeVisible();
+    await page.fill("#new-file-path-input", "scene");
+    await page.click("#new-file-create-btn");
+    await expect(page.locator("#active-file-label")).toHaveText("drafts/scene.txt");
+    await expect(fs.stat(path.join(projectPath, "drafts", "scene.txt"))).resolves.toBeTruthy();
+
+    await app.close();
+  });
+
   test("renames files and folders from right-click context menu", async () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-rename-"));
     await fs.mkdir(path.join(projectPath, "drafts"), { recursive: true });
@@ -513,7 +609,7 @@ test.describe("Wit core app flow", () => {
     await app.close();
   });
 
-  test("word count visibility toggle and zoom dropdown control work", async () => {
+  test("footer visibility toggles and zoom dropdown control work", async () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-ui-"));
     await fs.writeFile(path.join(projectPath, "ui.txt"), "one two three", "utf8");
 
@@ -521,8 +617,11 @@ test.describe("Wit core app flow", () => {
 
     await ensureSettingsDialogOpen(page);
     await expect(page.locator("#word-count")).toBeVisible();
+    await expect(page.locator("#writing-time")).toBeVisible();
     await page.click("#show-word-count-input");
     await expect(page.locator("#word-count")).toBeHidden();
+    await page.click("#show-writing-time-input");
+    await expect(page.locator("#writing-time")).toBeHidden();
     await closeSettingsDialog(page);
 
     const sizesBefore = await page.evaluate(() => {
@@ -567,6 +666,19 @@ test.describe("Wit core app flow", () => {
       return Number.parseFloat(window.getComputedStyle(editor).fontSize);
     });
     expect(editorSizeAfterReset).toBeCloseTo(sizesBefore.editor, 3);
+
+    await app.close();
+  });
+
+  test("opening settings does not autofocus the autosave interval input", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-settings-focus-"));
+    await fs.writeFile(path.join(projectPath, "focus.txt"), "one two", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await ensureSettingsDialogOpen(page);
+
+    const activeElementId = await page.evaluate(() => document.activeElement?.id ?? "");
+    expect(activeElementId).not.toBe("autosave-interval-input");
 
     await app.close();
   });

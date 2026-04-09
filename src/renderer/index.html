@@ -10,7 +10,26 @@
   <body>
     <div id="app-shell" class="app-shell">
       <header class="toolbar">
-        <div class="left-controls" aria-hidden="true"></div>
+        <div class="left-controls">
+          <button
+            id="toggle-sidebar-btn"
+            class="toolbar-icon-button"
+            title="Hide sidebar"
+            aria-label="Hide sidebar"
+            aria-pressed="false"
+          >
+            <span class="button-icon sidebar-toggle-icon" aria-hidden="true"></span>
+          </button>
+          <button
+            id="toggle-fullscreen-btn"
+            class="toolbar-icon-button"
+            title="Enter fullscreen"
+            aria-label="Enter fullscreen"
+            aria-pressed="false"
+          >
+            <span class="button-icon fullscreen-icon" aria-hidden="true"></span>
+          </button>
+        </div>
       </header>
 
       <aside class="sidebar">
@@ -49,7 +68,7 @@
         <section class="editor-wrap">
           <div class="editor-header">
             <span id="active-file-label">No file selected</span>
-            <span id="dirty-indicator" class="dirty-indicator" hidden>Unsaved</span>
+            <span id="dirty-indicator" class="dirty-indicator" hidden aria-label="Unsaved changes"></span>
           </div>
           <textarea id="editor" spellcheck="true" placeholder="Open a project and choose a text file to begin writing." disabled></textarea>
         </section>
@@ -57,31 +76,6 @@
         <footer class="status-bar">
           <span id="status-message"></span>
           <div class="status-right">
-            <button
-              id="toggle-sidebar-btn"
-              class="status-icon-button"
-              title="Hide sidebar"
-              aria-label="Hide sidebar"
-              aria-pressed="false"
-            >
-              <span class="button-icon sidebar-toggle-icon" aria-hidden="true"></span>
-            </button>
-            <label class="zoom-control status-zoom-control" for="text-zoom-select">
-              Zoom
-              <select id="text-zoom-select">
-                <option value="50">50%</option>
-                <option value="75">75%</option>
-                <option value="90">90%</option>
-                <option value="100" selected>100%</option>
-                <option value="110">110%</option>
-                <option value="125">125%</option>
-                <option value="150">150%</option>
-                <option value="175">175%</option>
-                <option value="200">200%</option>
-                <option value="225">225%</option>
-                <option value="250">250%</option>
-              </select>
-            </label>
             <span id="writing-time">Writing: 0m</span>
             <span id="word-count">Words: 0</span>
             <span id="snapshot-label" title="No snapshot yet">✓ --</span>
@@ -152,6 +146,13 @@
                 </span>
                 <span class="setting-card-description">Displays the running total project word count in the footer.</span>
               </label>
+              <label class="setting-card setting-card--checkbox" title="Show accumulated writing time">
+                <span class="setting-card-toggle">
+                  <input id="show-writing-time-input" type="checkbox" checked />
+                  <span class="setting-card-title">Show writing time</span>
+                </span>
+                <span class="setting-card-description">Displays the accumulated tracked writing time for this project in the footer.</span>
+              </label>
               <label class="setting-card setting-card--checkbox" title="Convert straight quotes into smart quotes while typing">
                 <span class="setting-card-toggle">
                   <input id="smart-quotes-input" type="checkbox" checked />
@@ -167,6 +168,26 @@
                   <option value="Readerly" selected>Readerly</option>
                   <option value="iA Writer Mono">iA Writer Mono</option>
                 </select>
+              </label>
+              <label class="setting-card" title="Adjust editor text zoom">
+                <span class="setting-card-title">Text zoom</span>
+                <span class="setting-card-description">Changes the editor text size without affecting the rest of the interface.</span>
+                <div class="zoom-control">
+                  Zoom
+                  <select id="text-zoom-select">
+                    <option value="50">50%</option>
+                    <option value="75">75%</option>
+                    <option value="90">90%</option>
+                    <option value="100" selected>100%</option>
+                    <option value="110">110%</option>
+                    <option value="125">125%</option>
+                    <option value="150">150%</option>
+                    <option value="175">175%</option>
+                    <option value="200">200%</option>
+                    <option value="225">225%</option>
+                    <option value="250">250%</option>
+                  </select>
+                </div>
               </label>
               <label class="setting-card slider-control" title="Adjust editor line height for readability">
                 <span class="setting-card-title">Editor line height</span>

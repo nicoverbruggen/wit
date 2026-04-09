@@ -331,6 +331,10 @@ body {
   background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="%23687384" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9 4.5v15"/><path d="M6.2 9.5l-2.2 2.5 2.2 2.5"/></svg>');
 }
 
+.fullscreen-icon {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="%23687384" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24"><path d="M8 4.5H4.5V8"/><path d="M20 8V4.5h-3.5"/><path d="M16.5 19.5H20V16"/><path d="M4.5 16v3.5H8"/></svg>');
+}
+
 .tree-item {
   width: 100%;
   display: grid;
@@ -457,6 +461,9 @@ body {
 .left-controls {
   min-height: 20px;
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .toolbar button,
@@ -486,10 +493,6 @@ body {
   color: var(--text);
   font-size: 0.74rem;
   min-width: 72px;
-}
-
-.status-zoom-control {
-  margin-right: 6px;
 }
 
 body.platform-darwin .toolbar {
@@ -595,8 +598,12 @@ body.platform-linux .toolbar {
 }
 
 .dirty-indicator {
-  color: var(--danger);
-  font-weight: 600;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 58%, white);
+  box-shadow: 0 0 0 4px rgb(15 98 254 / 10%);
+  flex: 0 0 auto;
 }
 
 #editor {
@@ -657,6 +664,36 @@ body.platform-linux .toolbar {
 }
 
 .status-icon-button[aria-pressed="true"] {
+  background: #eaf1ff;
+  border-color: #b8d0ff;
+  color: #3d5f9d;
+}
+
+.toolbar-icon-button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #d2d2d8;
+  border-radius: 7px;
+  background: white;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.toolbar-icon-button .button-icon {
+  width: 15px;
+  height: 15px;
+  background-size: 15px 15px;
+}
+
+.toolbar-icon-button:hover {
+  background: #fbfbfc;
+  border-color: #bfc4cf;
+}
+
+.toolbar-icon-button[aria-pressed="true"] {
   background: #eaf1ff;
   border-color: #b8d0ff;
   color: #3d5f9d;
@@ -743,7 +780,8 @@ body.platform-linux .toolbar {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0;
-  width: 520px;
+  width: 680px;
+  max-width: calc(100vw - 24px);
   background: white;
   color: var(--text);
 }
@@ -754,10 +792,10 @@ body.platform-linux .toolbar {
 
 #settings-form {
   margin: 0;
-  padding: 14px 16px 16px;
+  padding: 18px 20px 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .settings-header {
@@ -775,7 +813,7 @@ body.platform-linux .toolbar {
 .settings-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px 14px;
+  gap: 12px 16px;
 }
 
 .settings-sections {
@@ -787,7 +825,7 @@ body.platform-linux .toolbar {
 .settings-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .settings-section-header {
@@ -811,8 +849,8 @@ body.platform-linux .toolbar {
 .setting-card {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 12px;
+  gap: 8px;
+  padding: 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #fbfbfc;
@@ -879,7 +917,7 @@ body.platform-linux .toolbar {
 
 @media (max-width: 700px) {
   .settings-dialog {
-    width: min(520px, calc(100vw - 24px));
+    width: min(680px, calc(100vw - 24px));
   }
 
   .settings-grid {

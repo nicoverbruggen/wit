@@ -18,6 +18,8 @@ const api = {
   getPlatform: (): NodeJS.Platform => process.platform,
   selectProject: (): Promise<ProjectMetadata | null> => ipcRenderer.invoke("project:select"),
   getActiveProject: (): Promise<ProjectMetadata | null> => ipcRenderer.invoke("project:get-active"),
+  closeProject: (): Promise<null> => ipcRenderer.invoke("project:close"),
+  toggleFullscreen: (): Promise<boolean> => ipcRenderer.invoke("window:toggle-fullscreen"),
   openProjectPath: (projectPath: string): Promise<ProjectMetadata> =>
     ipcRenderer.invoke("project:open-path", projectPath),
   openFile: (relativePath: string): Promise<string> =>
@@ -105,6 +107,17 @@ const api = {
   onMenuToggleSidebar: (listener: () => void): Unsubscribe => {
     const channel = "menu:toggle-sidebar";
     const wrappedListener = () => listener();
+
+    ipcRenderer.on(channel, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(channel, wrappedListener);
+    };
+  },
+  onFullscreenChanged: (listener: (isFullscreen: boolean) => void): Unsubscribe => {
+    const channel = "window:fullscreen-changed";
+    const wrappedListener = (_event: Electron.IpcRendererEvent, isFullscreen: boolean) => {
+      listener(isFullscreen);
+    };
 
     ipcRenderer.on(channel, wrappedListener);
     return () => {

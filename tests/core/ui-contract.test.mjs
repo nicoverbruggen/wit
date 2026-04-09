@@ -11,12 +11,14 @@ test("renderer markup contains core writing controls", async () => {
 
   const requiredIds = [
     "toggle-sidebar-btn",
+    "toggle-fullscreen-btn",
     "open-project-btn",
     "new-file-btn",
     "new-folder-btn",
     "file-list",
     "editor",
     "show-word-count-input",
+    "show-writing-time-input",
     "smart-quotes-input",
     "git-snapshots-input",
     "git-snapshots-notice",

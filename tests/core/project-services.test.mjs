@@ -49,6 +49,7 @@ test("project initialization and metadata defaults", async () => {
     assert.equal(metadata.isGitRepository, false);
     assert.equal(metadata.settings.autosaveIntervalSec, 60);
     assert.equal(metadata.settings.showWordCount, true);
+    assert.equal(metadata.settings.showWritingTime, true);
     assert.equal(metadata.settings.smartQuotes, true);
     assert.equal(metadata.settings.gitSnapshots, false);
     assert.equal(metadata.settings.editorLineHeight, 1.68);
@@ -83,6 +84,7 @@ test("create/list/save/read files with word count and settings", async () => {
     const savedSettings = await projectService.saveSettings(projectPath, {
       autosaveIntervalSec: 1,
       showWordCount: false,
+      showWritingTime: false,
       smartQuotes: false,
       gitSnapshots: true,
       editorLineHeight: 9,
@@ -92,6 +94,7 @@ test("create/list/save/read files with word count and settings", async () => {
 
     assert.equal(savedSettings.autosaveIntervalSec, 10);
     assert.equal(savedSettings.showWordCount, false);
+    assert.equal(savedSettings.showWritingTime, false);
     assert.equal(savedSettings.smartQuotes, false);
     assert.equal(savedSettings.gitSnapshots, true);
     assert.equal(savedSettings.editorLineHeight, 2.4);

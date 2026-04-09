@@ -6,6 +6,7 @@ const newFileButton = document.getElementById("new-file-btn") as HTMLButtonEleme
 const newFolderButton = document.getElementById("new-folder-btn") as HTMLButtonElement;
 const projectActions = document.getElementById("project-actions") as HTMLElement;
 const settingsToggleButton = document.getElementById("settings-toggle-btn") as HTMLButtonElement;
+const fullscreenToggleButton = document.getElementById("toggle-fullscreen-btn") as HTMLButtonElement;
 const settingsDialog = document.getElementById("settings-dialog") as HTMLDialogElement;
 const appShell = document.getElementById("app-shell") as HTMLElement;
 const toggleSidebarButton = document.getElementById("toggle-sidebar-btn") as HTMLButtonElement;
@@ -38,6 +39,7 @@ const wordCountLabel = document.getElementById("word-count") as HTMLSpanElement;
 const writingTimeLabel = document.getElementById("writing-time") as HTMLSpanElement;
 const snapshotLabel = document.getElementById("snapshot-label") as HTMLSpanElement;
 const showWordCountInput = document.getElementById("show-word-count-input") as HTMLInputElement;
+const showWritingTimeInput = document.getElementById("show-writing-time-input") as HTMLInputElement;
 const smartQuotesInput = document.getElementById("smart-quotes-input") as HTMLInputElement;
 const gitSnapshotsInput = document.getElementById("git-snapshots-input") as HTMLInputElement;
 const gitSnapshotsNotice = document.getElementById("git-snapshots-notice") as HTMLParagraphElement;
@@ -86,6 +88,7 @@ let statusResetTimer: number | null = null;
 let suppressDirtyEvents = false;
 let editorBaseFontSizePx = 0;
 let editorZoomFactor = 1;
+let isWindowFullscreen = false;
 let liveWordCountTimer: number | null = null;
 let liveWordCountRequestToken = 0;
 let snapshotCreatedAtMs: number | null = null;
@@ -97,9 +100,10 @@ const collapsedFolderPaths = new Set<string>();
 let selectedTreePath: string | null = null;
 let selectedTreeKind: SelectedTreeKind | null = null;
 let sidebarVisible = true;
+let sidebarVisibleBeforeFullscreen = true;
 
 const subscriptions: Array<() => void> = [];
-type TreeContextAction = "rename" | "delete";
+type TreeContextAction = "new-file" | "new-folder" | "rename" | "delete" | "close-project";
 type TestWindowWithContextAction = Window & {
   __WIT_TEST_TREE_ACTION?: TreeContextAction;
 };
@@ -327,6 +331,7 @@ function setProjectControlsEnabled(enabled: boolean): void {
   newFileButton.disabled = !enabled;
   newFolderButton.disabled = !enabled;
   showWordCountInput.disabled = !enabled;
+  showWritingTimeInput.disabled = !enabled;
   smartQuotesInput.disabled = !enabled;
   gitSnapshotsInput.disabled = !enabled || !project?.isGitRepository;
   autosaveIntervalInput.disabled = !enabled;
@@ -346,6 +351,24 @@ function syncSidebarToggleButton(): void {
   toggleSidebarButton.title = nextActionLabel;
   toggleSidebarButton.setAttribute("aria-label", nextActionLabel);
   toggleSidebarButton.setAttribute("aria-pressed", String(!sidebarVisible));
+}
+
+function syncFullscreenToggleButton(isFullscreen: boolean): void {
+  const wasFullscreen = isWindowFullscreen;
+  isWindowFullscreen = isFullscreen;
+  const nextActionLabel = isFullscreen ? "Exit fullscreen" : "Enter fullscreen";
+  fullscreenToggleButton.title = nextActionLabel;
+  fullscreenToggleButton.setAttribute("aria-label", nextActionLabel);
+  fullscreenToggleButton.setAttribute("aria-pressed", String(isFullscreen));
+
+  if (isFullscreen && !wasFullscreen) {
+    sidebarVisibleBeforeFullscreen = sidebarVisible;
+    setSidebarVisibility(false, false);
+  } else if (!isFullscreen && wasFullscreen) {
+    setSidebarVisibility(sidebarVisibleBeforeFullscreen, false);
+  }
+
+  applyEditorZoom(false);
 }
 
 function setSidebarVisibility(nextVisible: boolean, showStatus = true): void {
@@ -381,16 +404,6 @@ function openSettingsDialog(): void {
   if (!settingsDialog.open) {
     settingsDialog.showModal();
   }
-
-  window.requestAnimationFrame(() => {
-    if (autosaveIntervalInput.disabled) {
-      settingsCloseButton.focus();
-      return;
-    }
-
-    autosaveIntervalInput.focus();
-    autosaveIntervalInput.select();
-  });
 }
 
 function setEditorWritable(enabled: boolean): void {
@@ -553,6 +566,24 @@ function resetActiveFile(): void {
 
   setDirty(false);
   setEditorWritable(false);
+}
+
+function clearProjectState(showStatusMessage = false): void {
+  project = null;
+  resetTreeState();
+  resetActiveFile();
+  snapshotCreatedAtMs = null;
+  renderSnapshotLabel();
+  syncProjectPathLabels("No project selected");
+  setProjectControlsEnabled(false);
+  setSidebarFaded(false);
+  renderStatusFooter();
+  renderFileList();
+  restartAutosaveTimer();
+
+  if (showStatusMessage) {
+    setStatus("Project closed.", 2000);
+  }
 }
 
 function toIndentClass(depth: number): string {
@@ -815,7 +846,7 @@ function renderRootTreeItem(): void {
   button.type = "button";
   button.className = `tree-item folder-button tree-root-item ${selectedClass}`;
   button.dataset.relativePath = "";
-  button.dataset.itemKind = "root";
+  button.dataset.itemKind = "project";
   button.title = project.projectPath;
   icon.className = "folder-icon";
   icon.setAttribute("aria-hidden", "true");
@@ -870,6 +901,14 @@ function renderRootTreeItem(): void {
 }
 
 function syncProjectPathLabels(projectPath: string): void {
+  if (!project) {
+    sidebarProjectTitle.textContent = "No Project";
+    sidebarProjectTitle.title = "";
+    projectPathLabel.textContent = "No project selected";
+    projectPathLabel.title = "";
+    return;
+  }
+
   const displayName = getProjectDisplayTitle(projectPath);
   sidebarProjectTitle.textContent = displayName;
   sidebarProjectTitle.title = projectPath;
@@ -973,6 +1012,12 @@ function renderStatusFooter(): void {
   } else {
     wordCountLabel.style.display = "inline";
   }
+
+  if (project && !project.settings.showWritingTime) {
+    writingTimeLabel.style.display = "none";
+  } else {
+    writingTimeLabel.style.display = "inline";
+  }
 }
 
 function renderFileList(): void {
@@ -1012,6 +1057,7 @@ function syncGitSnapshotsAvailability(): void {
 
 function syncSettingsInputs(settings: AppSettings): void {
   showWordCountInput.checked = settings.showWordCount;
+  showWritingTimeInput.checked = settings.showWritingTime;
   smartQuotesInput.checked = settings.smartQuotes;
   gitSnapshotsInput.checked = settings.gitSnapshots && Boolean(project?.isGitRepository);
   autosaveIntervalInput.value = String(settings.autosaveIntervalSec);
@@ -1224,6 +1270,18 @@ async function openProjectPicker(): Promise<void> {
   } else {
     resetActiveFile();
     setStatus("Project opened. Create your first file.", 2000);
+  }
+}
+
+async function closeCurrentProject(): Promise<void> {
+  closeTreeContextMenu();
+
+  try {
+    await persistCurrentFile(true);
+    await window.witApi.closeProject();
+    clearProjectState(true);
+  } catch {
+    setStatus("Could not close project.");
   }
 }
 
@@ -1709,6 +1767,7 @@ async function initialize(): Promise<void> {
 
   setProjectControlsEnabled(false);
   syncSidebarToggleButton();
+  syncFullscreenToggleButton(false);
   setSidebarVisibility(true, false);
   setSidebarFaded(false);
    setEditorWritable(false);
@@ -1772,6 +1831,12 @@ async function initialize(): Promise<void> {
       toggleSidebarVisibility();
     })
   );
+
+  subscriptions.push(
+    window.witApi.onFullscreenChanged((isFullscreen) => {
+      syncFullscreenToggleButton(isFullscreen);
+    })
+  );
 }
 
 openProjectButton.addEventListener("click", () => {
@@ -1817,8 +1882,24 @@ toggleSidebarButton.addEventListener("click", () => {
   toggleSidebarVisibility();
 });
 
+fullscreenToggleButton.addEventListener("click", () => {
+  closeTreeContextMenu();
+  void (async () => {
+    try {
+      const isFullscreen = await window.witApi.toggleFullscreen();
+      syncFullscreenToggleButton(isFullscreen);
+    } catch {
+      setStatus("Could not toggle fullscreen.");
+    }
+  })();
+});
+
 showWordCountInput.addEventListener("change", () => {
   void persistSettings({ showWordCount: showWordCountInput.checked });
+});
+
+showWritingTimeInput.addEventListener("change", () => {
+  void persistSettings({ showWritingTime: showWritingTimeInput.checked });
 });
 
 smartQuotesInput.addEventListener("change", () => {
@@ -1925,7 +2006,7 @@ fileList.addEventListener("contextmenu", (event) => {
   }
 
   const itemKind = treeItem.dataset.itemKind;
-  if (itemKind !== "file" && itemKind !== "folder") {
+  if (itemKind !== "file" && itemKind !== "folder" && itemKind !== "project") {
     closeTreeContextMenu();
     return;
   }
@@ -1933,6 +2014,43 @@ fileList.addEventListener("contextmenu", (event) => {
   const relativePath = treeItem.dataset.relativePath;
   if (relativePath === undefined) {
     closeTreeContextMenu();
+    return;
+  }
+
+  if (itemKind === "project") {
+    selectedTreePath = "";
+    selectedTreeKind = "folder";
+    renderFileList();
+    setSidebarFaded(false);
+
+    const testAction = consumeTestTreeContextAction();
+    void (async () => {
+      try {
+        const action = await window.witApi.showTreeContextMenu({
+          relativePath,
+          kind: "project",
+          x: event.clientX,
+          y: event.clientY,
+          testAction
+        });
+
+        if (action === "new-file") {
+          await createNewFile();
+          return;
+        }
+
+        if (action === "new-folder") {
+          await createNewFolder();
+          return;
+        }
+
+        if (action === "close-project") {
+          await closeCurrentProject();
+        }
+      } catch {
+        setStatus("Could not open project actions menu.");
+      }
+    })();
     return;
   }
 
@@ -1952,6 +2070,16 @@ fileList.addEventListener("contextmenu", (event) => {
         y: event.clientY,
         testAction
       });
+
+      if (action === "new-file") {
+        await createNewFile();
+        return;
+      }
+
+      if (action === "new-folder") {
+        await createNewFolder();
+        return;
+      }
 
       if (action === "delete") {
         await deleteEntryByPath(relativePath, kind);

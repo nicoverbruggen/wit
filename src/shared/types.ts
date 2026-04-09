@@ -1,6 +1,7 @@
 export type AppSettings = {
   autosaveIntervalSec: number;
   showWordCount: boolean;
+  showWritingTime: boolean;
   smartQuotes: boolean;
   gitSnapshots: boolean;
   editorLineHeight: number;
@@ -50,11 +51,11 @@ export type RenameEntryPayload = {
   nextRelativePath: string;
 };
 
-export type TreeContextAction = "rename" | "delete";
+export type TreeContextAction = "new-file" | "new-folder" | "rename" | "delete" | "close-project";
 
 export type ShowTreeContextMenuPayload = {
   relativePath: string;
-  kind: "file" | "folder";
+  kind: "file" | "folder" | "project";
   x: number;
   y: number;
   testAction?: TreeContextAction;

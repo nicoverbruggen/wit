@@ -14,6 +14,7 @@ const TEXT_FILE_EXTENSIONS = new Set([".txt", ".md", ".markdown", ".text"]);
 const DEFAULT_SETTINGS: AppSettings = {
   autosaveIntervalSec: 60,
   showWordCount: true,
+  showWritingTime: true,
   smartQuotes: true,
   gitSnapshots: false,
   editorLineHeight: 1.68,
@@ -441,6 +442,10 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
       typeof parsed.showWordCount === "boolean"
         ? parsed.showWordCount
         : DEFAULT_SETTINGS.showWordCount,
+    showWritingTime:
+      typeof parsed.showWritingTime === "boolean"
+        ? parsed.showWritingTime
+        : DEFAULT_SETTINGS.showWritingTime,
     smartQuotes:
       typeof parsed.smartQuotes === "boolean" ? parsed.smartQuotes : DEFAULT_SETTINGS.smartQuotes,
     gitSnapshots:
@@ -470,6 +475,7 @@ export async function saveSettings(projectPath: string, settings: AppSettings): 
   const normalizedSettings: AppSettings = {
     autosaveIntervalSec: Math.max(10, Math.round(settings.autosaveIntervalSec)),
     showWordCount: Boolean(settings.showWordCount),
+    showWritingTime: Boolean(settings.showWritingTime),
     smartQuotes: Boolean(settings.smartQuotes),
     gitSnapshots: Boolean(settings.gitSnapshots),
     editorLineHeight: normalizeEditorLineHeight(settings.editorLineHeight),

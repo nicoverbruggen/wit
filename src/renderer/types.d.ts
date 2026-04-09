@@ -17,6 +17,8 @@ type WitApi = {
   getPlatform: () => NodeJS.Platform;
   selectProject: () => Promise<ProjectMetadata | null>;
   getActiveProject: () => Promise<ProjectMetadata | null>;
+  closeProject: () => Promise<null>;
+  toggleFullscreen: () => Promise<boolean>;
   openProjectPath: (projectPath: string) => Promise<ProjectMetadata>;
   openFile: (relativePath: string) => Promise<string>;
   saveFile: (relativePath: string, content: string) => Promise<boolean>;
@@ -39,6 +41,7 @@ type WitApi = {
   onMenuZoomOutText: (listener: () => void) => Unsubscribe;
   onMenuZoomResetText: (listener: () => void) => Unsubscribe;
   onMenuToggleSidebar: (listener: () => void) => Unsubscribe;
+  onFullscreenChanged: (listener: (isFullscreen: boolean) => void) => Unsubscribe;
 };
 
 declare global {

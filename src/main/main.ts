@@ -127,6 +127,15 @@ function setupContextMenus(browserWindow: BrowserWindow): void {
   });
 }
 
+function setupWindowStateEvents(browserWindow: BrowserWindow): void {
+  const emitFullscreenState = (): void => {
+    browserWindow.webContents.send("window:fullscreen-changed", browserWindow.isFullScreen());
+  };
+
+  browserWindow.on("enter-full-screen", emitFullscreenState);
+  browserWindow.on("leave-full-screen", emitFullscreenState);
+}
+
 function createMainWindow(): BrowserWindow {
   const sharedWindowOptions = {
     width: 1240,
@@ -169,6 +178,7 @@ function createMainWindow(): BrowserWindow {
     resetWindowZoomToDefault(browserWindow);
   });
   setupContextMenus(browserWindow);
+  setupWindowStateEvents(browserWindow);
 
   return browserWindow;
 }
@@ -350,6 +360,22 @@ function setupIpcHandlers(): void {
     return getProjectMetadata(activeProjectPath);
   });
 
+  ipcMain.handle("project:close", async () => {
+    activeProjectPath = null;
+    await clearLastProjectPath();
+    return null;
+  });
+
+  ipcMain.handle("window:toggle-fullscreen", () => {
+    if (!mainWindow) {
+      return false;
+    }
+
+    const nextState = !mainWindow.isFullScreen();
+    mainWindow.setFullScreen(nextState);
+    return nextState;
+  });
+
   ipcMain.handle("project:open-path", async (_event, projectPath: string) => {
     return openProject(projectPath);
   });
@@ -446,21 +472,75 @@ function setupIpcHandlers(): void {
         resolve(action);
       };
 
-      const menu = Menu.buildFromTemplate([
-        {
-          label: "Rename",
-          click: () => {
-            resolveOnce("rename");
-          }
-        },
-        { type: "separator" },
-        {
-          label: "Delete",
-          click: () => {
-            resolveOnce("delete");
-          }
-        }
-      ]);
+      const menuTemplate: MenuItemConstructorOptions[] =
+        payload.kind === "project"
+          ? [
+              {
+                label: "New File",
+                click: () => {
+                  resolveOnce("new-file");
+                }
+              },
+              {
+                label: "New Folder",
+                click: () => {
+                  resolveOnce("new-folder");
+                }
+              },
+              { type: "separator" },
+              {
+                label: "Close Project",
+                click: () => {
+                  resolveOnce("close-project");
+                }
+              }
+            ]
+          : payload.kind === "folder"
+            ? [
+                {
+                  label: "New File",
+                  click: () => {
+                    resolveOnce("new-file");
+                  }
+                },
+                {
+                  label: "New Folder",
+                  click: () => {
+                    resolveOnce("new-folder");
+                  }
+                },
+                { type: "separator" },
+                {
+                  label: "Rename",
+                  click: () => {
+                    resolveOnce("rename");
+                  }
+                },
+                { type: "separator" },
+                {
+                  label: "Delete",
+                  click: () => {
+                    resolveOnce("delete");
+                  }
+                }
+              ]
+          : [
+              {
+                label: "Rename",
+                click: () => {
+                  resolveOnce("rename");
+                }
+              },
+              { type: "separator" },
+              {
+                label: "Delete",
+                click: () => {
+                  resolveOnce("delete");
+                }
+              }
+            ];
+
+      const menu = Menu.buildFromTemplate(menuTemplate);
 
       menu.popup({
         window: popupWindow,
