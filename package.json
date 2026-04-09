@@ -7,7 +7,8 @@
   "homepage": "https://nicoverbruggen.be",
   "license": "MIT",
   "scripts": {
-    "clean": "rimraf dist release",
+    "clean": "rimraf dist release icon.png",
+    "build:icon": "rsvg-convert -w 1024 -h 1024 icon.svg -o icon.png",
     "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js",
     "copy:renderer": "copyfiles -u 2 \"src/renderer/**/*.html\" \"src/renderer/**/*.css\" \"src/renderer/assets/**/*\" dist/renderer",
     "copy:font": "copyfiles -u 1 \"font/**/*\" dist/renderer/font",
@@ -21,10 +22,10 @@
     "test:core": "npm run build && node --test tests/core/**/*.test.mjs",
     "test:e2e": "npm run build && playwright test",
     "test": "npm run test:core && npm run test:e2e",
-    "dist": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
-    "dist:mac": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac",
-    "dist:linux": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --linux",
-    "dist:win": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win"
+    "dist": "npm run build && npm run build:icon && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
+    "dist:mac": "npm run build && npm run build:icon && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac",
+    "dist:linux": "npm run build && npm run build:icon && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --linux",
+    "dist:win": "npm run build && npm run build:icon && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win"
   },
   "build": {
     "appId": "com.wit.app",
@@ -43,7 +44,7 @@
       "target": "dmg",
       "category": "public.app-category.productivity",
       "identity": null,
-      "icon": "icon.svg"
+      "icon": "icon.png"
     },
     "linux": {
       "target": "AppImage",

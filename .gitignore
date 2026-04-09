@@ -1,6 +1,7 @@
 node_modules/
 dist/
 release/
+icon.png
 .DS_Store
 npm-debug.log*
 .wit/
