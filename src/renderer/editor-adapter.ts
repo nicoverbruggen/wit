@@ -10,6 +10,7 @@ export type EditorAdapter = {
   setPlaceholder: (value: string) => void;
   setDisabled: (disabled: boolean) => void;
   setLineHeight: (value: number | string) => void;
+  setParagraphSpacing: (value: "none" | "tight" | "loose" | "very-loose") => void;
   setFontFamily: (value: string) => void;
   setFontSize: (value: number) => void;
   getComputedFontSize: () => number;
@@ -18,6 +19,7 @@ export type EditorAdapter = {
   onInput: (listener: () => void) => () => void;
   onKeydown: (listener: (event: KeyboardEvent) => void) => () => void;
   onBlur: (listener: () => void) => () => void;
+  destroy: () => void;
 };
 
 export function createTextareaEditor(element: HTMLTextAreaElement): EditorAdapter {
@@ -38,6 +40,7 @@ export function createTextareaEditor(element: HTMLTextAreaElement): EditorAdapte
     setLineHeight: (value) => {
       element.style.lineHeight = String(value);
     },
+    setParagraphSpacing: () => {},
     setFontFamily: (value) => {
       element.style.fontFamily = value;
     },
@@ -70,6 +73,7 @@ export function createTextareaEditor(element: HTMLTextAreaElement): EditorAdapte
       return () => {
         element.removeEventListener("blur", listener);
       };
-    }
+    },
+    destroy: () => {}
   };
 }

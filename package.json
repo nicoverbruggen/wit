@@ -8,11 +8,12 @@
   "license": "MIT",
   "scripts": {
     "clean": "rimraf dist release",
+    "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js",
     "copy:renderer": "copyfiles -u 2 \"src/renderer/**/*.html\" \"src/renderer/**/*.css\" \"src/renderer/assets/**/*\" dist/renderer",
     "copy:font": "copyfiles -u 1 \"font/**/*\" dist/renderer/font",
     "copy:inter": "copyfiles -f \"node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-400-italic.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-500-normal.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-500-italic.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-600-italic.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-700-italic.woff2\" dist/renderer/vendor/inter",
     "copy:material-symbols": "copyfiles -f \"node_modules/@material-symbols/font-400/material-symbols-outlined.woff2\" dist/renderer/vendor/material-symbols",
-    "build": "npm run clean && tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && npm run copy:renderer && npm run copy:font && npm run copy:inter && npm run copy:material-symbols",
+    "build": "npm run clean && tsc -p tsconfig.main.json && npm run build:renderer && npm run copy:renderer && npm run copy:font && npm run copy:inter && npm run copy:material-symbols",
     "start": "npm run build && electron .",
     "dev": "npm run start",
     "lint": "eslint \"src/**/*.ts\"",
@@ -63,6 +64,7 @@
     "copyfiles": "^2.4.1",
     "electron": "^41.1.1",
     "electron-builder": "^26.0.12",
+    "esbuild": "^0.28.0",
     "eslint": "^9.24.0",
     "globals": "^15.15.0",
     "playwright": "^1.54.2",
@@ -70,6 +72,10 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/search": "^6.6.0",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.41.0",
     "@fontsource/inter": "^5.2.8",
     "@material-symbols/font-400": "^0.44.0"
   }

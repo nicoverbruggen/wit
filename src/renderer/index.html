@@ -105,7 +105,13 @@
             <span id="active-file-label">No file selected</span>
             <span id="dirty-indicator" class="dirty-indicator" hidden aria-label="Unsaved changes"></span>
           </div>
-          <textarea id="editor" spellcheck="true" placeholder="Open a project and choose a text file to begin writing." disabled></textarea>
+          <div
+            id="editor"
+            class="editor-host"
+            aria-label="Writing editor"
+            data-paragraph-spacing="none"
+            data-disabled="true"
+          ></div>
         </section>
 
         <footer class="status-bar">

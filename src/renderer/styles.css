@@ -894,6 +894,10 @@ body.platform-linux .toolbar {
   flex-direction: column;
   position: relative;
   --editor-max-width: 500px;
+  --editor-font-family: "WitWriter", "Palatino", "Times New Roman", serif;
+  --editor-font-size: 1.32rem;
+  --editor-line-height: 1.68;
+  --editor-paragraph-spacing: 0;
 }
 
 .editor-wrap.show-empty-state .editor-header,
@@ -953,40 +957,115 @@ body.platform-linux .toolbar {
   margin: 0;
   flex: 1;
   border: 0;
-  background: transparent;
-  resize: none;
-  padding-block: 30px;
-  padding-inline: max(24px, calc(((100% - var(--editor-max-width)) / 2) + 24px));
   font-family: "WitWriter", "Palatino", "Times New Roman", serif;
-  font-size: 1.32rem;
-  line-height: 1.68;
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
   color: var(--text);
-  transition: padding 100ms ease;
+  background: transparent;
   font-variant-ligatures: common-ligatures;
   font-feature-settings: "liga" 1, "clig" 1;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: rgb(31 35 40 / 22%) transparent;
+  transition: padding 100ms ease;
 }
 
 #editor:focus {
   outline: none;
 }
 
-#editor::-webkit-scrollbar {
-  width: 8px;
+#editor[data-paragraph-spacing="none"] {
+  --editor-paragraph-spacing: 0;
 }
 
-#editor::-webkit-scrollbar-track {
+#editor[data-paragraph-spacing="tight"] {
+  --editor-paragraph-spacing: 0.48em;
+}
+
+#editor[data-paragraph-spacing="loose"] {
+  --editor-paragraph-spacing: 0.9em;
+}
+
+#editor[data-paragraph-spacing="very-loose"] {
+  --editor-paragraph-spacing: 1.35em;
+}
+
+#editor .cm-editor {
+  height: 100%;
   background: transparent;
 }
 
-#editor::-webkit-scrollbar-thumb {
+#editor .cm-scroller {
+  height: 100%;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(31 35 40 / 22%) transparent;
+}
+
+#editor .cm-content,
+#editor .cm-gutter {
+  padding-block: 30px;
+}
+
+#editor .cm-content {
+  min-height: 100%;
+  max-width: var(--editor-max-width);
+  margin-inline: auto;
+  padding-inline: 24px;
+  font-family: var(--editor-font-family);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
+  color: var(--text);
+  caret-color: var(--text);
+}
+
+#editor .cm-line {
+  padding: 0;
+}
+
+#editor .cm-wit-paragraph-spacer {
+  height: var(--editor-paragraph-spacing);
+  pointer-events: none;
+}
+
+#editor .cm-focused {
+  outline: none;
+}
+
+#editor .cm-cursor,
+#editor .cm-dropCursor {
+  border-left-color: var(--text);
+}
+
+#editor .cm-selectionBackground {
+  background: rgb(15 98 254 / 18%) !important;
+}
+
+#editor .cm-placeholder {
+  color: color-mix(in srgb, var(--muted) 76%, transparent);
+}
+
+#editor .cm-gutters {
+  display: none;
+}
+
+#editor .cm-activeLine,
+#editor .cm-activeLineGutter {
+  background: transparent;
+}
+
+#editor .cm-scroller::-webkit-scrollbar {
+  width: 8px;
+}
+
+#editor .cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#editor .cm-scroller::-webkit-scrollbar-thumb {
   background: rgb(31 35 40 / 18%);
   border-radius: 999px;
 }
 
-#editor::-webkit-scrollbar-thumb:hover {
+#editor .cm-scroller::-webkit-scrollbar-thumb:hover {
   background: rgb(31 35 40 / 28%);
 }
 
@@ -1591,14 +1670,21 @@ body[data-theme="dark"] .empty-state-shortcut-key {
 
 body[data-theme="dark"] #editor {
   color: var(--text);
+}
+
+body[data-theme="dark"] #editor .cm-scroller {
   scrollbar-color: rgb(139 148 158 / 38%) transparent;
 }
 
-body[data-theme="dark"] #editor::-webkit-scrollbar-thumb {
+body[data-theme="dark"] #editor .cm-selectionBackground {
+  background: rgb(56 139 253 / 28%) !important;
+}
+
+body[data-theme="dark"] #editor .cm-scroller::-webkit-scrollbar-thumb {
   background: rgb(139 148 158 / 28%);
 }
 
-body[data-theme="dark"] #editor::-webkit-scrollbar-thumb:hover {
+body[data-theme="dark"] #editor .cm-scroller::-webkit-scrollbar-thumb:hover {
   background: rgb(139 148 158 / 42%);
 }
 

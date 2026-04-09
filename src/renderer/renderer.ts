@@ -1,5 +1,5 @@
 import type { AppSettings, ProjectMetadata } from "../shared/types";
-import { createTextareaEditor } from "./editor-adapter.js";
+import { createCodeMirrorEditor } from "./codemirror-editor-adapter.js";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
 const openProjectWrap = document.querySelector(".open-project-wrap") as HTMLElement;
@@ -48,8 +48,8 @@ const renameEntryInput = document.getElementById("rename-entry-input") as HTMLIn
 const renameEntryCancelButton = document.getElementById("rename-entry-cancel-btn") as HTMLButtonElement;
 const renameEntryConfirmButton = document.getElementById("rename-entry-confirm-btn") as HTMLButtonElement;
 const renameEntryError = document.getElementById("rename-entry-error") as HTMLParagraphElement;
-const editorElement = document.getElementById("editor") as HTMLTextAreaElement;
-const editor = createTextareaEditor(editorElement);
+const editorElement = document.getElementById("editor") as HTMLDivElement;
+const editor = createCodeMirrorEditor(editorElement);
 const projectPathLabel = document.getElementById("project-path") as HTMLSpanElement;
 const activeFileLabel = document.getElementById("active-file-label") as HTMLSpanElement;
 const dirtyIndicator = document.getElementById("dirty-indicator") as HTMLSpanElement;
@@ -146,8 +146,6 @@ let sidebarVisibleBeforeFullscreen = true;
 let sidebarWidthPx = DEFAULT_SIDEBAR_WIDTH_PX;
 let sidebarResizeCleanup: (() => void) | null = null;
 let currentSettingsTab: SettingsTabKey = "writing";
-let currentEditorLineHeight = 1.68;
-let currentEditorParagraphSpacing: AppSettings["editorParagraphSpacing"] = "none";
 let systemFontFamilies: string[] = [];
 
 const subscriptions: Array<() => void> = [];
@@ -625,38 +623,16 @@ function normalizeDefaultFileExtensionValue(value: string): AppSettings["default
   }
 }
 
-function getParagraphSpacingLineHeightBoost(spacing: AppSettings["editorParagraphSpacing"]): number {
-  switch (spacing) {
-    case "tight":
-      return 0.1;
-    case "loose":
-      return 0.22;
-    case "very-loose":
-      return 0.36;
-    default:
-      return 0;
-  }
-}
-
-function refreshEditorLineHeight(): void {
-  const effectiveLineHeight = normalizeLineHeightValue(
-    currentEditorLineHeight + getParagraphSpacingLineHeightBoost(currentEditorParagraphSpacing)
-  );
-  editor.setLineHeight(effectiveLineHeight);
-}
-
 function applyEditorLineHeight(lineHeight: number): void {
   const normalized = normalizeLineHeightValue(lineHeight);
-  currentEditorLineHeight = normalized;
-  refreshEditorLineHeight();
+  editor.setLineHeight(normalized);
   lineHeightValue.textContent = normalized.toFixed(2);
   lineHeightInput.value = normalized.toFixed(2);
 }
 
 function applyEditorParagraphSpacing(spacing: AppSettings["editorParagraphSpacing"]): void {
-  currentEditorParagraphSpacing = spacing;
   paragraphSpacingSelect.value = spacing;
-  refreshEditorLineHeight();
+  editor.setParagraphSpacing(spacing);
 }
 
 function applyEditorMaxWidth(editorWidth: number): void {
@@ -2673,6 +2649,8 @@ window.addEventListener("beforeunload", () => {
   for (const unsubscribe of subscriptions) {
     unsubscribe();
   }
+
+  editor.destroy();
 });
 
 window.addEventListener("error", () => {

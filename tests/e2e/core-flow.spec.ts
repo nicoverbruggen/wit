@@ -95,6 +95,35 @@ async function latestCommitMessage(projectPath: string): Promise<string> {
   return result.stdout.trim();
 }
 
+async function getEditorText(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const content = document.querySelector("#editor .cm-content");
+    return content?.textContent ?? "";
+  });
+}
+
+async function getEditorPlaceholder(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const placeholder = document.querySelector("#editor .cm-placeholder");
+    return placeholder?.textContent ?? "";
+  });
+}
+
+async function getEditorTypography(page: Page): Promise<{ fontSize: number; lineHeight: number }> {
+  return page.evaluate(() => {
+    const content = document.querySelector("#editor .cm-content");
+    if (!content) {
+      throw new Error("Editor content is missing.");
+    }
+
+    const styles = window.getComputedStyle(content);
+    return {
+      fontSize: Number.parseFloat(styles.fontSize),
+      lineHeight: Number.parseFloat(styles.lineHeight)
+    };
+  });
+}
+
 test.describe("Wit core app flow", () => {
   test.beforeEach(async () => {
     await clearLastProjectState();
@@ -375,7 +404,7 @@ test.describe("Wit core app flow", () => {
 
     const { app, page } = await launchWithProject(projectPath);
     await expect(page.locator("#active-file-label")).toHaveText("empty.txt");
-    await expect(page.locator("#editor")).toHaveAttribute("placeholder", "");
+    await expect.poll(async () => getEditorPlaceholder(page)).toBe("");
     await app.close();
   });
 
@@ -490,7 +519,7 @@ test.describe("Wit core app flow", () => {
     await page.click("#new-file-create-btn");
 
     await expect(page.locator("#active-file-label")).toHaveText("chapter-02.txt");
-    await expect(page.locator("#editor")).toHaveValue("");
+    await expect.poll(async () => getEditorText(page)).toBe("");
     await page.click("#editor");
     await page.keyboard.type('"hello" and \'world\'');
 
@@ -754,7 +783,7 @@ test.describe("Wit core app flow", () => {
     await closeSettingsDialog(page);
 
     const sizesBefore = await page.evaluate(() => {
-      const editor = document.querySelector("#editor");
+      const editor = document.querySelector("#editor .cm-content");
       const writingTime = document.querySelector("#writing-time");
       if (!editor || !writingTime) {
         throw new Error("Zoom targets are missing.");
@@ -770,7 +799,7 @@ test.describe("Wit core app flow", () => {
     await page.selectOption("#text-zoom-select", "150");
 
     const sizesAfterZoomIn = await page.evaluate(() => {
-      const editor = document.querySelector("#editor");
+      const editor = document.querySelector("#editor .cm-content");
       const writingTime = document.querySelector("#writing-time");
       if (!editor || !writingTime) {
         throw new Error("Zoom targets are missing.");
@@ -786,15 +815,8 @@ test.describe("Wit core app flow", () => {
     expect(sizesAfterZoomIn.writingTime).toBeCloseTo(sizesBefore.writingTime, 3);
 
     await page.selectOption("#text-zoom-select", "100");
-    const editorSizeAfterReset = await page.evaluate(() => {
-      const editor = document.querySelector("#editor");
-      if (!editor) {
-        throw new Error("Editor is missing.");
-      }
-
-      return Number.parseFloat(window.getComputedStyle(editor).fontSize);
-    });
-    expect(editorSizeAfterReset).toBeCloseTo(sizesBefore.editor, 3);
+    const editorSizeAfterReset = await getEditorTypography(page);
+    expect(editorSizeAfterReset.fontSize).toBeCloseTo(sizesBefore.editor, 3);
     await closeSettingsDialog(page);
 
     await app.close();
@@ -864,7 +886,7 @@ test.describe("Wit core app flow", () => {
     await page.keyboard.press(`${modifier}+A`);
     await page.keyboard.type("replacement text");
 
-    await expect(page.locator("#editor")).toHaveValue("replacement text");
+    await expect.poll(async () => getEditorText(page)).toBe("replacement text");
     await expect(page.locator("#word-count")).toContainText("Words: 2");
 
     await app.close();
@@ -879,7 +901,7 @@ test.describe("Wit core app flow", () => {
 
     const dispatchReturned = await page.evaluate(() => {
       const editor = document.querySelector("#editor");
-      if (!(editor instanceof HTMLTextAreaElement)) {
+      if (!(editor instanceof HTMLElement)) {
         throw new Error("Editor is missing.");
       }
 
@@ -934,14 +956,7 @@ test.describe("Wit core app flow", () => {
     await execFileAsync("git", ["-C", projectPath, "remote", "add", "origin", remotePath]);
 
     const firstRun = await launchWithProject(projectPath);
-    const lineHeightBefore = await firstRun.page.evaluate(() => {
-      const editor = document.querySelector("#editor");
-      if (!editor) {
-        throw new Error("Editor is missing.");
-      }
-
-      return Number.parseFloat(window.getComputedStyle(editor).lineHeight);
-    });
+    const lineHeightBefore = (await getEditorTypography(firstRun.page)).lineHeight;
 
     await openSettingsTab(firstRun.page, "writing");
     await firstRun.page.click("#show-word-count-input");
@@ -979,14 +994,7 @@ test.describe("Wit core app flow", () => {
     });
     await expect(firstRun.page.locator(".editor-wrap")).toHaveClass(/show-width-guides/);
     await closeSettingsDialog(firstRun.page);
-    const lineHeightAfter = await firstRun.page.evaluate(() => {
-      const editor = document.querySelector("#editor");
-      if (!editor) {
-        throw new Error("Editor is missing.");
-      }
-
-      return Number.parseFloat(window.getComputedStyle(editor).lineHeight);
-    });
+    const lineHeightAfter = (await getEditorTypography(firstRun.page)).lineHeight;
     expect(lineHeightAfter).toBeGreaterThan(lineHeightBefore);
     await expect(firstRun.page.locator("#status-message")).toContainText("Settings saved.");
     await firstRun.app.close();
