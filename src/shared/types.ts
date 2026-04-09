@@ -6,6 +6,7 @@ export type AppSettings = {
   editorLineHeight: number;
   editorMaxWidthPx: number;
   editorZoomPercent: number;
+  editorFontFamily: string;
 };
 
 export type ProjectMetadata = {

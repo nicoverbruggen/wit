@@ -1,5 +1,5 @@
 @font-face {
-  font-family: "WitWriter";
+  font-family: "Sourcerer";
   src: url("./font/Sourcerer-Regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
@@ -7,7 +7,7 @@
 }
 
 @font-face {
-  font-family: "WitWriter";
+  font-family: "Sourcerer";
   src: url("./font/Sourcerer-Italic.ttf") format("truetype");
   font-weight: 400;
   font-style: italic;
@@ -15,7 +15,7 @@
 }
 
 @font-face {
-  font-family: "WitWriter";
+  font-family: "Sourcerer";
   src: url("./font/Sourcerer-Bold.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
@@ -23,8 +23,72 @@
 }
 
 @font-face {
-  font-family: "WitWriter";
+  font-family: "Sourcerer";
   src: url("./font/Sourcerer-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Readerly";
+  src: url("./font/Readerly-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Readerly";
+  src: url("./font/Readerly-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Readerly";
+  src: url("./font/Readerly-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Readerly";
+  src: url("./font/Readerly-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "iA Writer Mono";
+  src: url("./font/iAWriterMonoS-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "iA Writer Mono";
+  src: url("./font/iAWriterMonoS-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "iA Writer Mono";
+  src: url("./font/iAWriterMonoS-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "iA Writer Mono";
+  src: url("./font/iAWriterMonoS-BoldItalic.ttf") format("truetype");
   font-weight: 700;
   font-style: italic;
   font-display: swap;
@@ -434,10 +498,14 @@ body.platform-darwin .toolbar {
 
 body.platform-win32 .toolbar {
   padding-right: 150px;
+  padding-top: 12px;
+  padding-bottom: 11px;
 }
 
 body.platform-linux .toolbar {
   padding-right: 124px;
+  padding-top: 12px;
+  padding-bottom: 11px;
 }
 
 .control-inline {
@@ -557,6 +625,8 @@ body.platform-linux .toolbar {
   line-height: 1.68;
   color: var(--text);
   transition: max-width 100ms ease;
+  font-variant-ligatures: common-ligatures;
+  font-feature-settings: "liga" 1, "clig" 1;
 }
 
 #editor:focus {

@@ -47,6 +47,7 @@ const editorWidthInput = document.getElementById("editor-width-input") as HTMLIn
 const editorWidthValue = document.getElementById("editor-width-value") as HTMLSpanElement;
 const settingsCloseButton = document.getElementById("settings-close-btn") as HTMLButtonElement;
 const textZoomSelect = document.getElementById("text-zoom-select") as HTMLSelectElement;
+const fontSelect = document.getElementById("font-select") as HTMLSelectElement;
 
 const EDITOR_ZOOM_PRESETS = [50, 75, 90, 100, 110, 125, 150, 175, 200, 225, 250];
 const LIVE_WORD_COUNT_DEBOUNCE_MS = 280;
@@ -411,6 +412,10 @@ function applyEditorMaxWidth(editorWidth: number): void {
   editorWrap.style.setProperty("--editor-max-width", widthValue);
   editorWidthValue.textContent = widthValue;
   editorWidthInput.value = String(normalized);
+}
+
+function applyEditorFont(fontFamily: string): void {
+  editor.style.fontFamily = `"${fontFamily}", "Palatino", "Times New Roman", serif`;
 }
 
 function ensureEditorBaseFontSize(): void {
@@ -1000,6 +1005,8 @@ function syncSettingsInputs(settings: AppSettings): void {
   applyEditorLineHeight(settings.editorLineHeight);
   applyEditorMaxWidth(settings.editorMaxWidthPx);
   setEditorZoomFromPercent(settings.editorZoomPercent, false);
+  fontSelect.value = settings.editorFontFamily ?? "Readerly";
+  applyEditorFont(settings.editorFontFamily ?? "Readerly");
 }
 
 function applyProjectMetadata(metadata: ProjectMetadata): void {
@@ -1690,14 +1697,16 @@ async function initialize(): Promise<void> {
   syncSidebarToggleButton();
   setSidebarVisibility(true, false);
   setSidebarFaded(false);
-  setEditorWritable(false);
-  applyEditorLineHeight(Number.parseFloat(lineHeightInput.value));
-  applyEditorMaxWidth(Number.parseInt(editorWidthInput.value, 10));
-  applyEditorZoom(false);
-  renderSnapshotLabel();
-  restartSnapshotLabelTimer();
-  renderFileList();
-  renderStatusFooter();
+   setEditorWritable(false);
+   applyEditorLineHeight(Number.parseFloat(lineHeightInput.value));
+   applyEditorMaxWidth(Number.parseInt(editorWidthInput.value, 10));
+   applyEditorZoom(false);
+   applyEditorFont("Readerly");
+   fontSelect.value = "Readerly";
+   renderSnapshotLabel();
+   restartSnapshotLabelTimer();
+   renderFileList();
+   renderStatusFooter();
 
   const activeProject = await window.witApi.getActiveProject();
   if (activeProject) {
@@ -1832,14 +1841,15 @@ lineHeightInput.addEventListener("change", () => {
 });
 
 editorWidthInput.addEventListener("input", () => {
-  const parsed = Number.parseInt(editorWidthInput.value, 10);
-  if (!Number.isFinite(parsed)) {
-    return;
-  }
+    applyEditorMaxWidth(Number.parseInt(editorWidthInput.value, 10));
+    void persistSettings({ editorMaxWidthPx: Number.parseInt(editorWidthInput.value, 10) });
+  });
 
-  applyEditorMaxWidth(parsed);
-  showEditorWidthGuides();
-});
+  fontSelect.addEventListener("change", () => {
+    const selectedFont = fontSelect.value;
+    applyEditorFont(selectedFont);
+    void persistSettings({ editorFontFamily: selectedFont });
+  });
 
 editorWidthInput.addEventListener("change", () => {
   const parsed = Number.parseInt(editorWidthInput.value, 10);

@@ -25,9 +25,11 @@
   "build": {
     "appId": "com.wit.app",
     "productName": "Wit",
+    "icon": "icon.svg",
     "files": [
       "dist/**/*",
-      "package.json"
+      "package.json",
+      "icon.svg"
     ],
     "directories": {
       "output": "release"
@@ -36,14 +38,17 @@
     "mac": {
       "target": "dmg",
       "category": "public.app-category.productivity",
-      "identity": null
+      "identity": null,
+      "icon": "icon.svg"
     },
     "linux": {
       "target": "AppImage",
-      "category": "Office"
+      "category": "Office",
+      "icon": "icon.svg"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "icon.svg"
     }
   },
   "devDependencies": {

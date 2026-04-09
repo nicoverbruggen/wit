@@ -16,7 +16,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   gitSnapshots: false,
   editorLineHeight: 1.68,
   editorMaxWidthPx: 750,
-  editorZoomPercent: 100
+  editorZoomPercent: 100,
+  editorFontFamily: "Readerly"
 };
 
 type ProjectStats = {
@@ -426,7 +427,11 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
     editorZoomPercent:
       typeof parsed.editorZoomPercent === "number" && Number.isFinite(parsed.editorZoomPercent)
         ? normalizeEditorZoomPercent(parsed.editorZoomPercent)
-        : DEFAULT_SETTINGS.editorZoomPercent
+        : DEFAULT_SETTINGS.editorZoomPercent,
+    editorFontFamily:
+      typeof parsed.editorFontFamily === "string" && parsed.editorFontFamily.length > 0
+        ? parsed.editorFontFamily
+        : DEFAULT_SETTINGS.editorFontFamily
   };
 }
 
@@ -438,7 +443,8 @@ export async function saveSettings(projectPath: string, settings: AppSettings): 
     gitSnapshots: Boolean(settings.gitSnapshots),
     editorLineHeight: normalizeEditorLineHeight(settings.editorLineHeight),
     editorMaxWidthPx: normalizeEditorMaxWidth(settings.editorMaxWidthPx),
-    editorZoomPercent: normalizeEditorZoomPercent(settings.editorZoomPercent)
+    editorZoomPercent: normalizeEditorZoomPercent(settings.editorZoomPercent),
+    editorFontFamily: settings.editorFontFamily || DEFAULT_SETTINGS.editorFontFamily
   };
 
   await ensureProjectInitialized(projectPath);

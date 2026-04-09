@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="180"
+   height="180"
+   viewBox="0 0 180 180"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
+   sodipodi:docname="icon.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="px"
+     inkscape:zoom="1.1284246"
+     inkscape:cx="-251.23522"
+     inkscape:cy="201.60851"
+     inkscape:window-width="2560"
+     inkscape:window-height="1352"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1">
+    <rect
+       x="17.859008"
+       y="23.342037"
+       width="204.5953"
+       height="145.53524"
+       id="rect1" />
+  </defs>
+  <rect
+     style="fill:#1792b0;fill-opacity:1;stroke:#ffffff;stroke-width:0.743626"
+     id="rect2"
+     width="180"
+     height="180"
+     x="1.4210855e-14"
+     y="1.4210855e-14"
+     rx="3.4720757"
+     ry="3.4720757" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       style="font-style:italic;font-size:96px;font-family:Readerly;-inkscape-font-specification:'Readerly Italic';letter-spacing:8.58px;white-space:pre;fill:#f9f9f9;stroke:#ffffff;stroke-width:0.64252"
+       d="m 106.80338,51.469797 -7.200005,-2.208 1.200005,-4.128 h 22.08 l -1.152,4.128 -7.584,2.208 -29.808005,60.864003 h -11.232 l 0.528,-53.808003 -31.056,53.808003 h -11.52 l 5.52,-60.768003 -6.96,-2.304 1.152,-4.128 h 25.92 l -1.152,4.128 -8.4,2.256 -4.848,49.008003 31.488,-55.584003 h 10.56 l -0.48,54.864 z"
+       id="text1"
+       transform="matrix(1.4412418,0,0,1.4412418,-17.681145,-20.455961)"
+       aria-label="W" />
+  </g>
+</svg>
