@@ -34,7 +34,10 @@ test.describe("Wit new file flow", () => {
     await page.click("#new-file-btn");
 
     await expect(page.locator("#new-file-dialog")).toBeVisible();
+    await expect(page.locator("#new-file-path-input")).toHaveValue("");
+    await expect(page.locator("#new-file-create-btn")).toBeDisabled();
     await page.fill("#new-file-path-input", "chapter-02.txt");
+    await expect(page.locator("#new-file-create-btn")).toBeEnabled();
     await page.click("#new-file-create-btn");
 
     await expect(page.locator(".file-button", { hasText: "chapter-02.txt" })).toBeVisible();

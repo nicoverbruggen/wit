@@ -8,10 +8,25 @@ const projectActions = document.getElementById("project-actions") as HTMLElement
 const settingsToggleButton = document.getElementById("settings-toggle-btn") as HTMLButtonElement;
 const fullscreenToggleButton = document.getElementById("toggle-fullscreen-btn") as HTMLButtonElement;
 const settingsDialog = document.getElementById("settings-dialog") as HTMLDialogElement;
+const settingsTabWriting = document.getElementById("settings-tab-writing") as HTMLButtonElement;
+const settingsTabEditor = document.getElementById("settings-tab-editor") as HTMLButtonElement;
+const settingsTabAutosave = document.getElementById("settings-tab-autosave") as HTMLButtonElement;
+const settingsPanelWriting = document.getElementById("settings-panel-writing") as HTMLElement;
+const settingsPanelEditor = document.getElementById("settings-panel-editor") as HTMLElement;
+const settingsPanelAutosave = document.getElementById("settings-panel-autosave") as HTMLElement;
 const appShell = document.getElementById("app-shell") as HTMLElement;
 const toggleSidebarButton = document.getElementById("toggle-sidebar-btn") as HTMLButtonElement;
+const sidebarResizer = document.getElementById("sidebar-resizer") as HTMLDivElement;
 const sidebar = document.querySelector(".sidebar") as HTMLElement;
 const editorWrap = document.querySelector(".editor-wrap") as HTMLElement;
+const editorHeader = document.querySelector(".editor-header") as HTMLElement;
+const emptyStateScreen = document.getElementById("empty-state-screen") as HTMLDivElement;
+const emptyStateEyebrow = document.getElementById("empty-state-eyebrow") as HTMLParagraphElement;
+const emptyStateTitle = document.getElementById("empty-state-title") as HTMLHeadingElement;
+const emptyStateDescription = document.getElementById("empty-state-description") as HTMLParagraphElement;
+const emptyStatePrimaryButton = document.getElementById("empty-state-primary-btn") as HTMLButtonElement;
+const emptyStateSecondaryButton = document.getElementById("empty-state-secondary-btn") as HTMLButtonElement;
+const emptyStateShortcutsList = document.getElementById("empty-state-shortcuts-list") as HTMLUListElement;
 const sidebarProjectTitle = document.getElementById("sidebar-project-title") as HTMLHeadingElement;
 const fileList = document.getElementById("file-list") as HTMLUListElement;
 const newFileDialog = document.getElementById("new-file-dialog") as HTMLDialogElement;
@@ -40,8 +55,10 @@ const writingTimeLabel = document.getElementById("writing-time") as HTMLSpanElem
 const snapshotLabel = document.getElementById("snapshot-label") as HTMLSpanElement;
 const showWordCountInput = document.getElementById("show-word-count-input") as HTMLInputElement;
 const showWritingTimeInput = document.getElementById("show-writing-time-input") as HTMLInputElement;
+const showCurrentFileBarInput = document.getElementById("show-current-file-bar-input") as HTMLInputElement;
 const smartQuotesInput = document.getElementById("smart-quotes-input") as HTMLInputElement;
 const gitSnapshotsInput = document.getElementById("git-snapshots-input") as HTMLInputElement;
+const gitPushRemoteSelect = document.getElementById("git-push-remote-select") as HTMLSelectElement;
 const gitSnapshotsNotice = document.getElementById("git-snapshots-notice") as HTMLParagraphElement;
 const autosaveIntervalInput = document.getElementById("autosave-interval-input") as HTMLInputElement;
 const lineHeightInput = document.getElementById("line-height-input") as HTMLInputElement;
@@ -58,6 +75,10 @@ const MAX_TREE_INDENT = 4;
 const SNAPSHOT_LABEL_REFRESH_MS = 15_000;
 const DEFAULT_EDITOR_PLACEHOLDER = "Open a project and choose a text file to begin writing.";
 const DEFAULT_STATUS_MESSAGE = "";
+const SIDEBAR_WIDTH_STORAGE_KEY = "wit.sidebar-width";
+const MIN_SIDEBAR_WIDTH_PX = 220;
+const MAX_SIDEBAR_WIDTH_PX = 420;
+const DEFAULT_SIDEBAR_WIDTH_PX = 270;
 
 type FolderNode = {
   kind: "folder";
@@ -74,6 +95,7 @@ type FileNode = {
 
 type TreeNode = FolderNode | FileNode;
 type SelectedTreeKind = "file" | "folder";
+type SettingsTabKey = "writing" | "editor" | "autosave";
 
 let project: ProjectMetadata | null = null;
 let currentFilePath: string | null = null;
@@ -101,6 +123,9 @@ let selectedTreePath: string | null = null;
 let selectedTreeKind: SelectedTreeKind | null = null;
 let sidebarVisible = true;
 let sidebarVisibleBeforeFullscreen = true;
+let sidebarWidthPx = DEFAULT_SIDEBAR_WIDTH_PX;
+let sidebarResizeCleanup: (() => void) | null = null;
+let currentSettingsTab: SettingsTabKey = "writing";
 
 const subscriptions: Array<() => void> = [];
 type TreeContextAction = "new-file" | "new-folder" | "rename" | "delete" | "close-project";
@@ -117,6 +142,10 @@ function formatWritingTime(totalSeconds: number): string {
   }
 
   return `${minutes}m`;
+}
+
+function primaryShortcutLabel(key: string): string {
+  return window.witApi.getPlatform() === "darwin" ? `Cmd+${key}` : `Ctrl+${key}`;
 }
 
 
@@ -323,17 +352,34 @@ function consumeActiveTypingSeconds(): number {
 function setDirty(nextDirty: boolean): void {
   dirty = nextDirty;
   dirtyIndicator.hidden = !nextDirty;
+  syncActiveFileMarkerState();
+}
+
+function syncActiveFileMarkerState(): void {
+  const markers = fileList.querySelectorAll(".file-button .active-file-marker");
+
+  markers.forEach((element) => {
+    const marker = element as HTMLElement;
+    const fileButton = marker.closest(".file-button") as HTMLElement | null;
+    const relativePath = fileButton?.dataset.relativePath;
+    const isCurrentFile = Boolean(relativePath && currentFilePath && pathEquals(relativePath, currentFilePath));
+    marker.hidden = !isCurrentFile;
+    marker.dataset.dirty = String(isCurrentFile && dirty);
+  });
 }
 
 function setProjectControlsEnabled(enabled: boolean): void {
   projectActions.classList.toggle("project-open", enabled);
   openProjectWrap.classList.toggle("project-open", enabled);
+  settingsToggleButton.hidden = !enabled;
   newFileButton.disabled = !enabled;
   newFolderButton.disabled = !enabled;
   showWordCountInput.disabled = !enabled;
   showWritingTimeInput.disabled = !enabled;
+  showCurrentFileBarInput.disabled = !enabled;
   smartQuotesInput.disabled = !enabled;
   gitSnapshotsInput.disabled = !enabled || !project?.isGitRepository;
+  gitPushRemoteSelect.disabled = true;
   autosaveIntervalInput.disabled = !enabled;
   lineHeightInput.disabled = !enabled;
   editorWidthInput.disabled = !enabled;
@@ -346,11 +392,53 @@ function setSidebarFaded(nextFaded: boolean): void {
   appShell.classList.toggle("sidebar-faded", shouldFade);
 }
 
+function clampSidebarWidth(width: number): number {
+  return Math.max(MIN_SIDEBAR_WIDTH_PX, Math.min(MAX_SIDEBAR_WIDTH_PX, Math.round(width)));
+}
+
+function applySidebarWidth(width: number): void {
+  sidebarWidthPx = clampSidebarWidth(width);
+  appShell.style.setProperty("--sidebar-width", `${sidebarWidthPx}px`);
+
+  try {
+    localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidthPx));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function loadSidebarWidthPreference(): void {
+  try {
+    const rawValue = localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+    if (!rawValue) {
+      applySidebarWidth(DEFAULT_SIDEBAR_WIDTH_PX);
+      return;
+    }
+
+    const parsed = Number.parseInt(rawValue, 10);
+    applySidebarWidth(Number.isFinite(parsed) ? parsed : DEFAULT_SIDEBAR_WIDTH_PX);
+  } catch {
+    applySidebarWidth(DEFAULT_SIDEBAR_WIDTH_PX);
+  }
+}
+
 function syncSidebarToggleButton(): void {
+  const sidebarAvailable = Boolean(project);
+  toggleSidebarButton.hidden = !sidebarAvailable;
+
+  if (!sidebarAvailable) {
+    toggleSidebarButton.disabled = false;
+    toggleSidebarButton.title = "Hide sidebar";
+    toggleSidebarButton.setAttribute("aria-label", "Hide sidebar");
+    toggleSidebarButton.setAttribute("aria-pressed", "false");
+    return;
+  }
+
+  toggleSidebarButton.disabled = false;
   const nextActionLabel = sidebarVisible ? "Hide sidebar" : "Show sidebar";
   toggleSidebarButton.title = nextActionLabel;
   toggleSidebarButton.setAttribute("aria-label", nextActionLabel);
-  toggleSidebarButton.setAttribute("aria-pressed", String(!sidebarVisible));
+  toggleSidebarButton.setAttribute("aria-pressed", String(sidebarVisible));
 }
 
 function syncFullscreenToggleButton(isFullscreen: boolean): void {
@@ -388,7 +476,46 @@ function setSidebarVisibility(nextVisible: boolean, showStatus = true): void {
 }
 
 function toggleSidebarVisibility(): void {
+  if (!project) {
+    return;
+  }
+
   setSidebarVisibility(!sidebarVisible);
+}
+
+function stopSidebarResize(): void {
+  if (!sidebarResizeCleanup) {
+    return;
+  }
+
+  sidebarResizeCleanup();
+  sidebarResizeCleanup = null;
+  appShell.classList.remove("sidebar-resizing");
+}
+
+function beginSidebarResize(pointerClientX: number): void {
+  if (!project || !sidebarVisible) {
+    return;
+  }
+
+  stopSidebarResize();
+  appShell.classList.add("sidebar-resizing");
+
+  const shellLeft = appShell.getBoundingClientRect().left;
+  const handlePointerMove = (event: MouseEvent) => {
+    applySidebarWidth(event.clientX - shellLeft);
+  };
+  const handlePointerUp = () => {
+    stopSidebarResize();
+  };
+
+  applySidebarWidth(pointerClientX - shellLeft);
+  window.addEventListener("mousemove", handlePointerMove);
+  window.addEventListener("mouseup", handlePointerUp, { once: true });
+
+  sidebarResizeCleanup = () => {
+    window.removeEventListener("mousemove", handlePointerMove);
+  };
 }
 
 function openSettingsDialog(): void {
@@ -402,7 +529,25 @@ function openSettingsDialog(): void {
   }
 
   if (!settingsDialog.open) {
+    setActiveSettingsTab(currentSettingsTab);
     settingsDialog.showModal();
+  }
+}
+
+function setActiveSettingsTab(nextTab: SettingsTabKey): void {
+  currentSettingsTab = nextTab;
+
+  const tabs: Array<{ key: SettingsTabKey; button: HTMLButtonElement; panel: HTMLElement }> = [
+    { key: "writing", button: settingsTabWriting, panel: settingsPanelWriting },
+    { key: "editor", button: settingsTabEditor, panel: settingsPanelEditor },
+    { key: "autosave", button: settingsTabAutosave, panel: settingsPanelAutosave }
+  ];
+
+  for (const tab of tabs) {
+    const isActive = tab.key === nextTab;
+    tab.button.setAttribute("aria-selected", String(isActive));
+    tab.button.tabIndex = isActive ? 0 : -1;
+    tab.panel.hidden = !isActive;
   }
 }
 
@@ -566,24 +711,87 @@ function resetActiveFile(): void {
 
   setDirty(false);
   setEditorWritable(false);
+  renderEmptyEditorState();
+  renderFileList();
 }
 
 function clearProjectState(showStatusMessage = false): void {
   project = null;
+  stopSidebarResize();
   resetTreeState();
   resetActiveFile();
   snapshotCreatedAtMs = null;
   renderSnapshotLabel();
   syncProjectPathLabels("No project selected");
   setProjectControlsEnabled(false);
+  setSidebarVisibility(false, false);
   setSidebarFaded(false);
   renderStatusFooter();
   renderFileList();
   restartAutosaveTimer();
+  renderEmptyEditorState();
 
   if (showStatusMessage) {
     setStatus("Project closed.", 2000);
   }
+}
+
+function renderEmptyStateShortcutRows(shortcuts: Array<{ label: string; key: string }>): void {
+  emptyStateShortcutsList.innerHTML = "";
+
+  for (const shortcut of shortcuts) {
+    const item = document.createElement("li");
+    const label = document.createElement("span");
+    const key = document.createElement("span");
+
+    label.className = "empty-state-shortcut-label";
+    label.textContent = shortcut.label;
+    key.className = "empty-state-shortcut-key";
+    key.textContent = shortcut.key;
+
+    item.append(label, key);
+    emptyStateShortcutsList.appendChild(item);
+  }
+}
+
+function renderEmptyEditorState(): void {
+  const showEmptyState = !project || !currentFilePath;
+  editorWrap.classList.toggle("show-empty-state", showEmptyState);
+  emptyStateScreen.hidden = !showEmptyState;
+
+  if (!showEmptyState) {
+    return;
+  }
+
+  if (!project) {
+    emptyStateEyebrow.textContent = "Wit";
+    emptyStateTitle.textContent = "Open a writing project";
+    emptyStateDescription.textContent =
+      "Choose a project folder to start writing, autosaving, and creating full text snapshots.";
+    emptyStatePrimaryButton.textContent = "Open Project";
+    emptyStateSecondaryButton.hidden = true;
+    renderEmptyStateShortcutRows([
+      { label: "Open project", key: primaryShortcutLabel("O") },
+      { label: "Toggle sidebar", key: primaryShortcutLabel("B") },
+      { label: "Fullscreen", key: "Toolbar" },
+      { label: "Open settings", key: "Project only" }
+    ]);
+    return;
+  }
+
+  emptyStateEyebrow.textContent = getProjectDisplayTitle(project.projectPath);
+  emptyStateTitle.textContent = "Choose a file or start a new one";
+  emptyStateDescription.textContent =
+    "Select a document in the sidebar, or create a new file or folder to begin drafting in this project.";
+  emptyStatePrimaryButton.textContent = "New File";
+  emptyStateSecondaryButton.hidden = false;
+  emptyStateSecondaryButton.textContent = "New Folder";
+  renderEmptyStateShortcutRows([
+    { label: "New file", key: primaryShortcutLabel("N") },
+    { label: "Save file", key: primaryShortcutLabel("S") },
+    { label: "Toggle sidebar", key: primaryShortcutLabel("B") },
+    { label: "Text zoom", key: `${primaryShortcutLabel("+")} / ${primaryShortcutLabel("-")}` }
+  ]);
 }
 
 function toIndentClass(depth: number): string {
@@ -720,7 +928,8 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
       button.dataset.itemKind = "folder";
       button.title = node.relativePath;
       button.setAttribute("aria-expanded", String(!isCollapsed));
-      icon.className = "folder-icon";
+      icon.className = "material-symbol-icon folder-icon";
+      icon.textContent = "folder";
       icon.setAttribute("aria-hidden", "true");
       label.className = "tree-label";
       label.textContent = node.name;
@@ -789,6 +998,8 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
     const button = document.createElement("button");
     const icon = document.createElement("span");
     const label = document.createElement("span");
+    const marker = document.createElement("span");
+    const isCurrentFile = currentFilePath !== null && pathEquals(currentFilePath, node.relativePath);
 
     button.type = "button";
     const selectedClass =
@@ -798,12 +1009,17 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
     button.dataset.itemKind = "file";
     button.draggable = true;
     button.title = node.relativePath;
-    icon.className = "file-icon";
+    icon.className = "material-symbol-icon file-icon";
+    icon.textContent = "description";
     icon.setAttribute("aria-hidden", "true");
     label.className = "tree-label";
     label.textContent = node.name;
+    marker.className = "active-file-marker";
+    marker.hidden = !isCurrentFile;
+    marker.dataset.dirty = String(isCurrentFile && dirty);
+    marker.setAttribute("aria-hidden", "true");
 
-    button.append(icon, label);
+    button.append(icon, label, marker);
     button.addEventListener("click", () => {
       selectedTreePath = node.relativePath;
       selectedTreeKind = "file";
@@ -848,17 +1064,28 @@ function renderRootTreeItem(): void {
   button.dataset.relativePath = "";
   button.dataset.itemKind = "project";
   button.title = project.projectPath;
-  icon.className = "folder-icon";
+  icon.className = "material-symbol-icon folder-icon";
+  icon.textContent = "folder";
   icon.setAttribute("aria-hidden", "true");
   label.className = "tree-label";
   label.textContent = getProjectDisplayTitle(project.projectPath);
 
   button.append(icon, label);
   button.addEventListener("click", () => {
+    const closingCurrentFile =
+      selectedTreePath === "" && selectedTreeKind === "folder" && currentFilePath !== null;
+
     selectedTreePath = "";
     selectedTreeKind = "folder";
     closeTreeContextMenu();
     setSidebarFaded(false);
+
+    if (closingCurrentFile) {
+      resetActiveFile();
+      setStatus("Closed current file.", 1200);
+      return;
+    }
+
     renderFileList();
   });
   button.addEventListener("dragenter", () => {
@@ -1020,6 +1247,10 @@ function renderStatusFooter(): void {
   }
 }
 
+function renderEditorHeaderVisibility(): void {
+  editorHeader.hidden = Boolean(project && !project.settings.showCurrentFileBar);
+}
+
 function renderFileList(): void {
   fileList.innerHTML = "";
 
@@ -1046,18 +1277,37 @@ function renderFileList(): void {
 }
 
 function syncGitSnapshotsAvailability(): void {
-  const available = Boolean(project?.isGitRepository);
-  gitSnapshotsInput.disabled = !project || !available;
-  gitSnapshotsNotice.hidden = !project || available;
+  const repositoryAvailable = Boolean(project?.isGitRepository);
+  const remotes = project?.gitRemotes ?? [];
 
-  if (!available) {
+  gitSnapshotsInput.disabled = !project || !repositoryAvailable;
+  gitSnapshotsNotice.hidden = !project || repositoryAvailable;
+  gitPushRemoteSelect.disabled = !project || !repositoryAvailable;
+
+  if (!repositoryAvailable) {
     gitSnapshotsInput.checked = false;
+    gitPushRemoteSelect.innerHTML = "";
+    return;
+  }
+
+  gitPushRemoteSelect.innerHTML = "";
+  const disabledOption = document.createElement("option");
+  disabledOption.value = "";
+  disabledOption.textContent = "Don't push";
+  gitPushRemoteSelect.appendChild(disabledOption);
+
+  for (const remoteName of remotes) {
+    const option = document.createElement("option");
+    option.value = remoteName;
+    option.textContent = remoteName;
+    gitPushRemoteSelect.appendChild(option);
   }
 }
 
 function syncSettingsInputs(settings: AppSettings): void {
   showWordCountInput.checked = settings.showWordCount;
   showWritingTimeInput.checked = settings.showWritingTime;
+  showCurrentFileBarInput.checked = settings.showCurrentFileBar;
   smartQuotesInput.checked = settings.smartQuotes;
   gitSnapshotsInput.checked = settings.gitSnapshots && Boolean(project?.isGitRepository);
   autosaveIntervalInput.value = String(settings.autosaveIntervalSec);
@@ -1067,25 +1317,35 @@ function syncSettingsInputs(settings: AppSettings): void {
   fontSelect.value = settings.editorFontFamily ?? "Readerly";
   applyEditorFont(settings.editorFontFamily ?? "Readerly");
   syncGitSnapshotsAvailability();
+  gitPushRemoteSelect.value =
+    settings.gitPushRemote && project?.gitRemotes.includes(settings.gitPushRemote)
+      ? settings.gitPushRemote
+      : "";
+  renderEditorHeaderVisibility();
 }
 
 function applyProjectMetadata(metadata: ProjectMetadata): void {
   cancelPendingLiveWordCount();
+  stopSidebarResize();
   resetTreeState();
   project = metadata;
   restoreCollapsedFolders();
-  snapshotCreatedAtMs = null;
+  snapshotCreatedAtMs = metadata.latestSnapshotCreatedAt
+    ? parseSnapshotTimestamp(metadata.latestSnapshotCreatedAt)
+    : null;
   renderSnapshotLabel();
   resetActiveFile();
 
   syncProjectPathLabels(metadata.projectPath);
+  setProjectControlsEnabled(true);
   syncSettingsInputs(metadata.settings);
   renderStatusFooter();
   renderFileList();
-  setProjectControlsEnabled(true);
+  setSidebarVisibility(!isWindowFullscreen, false);
   setSidebarFaded(false);
   setEditorWritable(false);
   restartAutosaveTimer();
+  renderEmptyEditorState();
 }
 
 function cancelPendingLiveWordCount(): void {
@@ -1200,6 +1460,7 @@ async function openFile(relativePath: string): Promise<void> {
     setSidebarFaded(false);
     renderFileList();
     setEditorWritable(true);
+    renderEmptyEditorState();
     editor.focus();
     setStatus(`Opened ${relativePath}`, 1200);
   } catch {
@@ -1285,7 +1546,7 @@ async function closeCurrentProject(): Promise<void> {
   }
 }
 
-function askForNewFilePath(defaultPath: string): Promise<string | null> {
+function askForNewFilePath(defaultPath = ""): Promise<string | null> {
   if (typeof newFileDialog.showModal !== "function") {
     try {
       return Promise.resolve(window.prompt("New text file path", defaultPath));
@@ -1332,7 +1593,7 @@ function askForNewFilePath(defaultPath: string): Promise<string | null> {
   });
 }
 
-function askForNewFolderPath(defaultPath: string): Promise<string | null> {
+function askForNewFolderPath(defaultPath = ""): Promise<string | null> {
   if (typeof newFolderDialog.showModal !== "function") {
     try {
       return Promise.resolve(window.prompt("New folder path", defaultPath));
@@ -1438,9 +1699,7 @@ async function createNewFile(): Promise<void> {
     return;
   }
 
-  const selectedFolder = getSelectedFolderPath();
-  const defaultPath = selectedFolder ? `${selectedFolder}/chapter-01.txt` : "chapter-01.txt";
-  const proposedName = await askForNewFilePath(defaultPath);
+  const proposedName = await askForNewFilePath();
   if (!proposedName) {
     return;
   }
@@ -1469,9 +1728,7 @@ async function createNewFolder(): Promise<void> {
     return;
   }
 
-  const selectedFolder = getSelectedFolderPath();
-  const defaultPath = selectedFolder ? `${selectedFolder}/chapter-notes` : "chapter-notes";
-  const proposedPath = await askForNewFolderPath(defaultPath);
+  const proposedPath = await askForNewFolderPath();
   if (!proposedPath) {
     return;
   }
@@ -1765,21 +2022,24 @@ async function initialize(): Promise<void> {
   const platform = window.witApi.getPlatform();
   document.body.classList.add(`platform-${platform}`);
 
+  loadSidebarWidthPreference();
   setProjectControlsEnabled(false);
+  setActiveSettingsTab("writing");
   syncSidebarToggleButton();
   syncFullscreenToggleButton(false);
-  setSidebarVisibility(true, false);
+  setSidebarVisibility(false, false);
   setSidebarFaded(false);
-   setEditorWritable(false);
-   applyEditorLineHeight(Number.parseFloat(lineHeightInput.value));
-   applyEditorMaxWidth(Number.parseInt(editorWidthInput.value, 10));
-   applyEditorZoom(false);
-   applyEditorFont("Readerly");
-   fontSelect.value = "Readerly";
-   renderSnapshotLabel();
-   restartSnapshotLabelTimer();
-   renderFileList();
-   renderStatusFooter();
+  setEditorWritable(false);
+  applyEditorLineHeight(Number.parseFloat(lineHeightInput.value));
+  applyEditorMaxWidth(Number.parseInt(editorWidthInput.value, 10));
+  applyEditorZoom(false);
+  applyEditorFont("Readerly");
+  fontSelect.value = "Readerly";
+  renderSnapshotLabel();
+  restartSnapshotLabelTimer();
+  renderFileList();
+  renderStatusFooter();
+  renderEmptyEditorState();
 
   const activeProject = await window.witApi.getActiveProject();
   if (activeProject) {
@@ -1844,6 +2104,27 @@ openProjectButton.addEventListener("click", () => {
   void openProjectPicker();
 });
 
+emptyStatePrimaryButton.addEventListener("click", () => {
+  closeTreeContextMenu();
+
+  if (!project) {
+    void openProjectPicker();
+    return;
+  }
+
+  void createNewFile();
+});
+
+emptyStateSecondaryButton.addEventListener("click", () => {
+  closeTreeContextMenu();
+
+  if (!project) {
+    return;
+  }
+
+  void createNewFolder();
+});
+
 newFileButton.addEventListener("click", () => {
   closeTreeContextMenu();
   void createNewFile();
@@ -1877,9 +2158,46 @@ settingsToggleButton.addEventListener("click", () => {
   openSettingsDialog();
 });
 
+settingsTabWriting.addEventListener("click", () => {
+  setActiveSettingsTab("writing");
+});
+
+settingsTabEditor.addEventListener("click", () => {
+  setActiveSettingsTab("editor");
+});
+
+settingsTabAutosave.addEventListener("click", () => {
+  setActiveSettingsTab("autosave");
+});
+
 toggleSidebarButton.addEventListener("click", () => {
   closeTreeContextMenu();
   toggleSidebarVisibility();
+});
+
+sidebarResizer.addEventListener("mousedown", (event) => {
+  if (event.button !== 0) {
+    return;
+  }
+
+  event.preventDefault();
+  closeTreeContextMenu();
+  beginSidebarResize(event.clientX);
+});
+
+sidebarResizer.addEventListener("keydown", (event) => {
+  if (!project || !sidebarVisible) {
+    return;
+  }
+
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+    return;
+  }
+
+  event.preventDefault();
+  closeTreeContextMenu();
+  const delta = event.key === "ArrowLeft" ? -20 : 20;
+  applySidebarWidth(sidebarWidthPx + delta);
 });
 
 fullscreenToggleButton.addEventListener("click", () => {
@@ -1902,12 +2220,22 @@ showWritingTimeInput.addEventListener("change", () => {
   void persistSettings({ showWritingTime: showWritingTimeInput.checked });
 });
 
+showCurrentFileBarInput.addEventListener("change", () => {
+  void persistSettings({ showCurrentFileBar: showCurrentFileBarInput.checked });
+});
+
 smartQuotesInput.addEventListener("change", () => {
   void persistSettings({ smartQuotes: smartQuotesInput.checked });
 });
 
 gitSnapshotsInput.addEventListener("change", () => {
   void persistSettings({ gitSnapshots: gitSnapshotsInput.checked });
+});
+
+gitPushRemoteSelect.addEventListener("change", () => {
+  void persistSettings({
+    gitPushRemote: gitPushRemoteSelect.value || null
+  });
 });
 
 autosaveIntervalInput.addEventListener("change", () => {
@@ -2121,6 +2449,7 @@ document.addEventListener("drop", () => {
 window.addEventListener("beforeunload", () => {
   cancelPendingLiveWordCount();
   saveCurrentFileSynchronously();
+  stopSidebarResize();
   clearEditorWidthGuides();
   closeTreeContextMenu();
 

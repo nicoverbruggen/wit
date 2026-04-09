@@ -119,16 +119,16 @@ async function commitSnapshotToGit(
   projectPath: string,
   snapshotTimestamp: string,
   filePaths: string[]
-): Promise<void> {
+): Promise<boolean> {
   const gitDirectoryPath = path.join(projectPath, ".git");
 
   try {
     const directoryStat = await fs.stat(gitDirectoryPath);
     if (!directoryStat.isDirectory()) {
-      return;
+      return false;
     }
   } catch {
-    return;
+    return false;
   }
 
   try {
@@ -143,11 +143,21 @@ async function commitSnapshotToGit(
       `wit snapshot ${snapshotTimestamp}`,
       "--quiet"
     ]);
+    return true;
   } catch (error) {
     const message = `${error}`;
     if (!message.includes("nothing to commit")) {
       console.warn("Git snapshot commit failed.", error);
     }
+    return false;
+  }
+}
+
+async function pushSnapshotToGitRemote(projectPath: string, remoteName: string): Promise<void> {
+  try {
+    await execFileAsync("git", ["-C", projectPath, "push", remoteName, "HEAD", "--quiet"]);
+  } catch (error) {
+    console.warn(`Git snapshot push to remote "${remoteName}" failed.`, error);
   }
 }
 
@@ -163,6 +173,24 @@ async function getLatestSnapshotTimestamp(snapshotDirectory: string): Promise<Da
     }
 
     return parseSnapshotTimestamp(names[names.length - 1]);
+  } catch {
+    return null;
+  }
+}
+
+export async function getLatestSnapshotName(snapshotDirectory: string): Promise<string | null> {
+  try {
+    const entries = await fs.readdir(snapshotDirectory, { withFileTypes: true });
+    const names = entries
+      .filter((entry) => parseSnapshotTimestamp(entry.name) !== null)
+      .map((entry) => entry.name)
+      .sort();
+
+    if (names.length === 0) {
+      return null;
+    }
+
+    return getSnapshotBaseName(names[names.length - 1]);
   } catch {
     return null;
   }
@@ -189,6 +217,8 @@ export async function createSnapshot(options: {
   snapshotDirectory: string;
   filePaths: string[];
   createGitCommit: boolean;
+  pushGitCommit: boolean;
+  gitPushRemote: string | null;
 }): Promise<string> {
   await ensureSnapshotDirectory(options.snapshotDirectory);
 
@@ -205,7 +235,10 @@ export async function createSnapshot(options: {
   await pruneSnapshots(options.snapshotDirectory);
 
   if (options.createGitCommit) {
-    await commitSnapshotToGit(options.projectPath, snapshotTimestamp, options.filePaths);
+    const committed = await commitSnapshotToGit(options.projectPath, snapshotTimestamp, options.filePaths);
+    if (committed && options.pushGitCommit && options.gitPushRemote) {
+      await pushSnapshotToGitRemote(options.projectPath, options.gitPushRemote);
+    }
   }
 
   return snapshotTimestamp;

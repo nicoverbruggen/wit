@@ -46,12 +46,16 @@ test("project initialization and metadata defaults", async () => {
     assert.deepEqual(metadata.folders, []);
     assert.equal(metadata.wordCount, 0);
     assert.equal(metadata.totalWritingSeconds, 0);
+    assert.equal(metadata.latestSnapshotCreatedAt, null);
     assert.equal(metadata.isGitRepository, false);
+    assert.deepEqual(metadata.gitRemotes, []);
     assert.equal(metadata.settings.autosaveIntervalSec, 60);
     assert.equal(metadata.settings.showWordCount, true);
     assert.equal(metadata.settings.showWritingTime, true);
+    assert.equal(metadata.settings.showCurrentFileBar, true);
     assert.equal(metadata.settings.smartQuotes, true);
     assert.equal(metadata.settings.gitSnapshots, false);
+    assert.equal(metadata.settings.gitPushRemote, null);
     assert.equal(metadata.settings.editorLineHeight, 1.68);
     assert.equal(metadata.settings.editorMaxWidthPx, 750);
     assert.equal(metadata.settings.editorZoomPercent, 100);
@@ -85,18 +89,23 @@ test("create/list/save/read files with word count and settings", async () => {
       autosaveIntervalSec: 1,
       showWordCount: false,
       showWritingTime: false,
+      showCurrentFileBar: false,
       smartQuotes: false,
       gitSnapshots: true,
+      gitPushRemote: "origin",
       editorLineHeight: 9,
       editorMaxWidthPx: 9999,
-      editorZoomPercent: 999
+      editorZoomPercent: 999,
+      editorFontFamily: ""
     });
 
     assert.equal(savedSettings.autosaveIntervalSec, 10);
     assert.equal(savedSettings.showWordCount, false);
     assert.equal(savedSettings.showWritingTime, false);
+    assert.equal(savedSettings.showCurrentFileBar, false);
     assert.equal(savedSettings.smartQuotes, false);
     assert.equal(savedSettings.gitSnapshots, true);
+    assert.equal(savedSettings.gitPushRemote, null);
     assert.equal(savedSettings.editorLineHeight, 2.4);
     assert.equal(savedSettings.editorMaxWidthPx, 1200);
     assert.equal(savedSettings.editorZoomPercent, 250);
@@ -151,7 +160,9 @@ test("snapshot creation and git snapshot commit flow", async () => {
       projectPath,
       snapshotDirectory: snapshotDir,
       filePaths: files,
-      createGitCommit: false
+      createGitCommit: false,
+      pushGitCommit: false,
+      gitPushRemote: null
     });
 
     const snapshotArchive = path.join(snapshotDir, `${snapshotName}.json.gz`);
@@ -168,6 +179,9 @@ test("snapshot creation and git snapshot commit flow", async () => {
     assert.equal(snapshotPayload.createdAt, snapshotName);
     assert.equal(snapshotPayload.files["chapter.txt"], "Initial");
 
+    const metadataAfterSnapshot = await projectService.getProjectMetadata(projectPath);
+    assert.equal(metadataAfterSnapshot.latestSnapshotCreatedAt, snapshotName);
+
     await execFileAsync("git", ["init", "-q", projectPath]);
     await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
     await execFileAsync("git", ["-C", projectPath, "config", "user.name", "QA"]);
@@ -180,7 +194,9 @@ test("snapshot creation and git snapshot commit flow", async () => {
       projectPath,
       snapshotDirectory: snapshotDir,
       filePaths: await projectService.listProjectFiles(projectPath),
-      createGitCommit: true
+      createGitCommit: true,
+      pushGitCommit: false,
+      gitPushRemote: null
     });
 
     const status = await execFileAsync("git", ["-C", projectPath, "status", "--porcelain"]);
@@ -204,8 +220,80 @@ test("project metadata reports git repository status", async () => {
     await execFileAsync("git", ["init", "-q", projectPath]);
     metadata = await projectService.getProjectMetadata(projectPath);
     assert.equal(metadata.isGitRepository, true);
+    assert.deepEqual(metadata.gitRemotes, []);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("settings normalize git auto-push remote against configured remotes", async () => {
+  const { root, projectPath } = await createTempProject();
+  const remoteRoot = await fs.mkdtemp(path.join(os.tmpdir(), "wit-core-remote-"));
+  const remotePath = path.join(remoteRoot, "origin.git");
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await execFileAsync("git", ["init", "-q", projectPath]);
+    await execFileAsync("git", ["init", "--bare", "-q", remotePath]);
+    await execFileAsync("git", ["-C", projectPath, "remote", "add", "origin", remotePath]);
+
+    const savedSettings = await projectService.saveSettings(projectPath, {
+      autosaveIntervalSec: 60,
+      showWordCount: true,
+      showWritingTime: true,
+      showCurrentFileBar: true,
+      smartQuotes: true,
+      gitSnapshots: true,
+      gitPushRemote: "origin",
+      editorLineHeight: 1.68,
+      editorMaxWidthPx: 750,
+      editorZoomPercent: 100,
+      editorFontFamily: "Readerly"
+    });
+
+    assert.equal(savedSettings.gitPushRemote, "origin");
+
+    const metadata = await projectService.getProjectMetadata(projectPath);
+    assert.deepEqual(metadata.gitRemotes, ["origin"]);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+    await fs.rm(remoteRoot, { recursive: true, force: true });
+  }
+});
+
+test("settings keep git push remote disabled by default even when remotes exist", async () => {
+  const { root, projectPath } = await createTempProject();
+  const remoteRoot = await fs.mkdtemp(path.join(os.tmpdir(), "wit-core-remote-default-"));
+  const remotePath = path.join(remoteRoot, "origin.git");
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await execFileAsync("git", ["init", "-q", projectPath]);
+    await execFileAsync("git", ["init", "--bare", "-q", remotePath]);
+    await execFileAsync("git", ["-C", projectPath, "remote", "add", "origin", remotePath]);
+
+    const savedSettings = await projectService.saveSettings(projectPath, {
+      autosaveIntervalSec: 60,
+      showWordCount: true,
+      showWritingTime: true,
+      showCurrentFileBar: true,
+      smartQuotes: true,
+      gitSnapshots: true,
+      gitPushRemote: null,
+      editorLineHeight: 1.68,
+      editorMaxWidthPx: 750,
+      editorZoomPercent: 100,
+      editorFontFamily: "Readerly"
+    });
+
+    assert.equal(savedSettings.gitPushRemote, null);
+
+    const metadata = await projectService.getProjectMetadata(projectPath);
+    assert.equal(metadata.settings.gitPushRemote, null);
+    assert.deepEqual(metadata.gitRemotes, ["origin"]);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+    await fs.rm(remoteRoot, { recursive: true, force: true });
   }
 });
 
@@ -394,7 +482,9 @@ test("snapshot pruning keeps at most 120 snapshots", async () => {
       projectPath,
       snapshotDirectory: snapshotDir,
       filePaths: await projectService.listProjectFiles(projectPath),
-      createGitCommit: false
+      createGitCommit: false,
+      pushGitCommit: false,
+      gitPushRemote: null
     });
 
     const entries = await fs.readdir(snapshotDir);

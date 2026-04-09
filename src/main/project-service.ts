@@ -1,8 +1,13 @@
 import path from "node:path";
 import { mkdirSync, promises as fs, writeFileSync } from "node:fs";
+import { DEFAULT_SETTINGS } from "../shared/default-settings";
 import type { AppSettings, ProjectMetadata } from "../shared/types";
 import { countWordsInFilesUsingSystemTool } from "./word-count-service";
-import { SNAPSHOT_SYSTEM_VERSION, SNAPSHOT_VERSION_FILE_NAME } from "./snapshot-service";
+import {
+  getLatestSnapshotName,
+  SNAPSHOT_SYSTEM_VERSION,
+  SNAPSHOT_VERSION_FILE_NAME
+} from "./snapshot-service";
 
 const WIT_DIR_NAME = ".wit";
 const CONFIG_FILE_NAME = "config.json";
@@ -10,18 +15,6 @@ const STATS_FILE_NAME = "stats.json";
 const SNAPSHOT_DIR_NAME = "snapshots";
 const GITIGNORE_FILE_NAME = ".gitignore";
 const TEXT_FILE_EXTENSIONS = new Set([".txt", ".md", ".markdown", ".text"]);
-
-const DEFAULT_SETTINGS: AppSettings = {
-  autosaveIntervalSec: 60,
-  showWordCount: true,
-  showWritingTime: true,
-  smartQuotes: true,
-  gitSnapshots: false,
-  editorLineHeight: 1.68,
-  editorMaxWidthPx: 750,
-  editorZoomPercent: 100,
-  editorFontFamily: "Readerly"
-};
 
 type ProjectStats = {
   totalWritingSeconds: number;
@@ -120,6 +113,27 @@ async function isGitRepository(projectPath: string): Promise<boolean> {
     return stats.isDirectory() || stats.isFile();
   } catch {
     return false;
+  }
+}
+
+export async function listGitRemotes(projectPath: string): Promise<string[]> {
+  if (!(await isGitRepository(projectPath))) {
+    return [];
+  }
+
+  try {
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const execFileAsync = promisify(execFile);
+    const result = await execFileAsync("git", ["-C", projectPath, "remote"]);
+
+    return result.stdout
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .sort((left, right) => left.localeCompare(right));
+  } catch {
+    return [];
   }
 }
 
@@ -446,12 +460,20 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
       typeof parsed.showWritingTime === "boolean"
         ? parsed.showWritingTime
         : DEFAULT_SETTINGS.showWritingTime,
+    showCurrentFileBar:
+      typeof parsed.showCurrentFileBar === "boolean"
+        ? parsed.showCurrentFileBar
+        : DEFAULT_SETTINGS.showCurrentFileBar,
     smartQuotes:
       typeof parsed.smartQuotes === "boolean" ? parsed.smartQuotes : DEFAULT_SETTINGS.smartQuotes,
     gitSnapshots:
       typeof parsed.gitSnapshots === "boolean"
         ? parsed.gitSnapshots
         : DEFAULT_SETTINGS.gitSnapshots,
+    gitPushRemote:
+      typeof parsed.gitPushRemote === "string" && parsed.gitPushRemote.trim().length > 0
+        ? parsed.gitPushRemote.trim()
+        : DEFAULT_SETTINGS.gitPushRemote,
     editorLineHeight:
       typeof parsed.editorLineHeight === "number" && Number.isFinite(parsed.editorLineHeight)
         ? normalizeEditorLineHeight(parsed.editorLineHeight)
@@ -472,12 +494,19 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
 }
 
 export async function saveSettings(projectPath: string, settings: AppSettings): Promise<AppSettings> {
+  const gitRemotes = await listGitRemotes(projectPath);
+  const normalizedRemote =
+    typeof settings.gitPushRemote === "string" && gitRemotes.includes(settings.gitPushRemote)
+      ? settings.gitPushRemote
+      : null;
   const normalizedSettings: AppSettings = {
     autosaveIntervalSec: Math.max(10, Math.round(settings.autosaveIntervalSec)),
     showWordCount: Boolean(settings.showWordCount),
     showWritingTime: Boolean(settings.showWritingTime),
+    showCurrentFileBar: Boolean(settings.showCurrentFileBar),
     smartQuotes: Boolean(settings.smartQuotes),
     gitSnapshots: Boolean(settings.gitSnapshots),
+    gitPushRemote: normalizedRemote,
     editorLineHeight: normalizeEditorLineHeight(settings.editorLineHeight),
     editorMaxWidthPx: normalizeEditorMaxWidth(settings.editorMaxWidthPx),
     editorZoomPercent: normalizeEditorZoomPercent(settings.editorZoomPercent),
@@ -524,13 +553,16 @@ export async function addWritingSeconds(projectPath: string, seconds: number): P
 export async function getProjectMetadata(projectPath: string): Promise<ProjectMetadata> {
   await ensureProjectInitialized(projectPath);
 
-  const [files, folders, settings, wordCount, stats, gitRepository] = await Promise.all([
+  const [files, folders, settings, wordCount, stats, gitRepository, gitRemotes, latestSnapshotCreatedAt] =
+    await Promise.all([
     listProjectFiles(projectPath),
     listProjectFolders(projectPath),
     loadSettings(projectPath),
     calculateTotalWordCount(projectPath),
     getProjectStats(projectPath),
-    isGitRepository(projectPath)
+    isGitRepository(projectPath),
+    listGitRemotes(projectPath),
+    getLatestSnapshotName(getSnapshotDirectory(projectPath))
   ]);
 
   return {
@@ -539,7 +571,9 @@ export async function getProjectMetadata(projectPath: string): Promise<ProjectMe
     folders,
     wordCount,
     totalWritingSeconds: stats.totalWritingSeconds,
+    latestSnapshotCreatedAt,
     isGitRepository: gitRepository,
+    gitRemotes,
     settings
   };
 }

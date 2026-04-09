@@ -9,7 +9,8 @@
     "clean": "rimraf dist release",
     "copy:renderer": "copyfiles -u 2 \"src/renderer/**/*.html\" \"src/renderer/**/*.css\" \"src/renderer/assets/**/*\" dist/renderer",
     "copy:font": "copyfiles -u 1 \"font/**/*\" dist/renderer/font",
-    "build": "npm run clean && tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && npm run copy:renderer && npm run copy:font",
+    "copy:material-symbols": "copyfiles -f \"node_modules/@material-symbols/font-400/material-symbols-outlined.woff2\" dist/renderer/vendor/material-symbols",
+    "build": "npm run clean && tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && npm run copy:renderer && npm run copy:font && npm run copy:material-symbols",
     "start": "npm run build && electron .",
     "dev": "npm run start",
     "lint": "eslint \"src/**/*.ts\"",
@@ -65,5 +66,8 @@
     "playwright": "^1.54.2",
     "rimraf": "^6.0.1",
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@material-symbols/font-400": "^0.44.0"
   }
 }

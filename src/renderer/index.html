@@ -48,24 +48,59 @@
         <div class="sidebar-footer">
           <div class="sidebar-footer-left">
             <div id="project-actions" class="project-actions">
-              <button id="new-file-btn" class="project-button project-action project-action--requires-project" disabled>
-                <span class="button-icon new-file-icon" aria-hidden="true"></span>
-                New File
+              <button
+                id="new-file-btn"
+                class="project-button project-button--icon project-action project-action--requires-project"
+                title="New File"
+                aria-label="New File"
+                disabled
+              >
+                <span class="material-symbol-icon new-file-icon" aria-hidden="true">description</span>
               </button>
-              <button id="new-folder-btn" class="project-button project-action project-action--requires-project" disabled>
-                <span class="button-icon new-folder-icon" aria-hidden="true"></span>
-                New Folder
+              <button
+                id="new-folder-btn"
+                class="project-button project-button--icon project-action project-action--requires-project"
+                title="New Folder"
+                aria-label="New Folder"
+                disabled
+              >
+                <span class="material-symbol-icon new-folder-icon" aria-hidden="true">folder</span>
               </button>
             </div>
           </div>
-          <button id="settings-toggle-btn" class="settings-icon-button" title="Open writing settings" aria-label="Open writing settings">
-            <span class="button-icon settings-cog-icon" aria-hidden="true"></span>
+          <button id="settings-toggle-btn" class="settings-icon-button" title="Open writing settings" aria-label="Open writing settings" hidden>
+            <span class="material-symbol-icon settings-cog-icon" aria-hidden="true">settings</span>
           </button>
         </div>
       </aside>
+      <div
+        id="sidebar-resizer"
+        class="sidebar-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        tabindex="0"
+      ></div>
 
       <main class="editor-pane">
         <section class="editor-wrap">
+          <div id="empty-state-screen" class="empty-state-screen" hidden>
+            <div class="empty-state-card">
+              <p id="empty-state-eyebrow" class="empty-state-eyebrow">Wit</p>
+              <h2 id="empty-state-title" class="empty-state-title">Open a writing project</h2>
+              <p id="empty-state-description" class="empty-state-description">
+                Choose a project folder to start writing, autosaving, and creating snapshots.
+              </p>
+              <div class="empty-state-actions">
+                <button id="empty-state-primary-btn" type="button" class="ghost-button">Open Project</button>
+                <button id="empty-state-secondary-btn" type="button" class="ghost-button" hidden>New File</button>
+              </div>
+              <div class="empty-state-shortcuts">
+                <p class="empty-state-shortcuts-label">Useful shortcuts</p>
+                <ul id="empty-state-shortcuts-list" class="empty-state-shortcuts-list"></ul>
+              </div>
+            </div>
+          </div>
           <div class="editor-header">
             <span id="active-file-label">No file selected</span>
             <span id="dirty-indicator" class="dirty-indicator" hidden aria-label="Unsaved changes"></span>
@@ -89,11 +124,11 @@
         <h2>Create New File</h2>
         <p>Enter a relative path for a plain text or markdown file.</p>
         <label for="new-file-path-input">File path</label>
-        <input id="new-file-path-input" name="new-file-path" type="text" value="chapter-01.txt" />
+        <input id="new-file-path-input" name="new-file-path" type="text" value="" />
         <p id="new-file-error" class="dialog-error" aria-live="polite"></p>
         <div class="new-file-actions">
           <button id="new-file-cancel-btn" type="button" class="ghost-button">Cancel</button>
-          <button id="new-file-create-btn" type="submit" value="create" class="ghost-button">Create</button>
+          <button id="new-file-create-btn" type="submit" value="create" class="ghost-button primary-button">Create</button>
         </div>
       </form>
     </dialog>
@@ -103,11 +138,11 @@
         <h2>Create New Folder</h2>
         <p>Enter a relative path for a folder inside this project.</p>
         <label for="new-folder-path-input">Folder path</label>
-        <input id="new-folder-path-input" name="new-folder-path" type="text" value="chapter-notes" />
+        <input id="new-folder-path-input" name="new-folder-path" type="text" value="" />
         <p id="new-folder-error" class="dialog-error" aria-live="polite"></p>
         <div class="new-file-actions">
           <button id="new-folder-cancel-btn" type="button" class="ghost-button">Cancel</button>
-          <button id="new-folder-create-btn" type="submit" value="create" class="ghost-button">Create</button>
+          <button id="new-folder-create-btn" type="submit" value="create" class="ghost-button primary-button">Create</button>
         </div>
       </form>
     </dialog>
@@ -121,7 +156,7 @@
         <p id="rename-entry-error" class="dialog-error" aria-live="polite"></p>
         <div class="new-file-actions">
           <button id="rename-entry-cancel-btn" type="button" class="ghost-button">Cancel</button>
-          <button id="rename-entry-confirm-btn" type="submit" value="rename" class="ghost-button">Rename</button>
+          <button id="rename-entry-confirm-btn" type="submit" value="rename" class="ghost-button primary-button">Rename</button>
         </div>
       </form>
     </dialog>
@@ -129,109 +164,156 @@
     <dialog id="settings-dialog" class="settings-dialog">
       <form method="dialog" id="settings-form">
         <div class="settings-header">
-          <h2>Writing Settings</h2>
+          <h2>Project Settings</h2>
           <button id="settings-close-btn" value="close" class="ghost-button">Close</button>
         </div>
-        <div class="settings-sections">
-          <section class="settings-section" aria-labelledby="settings-section-writing">
-            <div class="settings-section-header">
-              <h3 id="settings-section-writing">Writing</h3>
-              <p>Controls that affect what you see while drafting and how text is shaped as you type.</p>
-            </div>
-            <div class="settings-grid">
-              <label class="setting-card setting-card--checkbox" title="Show total word count">
-                <span class="setting-card-toggle">
-                  <input id="show-word-count-input" type="checkbox" checked />
-                  <span class="setting-card-title">Show word count</span>
-                </span>
-                <span class="setting-card-description">Displays the running total project word count in the footer.</span>
-              </label>
-              <label class="setting-card setting-card--checkbox" title="Show accumulated writing time">
-                <span class="setting-card-toggle">
-                  <input id="show-writing-time-input" type="checkbox" checked />
-                  <span class="setting-card-title">Show writing time</span>
-                </span>
-                <span class="setting-card-description">Displays the accumulated tracked writing time for this project in the footer.</span>
-              </label>
-              <label class="setting-card setting-card--checkbox" title="Convert straight quotes into smart quotes while typing">
-                <span class="setting-card-toggle">
-                  <input id="smart-quotes-input" type="checkbox" checked />
-                  <span class="setting-card-title">Smart quotes</span>
-                </span>
-                <span class="setting-card-description">Turns straight quotation marks into curly quotes as you type in the editor.</span>
-              </label>
-              <label class="setting-card" title="Choose editor font">
-                <span class="setting-card-title">Editor font</span>
-                <span class="setting-card-description">Switch the reading texture of the editor without changing the project files.</span>
-                <select id="font-select">
-                  <option value="Sourcerer">Sourcerer</option>
-                  <option value="Readerly" selected>Readerly</option>
-                  <option value="iA Writer Mono">iA Writer Mono</option>
-                </select>
-              </label>
-              <label class="setting-card" title="Adjust editor text zoom">
-                <span class="setting-card-title">Text zoom</span>
-                <span class="setting-card-description">Changes the editor text size without affecting the rest of the interface.</span>
-                <div class="zoom-control">
-                  Zoom
-                  <select id="text-zoom-select">
-                    <option value="50">50%</option>
-                    <option value="75">75%</option>
-                    <option value="90">90%</option>
-                    <option value="100" selected>100%</option>
-                    <option value="110">110%</option>
-                    <option value="125">125%</option>
-                    <option value="150">150%</option>
-                    <option value="175">175%</option>
-                    <option value="200">200%</option>
-                    <option value="225">225%</option>
-                    <option value="250">250%</option>
-                  </select>
-                </div>
-              </label>
-              <label class="setting-card slider-control" title="Adjust editor line height for readability">
-                <span class="setting-card-title">Editor line height</span>
-                <span class="setting-card-description">Increase or tighten vertical spacing to match how you like long-form text to sit on the page.</span>
-                <div class="slider-row">
-                  <input id="line-height-input" type="range" min="1.2" max="2.4" step="0.02" value="1.68" />
-                  <span id="line-height-value">1.68</span>
-                </div>
-              </label>
-              <label class="setting-card slider-control" title="Limit editor column width for readability">
-                <span class="setting-card-title">Editor max width</span>
-                <span class="setting-card-description">Keeps the writing column comfortable to scan, even on large displays.</span>
-                <div class="slider-row">
-                  <input id="editor-width-input" type="range" min="360" max="1200" step="10" value="750" />
-                  <span id="editor-width-value">750px</span>
-                </div>
-              </label>
+        <div class="settings-tabs" role="tablist" aria-label="Settings sections">
+          <button id="settings-tab-writing" class="settings-tab" type="button" role="tab" aria-selected="true" aria-controls="settings-panel-writing">
+            Writing
+          </button>
+          <button id="settings-tab-editor" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settings-panel-editor" tabindex="-1">
+            Editor
+          </button>
+          <button id="settings-tab-autosave" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settings-panel-autosave" tabindex="-1">
+            Autosave
+          </button>
+        </div>
+        <div class="settings-panels">
+          <section id="settings-panel-writing" class="settings-panel" role="tabpanel" aria-labelledby="settings-tab-writing">
+            <div class="settings-section">
+              <div class="settings-section-header">
+                <h3 id="settings-section-writing">Writing</h3>
+                <p>Controls for the drafting interface and the status information shown while you write.</p>
+              </div>
+              <div class="settings-grid">
+                <label class="setting-card setting-card--checkbox" title="Show total word count">
+                  <span class="setting-card-toggle">
+                    <input id="show-word-count-input" type="checkbox" checked />
+                    <span class="setting-card-title">Show word count</span>
+                  </span>
+                  <span class="setting-card-description">Displays the running total project word count in the footer.</span>
+                </label>
+                <label class="setting-card setting-card--checkbox" title="Show accumulated writing time">
+                  <span class="setting-card-toggle">
+                    <input id="show-writing-time-input" type="checkbox" checked />
+                    <span class="setting-card-title">Show writing time</span>
+                  </span>
+                  <span class="setting-card-description">Displays the accumulated tracked writing time for this project in the footer.</span>
+                </label>
+                <label class="setting-card setting-card--checkbox" title="Show the current file bar above the editor">
+                  <span class="setting-card-toggle">
+                    <input id="show-current-file-bar-input" type="checkbox" checked />
+                    <span class="setting-card-title">Show current file bar</span>
+                  </span>
+                  <span class="setting-card-description">Shows the active file path and unsaved-change dot above the editor.</span>
+                </label>
+                <label class="setting-card setting-card--checkbox" title="Convert straight quotes into smart quotes while typing">
+                  <span class="setting-card-toggle">
+                    <input id="smart-quotes-input" type="checkbox" checked />
+                    <span class="setting-card-title">Smart quotes</span>
+                  </span>
+                  <span class="setting-card-description">Turns straight quotation marks into curly quotes as you type in the editor.</span>
+                </label>
+              </div>
             </div>
           </section>
 
-          <section class="settings-section" aria-labelledby="settings-section-autosave">
-            <div class="settings-section-header">
-              <h3 id="settings-section-autosave">Autosave And Snapshots</h3>
-              <p>Automatic background protection for your text, including full compressed backups.</p>
+          <section id="settings-panel-editor" class="settings-panel" role="tabpanel" aria-labelledby="settings-tab-editor" hidden>
+            <div class="settings-section">
+              <div class="settings-section-header">
+                <h3 id="settings-section-editor">Editor Appearance</h3>
+                <p>Typography and layout controls for the writing column itself.</p>
+              </div>
+              <div class="settings-grid">
+                <label class="setting-card" title="Choose editor font">
+                  <span class="setting-card-title">Editor font</span>
+                  <span class="setting-card-description">Switch the reading texture of the editor without changing the project files.</span>
+                  <select id="font-select">
+                    <option value="Sourcerer">Sourcerer</option>
+                    <option value="Readerly" selected>Readerly</option>
+                    <option value="iA Writer Mono">iA Writer Mono</option>
+                  </select>
+                </label>
+                <label class="setting-card" title="Adjust editor text zoom">
+                  <span class="setting-card-title">Text zoom</span>
+                  <span class="setting-card-description">Changes the editor text size without affecting the rest of the interface.</span>
+                  <div class="zoom-control">
+                    Zoom
+                    <select id="text-zoom-select">
+                      <option value="50">50%</option>
+                      <option value="75">75%</option>
+                      <option value="90">90%</option>
+                      <option value="100" selected>100%</option>
+                      <option value="110">110%</option>
+                      <option value="125">125%</option>
+                      <option value="150">150%</option>
+                      <option value="175">175%</option>
+                      <option value="200">200%</option>
+                      <option value="225">225%</option>
+                      <option value="250">250%</option>
+                    </select>
+                  </div>
+                </label>
+                <label class="setting-card slider-control" title="Adjust editor line height for readability">
+                  <span class="setting-card-title">Editor line height</span>
+                  <span class="setting-card-description">Increase or tighten vertical spacing to match how you like long-form text to sit on the page.</span>
+                  <div class="slider-row">
+                    <input id="line-height-input" type="range" min="1.2" max="2.4" step="0.02" value="1.68" />
+                    <span id="line-height-value">1.68</span>
+                  </div>
+                </label>
+                <label class="setting-card slider-control" title="Limit editor column width for readability">
+                  <span class="setting-card-title">Editor max width</span>
+                  <span class="setting-card-description">Keeps the writing column comfortable to scan, even on large displays.</span>
+                  <div class="slider-row">
+                    <input id="editor-width-input" type="range" min="360" max="1200" step="10" value="750" />
+                    <span id="editor-width-value">750px</span>
+                  </div>
+                </label>
+              </div>
             </div>
-            <div class="settings-grid">
-              <label class="setting-card interval-control" title="Autosave and snapshot interval in seconds">
-                <span class="setting-card-title">Autosave interval</span>
-                <span class="setting-card-description">Every interval saves the active file and writes a full compressed snapshot of the project.</span>
-                <div class="inline-input-row">
-                  <input id="autosave-interval-input" type="number" min="10" step="5" value="60" />
-                  <span class="input-suffix">seconds</span>
-                </div>
-              </label>
-              <label class="setting-card setting-card--checkbox" title="Create git commits during snapshots">
-                <span class="setting-card-toggle">
-                  <input id="git-snapshots-input" type="checkbox" />
-                  <span class="setting-card-title">Git snapshots</span>
-                </span>
-                <span class="setting-card-description">When enabled, each automatic snapshot also creates a Git commit for the current project state.</span>
-              </label>
-              <p id="git-snapshots-notice" class="settings-notice" hidden>
-                Git snapshots are unavailable because this project is not a Git repository.
-              </p>
+          </section>
+
+          <section id="settings-panel-autosave" class="settings-panel" role="tabpanel" aria-labelledby="settings-tab-autosave" hidden>
+            <div class="settings-section">
+              <div class="settings-section-header">
+                <h3 id="settings-section-autosave">Autosave</h3>
+                <p>Each autosave interval saves the current file and then runs the project's snapshot routine.</p>
+              </div>
+              <div class="settings-grid">
+                <label class="setting-card interval-control" title="Autosave interval in seconds">
+                  <span class="setting-card-title">Autosave interval</span>
+                  <span class="setting-card-description">Each interval writes the current editor contents to disk for the active file.</span>
+                  <div class="inline-input-row">
+                    <input id="autosave-interval-input" type="number" min="10" step="5" value="60" />
+                    <span class="input-suffix">seconds</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-section-header">
+                <h3 id="settings-section-snapshots">Git</h3>
+                <p>Each autosave tick also creates a compressed full-project snapshot in `.wit/snapshots`.</p>
+              </div>
+              <div class="settings-grid">
+                <label class="setting-card setting-card--checkbox" title="Create git commits during snapshots">
+                  <span class="setting-card-toggle">
+                    <input id="git-snapshots-input" type="checkbox" />
+                    <span class="setting-card-title">Git snapshots</span>
+                  </span>
+                  <span class="setting-card-description">When enabled, each snapshot also creates a Git commit for the current project state.</span>
+                </label>
+                <label class="setting-card" title="Choose which remote receives automatic snapshot pushes">
+                  <span class="setting-card-title">Push remote</span>
+                  <span class="setting-card-description">Choose a remote to push snapshot commits to automatically, or select `Don't push`.</span>
+                  <select id="git-push-remote-select"></select>
+                </label>
+                <p id="git-snapshots-notice" class="settings-notice" hidden>
+                  Git snapshots are unavailable because this project is not a Git repository.
+                </p>
+              </div>
             </div>
           </section>
         </div>

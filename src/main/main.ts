@@ -140,8 +140,8 @@ function createMainWindow(): BrowserWindow {
   const sharedWindowOptions = {
     width: 1240,
     height: 800,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 1040,
+    minHeight: 700,
     title: "Wit",
     backgroundColor: "#f7f7f8",
     webPreferences: {
@@ -318,7 +318,9 @@ async function runAutosaveTick(activeSeconds: number): Promise<AutosaveTickResul
     projectPath,
     snapshotDirectory: getSnapshotDirectory(projectPath),
     filePaths: files,
-    createGitCommit: settings.gitSnapshots && gitRepository
+    createGitCommit: settings.gitSnapshots && gitRepository,
+    pushGitCommit: settings.gitSnapshots && settings.gitPushRemote !== null && gitRepository,
+    gitPushRemote: settings.gitPushRemote
   });
 
   const [wordCount, stats] = await Promise.all([

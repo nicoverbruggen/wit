@@ -2,8 +2,10 @@ export type AppSettings = {
   autosaveIntervalSec: number;
   showWordCount: boolean;
   showWritingTime: boolean;
+  showCurrentFileBar: boolean;
   smartQuotes: boolean;
   gitSnapshots: boolean;
+  gitPushRemote: string | null;
   editorLineHeight: number;
   editorMaxWidthPx: number;
   editorZoomPercent: number;
@@ -16,7 +18,9 @@ export type ProjectMetadata = {
   folders: string[];
   wordCount: number;
   totalWritingSeconds: number;
+  latestSnapshotCreatedAt: string | null;
   isGitRepository: boolean;
+  gitRemotes: string[];
   settings: AppSettings;
 };
 

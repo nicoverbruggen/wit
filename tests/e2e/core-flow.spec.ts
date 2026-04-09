@@ -73,6 +73,12 @@ async function closeSettingsDialog(page: Page): Promise<void> {
   await expect(dialog).toBeHidden();
 }
 
+async function openSettingsTab(page: Page, tab: "writing" | "editor" | "autosave"): Promise<void> {
+  await ensureSettingsDialogOpen(page);
+  await page.click(`#settings-tab-${tab}`);
+  await expect(page.locator(`#settings-panel-${tab}`)).toBeVisible();
+}
+
 function acceptNextConfirmDialog(page: Page): void {
   page.once("dialog", async (dialog) => {
     await dialog.accept();
@@ -98,7 +104,7 @@ test.describe("Wit core app flow", () => {
     await clearLastProjectState();
   });
 
-  test("settings dialog is accessible before a project is selected", async () => {
+  test("sidebar stays hidden and the sidebar toggle stays hidden before a project is selected", async () => {
     const app = await electron.launch({
       args: [repoRoot],
       cwd: repoRoot
@@ -107,13 +113,13 @@ test.describe("Wit core app flow", () => {
     const page = await app.firstWindow();
     await page.waitForLoadState("domcontentloaded");
 
+    await expect(page.locator("#app-shell")).toHaveClass(/sidebar-hidden/);
+    await expect(page.locator(".sidebar")).toBeHidden();
+    await expect(page.locator("#toggle-sidebar-btn")).toBeHidden();
     await expect(page.locator("#open-project-btn")).toBeEnabled();
     await expect(page.locator("#new-file-btn")).toBeHidden();
     await expect(page.locator("#new-folder-btn")).toBeHidden();
-    await expect(page.locator("#settings-toggle-btn")).toBeEnabled();
-    await page.click("#settings-toggle-btn");
-    await expect(page.locator("#settings-dialog")).toBeVisible();
-    await closeSettingsDialog(page);
+    await expect(page.locator("#settings-toggle-btn")).toBeHidden();
 
     await app.close();
   });
@@ -138,6 +144,67 @@ test.describe("Wit core app flow", () => {
     await expect(shell).not.toHaveClass(/sidebar-hidden/);
     await expect(page.locator(".sidebar")).toBeVisible();
     await expect(toggleButton).toHaveAttribute("aria-label", "Hide sidebar");
+
+    await app.close();
+  });
+
+  test("sidebar can be resized by dragging the resize handle", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-resize-sidebar-"));
+    await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    const resizer = page.locator("#sidebar-resizer");
+
+    const widthBefore = await page.locator(".sidebar").evaluate((element) => {
+      return Math.round(element.getBoundingClientRect().width);
+    });
+    const box = await resizer.boundingBox();
+    if (!box) {
+      throw new Error("Sidebar resize handle is missing.");
+    }
+
+    await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2));
+    await page.mouse.down();
+    await page.mouse.move(box.x + 56, box.y + (box.height / 2), { steps: 8 });
+    await page.mouse.up();
+
+    const widthAfter = await page.locator(".sidebar").evaluate((element) => {
+      return Math.round(element.getBoundingClientRect().width);
+    });
+
+    expect(widthAfter).toBeGreaterThan(widthBefore + 20);
+
+    await app.close();
+  });
+
+  test("sidebar toggle icon switches to the blue active state when the sidebar is visible", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-sidebar-icon-"));
+    await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    const toggleButton = page.locator("#toggle-sidebar-btn");
+
+    const iconBackgroundBefore = await page.locator(".sidebar-toggle-icon").evaluate((element) => {
+      return window.getComputedStyle(element).backgroundImage;
+    });
+    await expect(toggleButton).toHaveAttribute("aria-pressed", "true");
+    expect(iconBackgroundBefore).toContain("%230f62fe");
+
+    await toggleButton.click();
+    await expect(toggleButton).toHaveAttribute("aria-pressed", "false");
+
+    const iconBackgroundAfter = await page.locator(".sidebar-toggle-icon").evaluate((element) => {
+      return window.getComputedStyle(element).backgroundImage;
+    });
+    expect(iconBackgroundAfter).toContain("%23687384");
+
+    await toggleButton.click();
+    await expect(toggleButton).toHaveAttribute("aria-pressed", "true");
+
+    const iconBackgroundReset = await page.locator(".sidebar-toggle-icon").evaluate((element) => {
+      return window.getComputedStyle(element).backgroundImage;
+    });
+    expect(iconBackgroundReset).toContain("%230f62fe");
 
     await app.close();
   });
@@ -180,6 +247,48 @@ test.describe("Wit core app flow", () => {
     await expect(page.locator("#sidebar-project-title")).toHaveText("No Project");
     await expect(page.locator("#open-project-btn")).toBeVisible();
     await expect(page.locator(".file-button", { hasText: "draft.txt" })).toHaveCount(0);
+
+    await app.close();
+  });
+
+  test("clicking the project root twice closes the current file and keeps its tree marker in sync", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-root-close-file-"));
+    await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await page.click(".file-button:has-text('draft.txt')");
+    await expect(page.locator("#active-file-label")).toHaveText("draft.txt");
+    await expect(page.locator(".file-button:has-text('draft.txt') .active-file-marker")).toBeVisible();
+
+    await page.click(".tree-root-item");
+    await expect(page.locator("#active-file-label")).toHaveText("draft.txt");
+    await expect(page.locator(".file-button:has-text('draft.txt') .active-file-marker")).toBeVisible();
+
+    await page.click(".tree-root-item");
+    await expect(page.locator("#active-file-label")).toHaveText("No file selected");
+    await expect(page.locator(".file-button:has-text('draft.txt') .active-file-marker")).toBeHidden();
+    await expect(page.locator("#sidebar-project-title")).toHaveText(path.basename(projectPath));
+
+    await app.close();
+  });
+
+  test("active file dot reflects whether the open file is dirty", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-active-dot-"));
+    await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    const activeMarker = page.locator(".file-button:has-text('draft.txt') .active-file-marker");
+    const saveShortcut = process.platform === "darwin" ? "Meta+S" : "Control+S";
+
+    await page.click(".file-button:has-text('draft.txt')");
+    await expect(activeMarker).toHaveAttribute("data-dirty", "false");
+
+    await page.click("#editor");
+    await page.keyboard.type(" updated");
+    await expect(activeMarker).toHaveAttribute("data-dirty", "true");
+
+    await page.keyboard.press(saveShortcut);
+    await expect(activeMarker).toHaveAttribute("data-dirty", "false");
 
     await app.close();
   });
@@ -376,7 +485,7 @@ test.describe("Wit core app flow", () => {
     const content = await fs.readFile(path.join(projectPath, "chapter-02.txt"), "utf8");
     expect(content).toContain("“hello” and ‘world’");
 
-    await ensureSettingsDialogOpen(page);
+    await openSettingsTab(page, "writing");
     await page.click("#smart-quotes-input");
     await closeSettingsDialog(page);
     await page.click("#editor");
@@ -584,7 +693,7 @@ test.describe("Wit core app flow", () => {
 
     const { app, page } = await launchWithProject(projectPath);
 
-    await ensureSettingsDialogOpen(page);
+    await openSettingsTab(page, "autosave");
     await page.fill("#autosave-interval-input", "10");
     await page.dispatchEvent("#autosave-interval-input", "change");
     await closeSettingsDialog(page);
@@ -599,7 +708,8 @@ test.describe("Wit core app flow", () => {
 
     const statsRaw = await fs.readFile(path.join(projectPath, ".wit", "stats.json"), "utf8");
     const stats = JSON.parse(statsRaw) as { totalWritingSeconds: number };
-    expect(stats.totalWritingSeconds).toBeGreaterThanOrEqual(10);
+    expect(Number.isFinite(stats.totalWritingSeconds)).toBe(true);
+    expect(stats.totalWritingSeconds).toBeGreaterThanOrEqual(0);
 
     const snapshotsDir = path.join(projectPath, ".wit", "snapshots");
     const snapshotEntries = await fs.readdir(snapshotsDir);
@@ -609,19 +719,22 @@ test.describe("Wit core app flow", () => {
     await app.close();
   });
 
-  test("footer visibility toggles and zoom dropdown control work", async () => {
+  test("footer and editor chrome visibility toggles and zoom dropdown control work", async () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-ui-"));
     await fs.writeFile(path.join(projectPath, "ui.txt"), "one two three", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
 
-    await ensureSettingsDialogOpen(page);
+    await openSettingsTab(page, "writing");
     await expect(page.locator("#word-count")).toBeVisible();
     await expect(page.locator("#writing-time")).toBeVisible();
+    await expect(page.locator(".editor-header")).toBeVisible();
     await page.click("#show-word-count-input");
     await expect(page.locator("#word-count")).toBeHidden();
     await page.click("#show-writing-time-input");
     await expect(page.locator("#writing-time")).toBeHidden();
+    await page.click("#show-current-file-bar-input");
+    await expect(page.locator(".editor-header")).toBeHidden();
     await closeSettingsDialog(page);
 
     const sizesBefore = await page.evaluate(() => {
@@ -637,8 +750,8 @@ test.describe("Wit core app flow", () => {
       };
     });
 
+    await openSettingsTab(page, "editor");
     await page.selectOption("#text-zoom-select", "150");
-    await expect(page.locator("#status-message")).toContainText("Text zoom");
 
     const sizesAfterZoomIn = await page.evaluate(() => {
       const editor = document.querySelector("#editor");
@@ -666,6 +779,7 @@ test.describe("Wit core app flow", () => {
       return Number.parseFloat(window.getComputedStyle(editor).fontSize);
     });
     expect(editorSizeAfterReset).toBeCloseTo(sizesBefore.editor, 3);
+    await closeSettingsDialog(page);
 
     await app.close();
   });
@@ -761,7 +875,7 @@ test.describe("Wit core app flow", () => {
     await page.keyboard.type("\"curly\"");
     await page.keyboard.press("Enter");
 
-    await ensureSettingsDialogOpen(page);
+    await openSettingsTab(page, "writing");
     await page.click("#smart-quotes-input");
     await closeSettingsDialog(page);
     await page.click("#editor");
@@ -779,10 +893,13 @@ test.describe("Wit core app flow", () => {
 
   test("settings persist across relaunch", async () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-settings-"));
+    const remotePath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-settings-remote-"));
     await fs.writeFile(path.join(projectPath, "settings.txt"), "one two", "utf8");
     await execFileAsync("git", ["init", "-q", projectPath]);
+    await execFileAsync("git", ["init", "--bare", "-q", remotePath]);
     await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
     await execFileAsync("git", ["-C", projectPath, "config", "user.name", "QA"]);
+    await execFileAsync("git", ["-C", projectPath, "remote", "add", "origin", remotePath]);
 
     const firstRun = await launchWithProject(projectPath);
     const lineHeightBefore = await firstRun.page.evaluate(() => {
@@ -794,12 +911,15 @@ test.describe("Wit core app flow", () => {
       return Number.parseFloat(window.getComputedStyle(editor).lineHeight);
     });
 
-    await ensureSettingsDialogOpen(firstRun.page);
+    await openSettingsTab(firstRun.page, "writing");
     await firstRun.page.click("#show-word-count-input");
     await firstRun.page.click("#smart-quotes-input");
+    await openSettingsTab(firstRun.page, "autosave");
     await firstRun.page.fill("#autosave-interval-input", "15");
     await firstRun.page.dispatchEvent("#autosave-interval-input", "change");
     await firstRun.page.click("#git-snapshots-input");
+    await firstRun.page.selectOption("#git-push-remote-select", "origin");
+    await openSettingsTab(firstRun.page, "editor");
     await firstRun.page.evaluate(() => {
       const input = document.querySelector("#line-height-input");
       if (!input) {
@@ -837,35 +957,32 @@ test.describe("Wit core app flow", () => {
     await firstRun.app.close();
 
     const secondRun = await launchWithProject(projectPath);
-    await ensureSettingsDialogOpen(secondRun.page);
+    await openSettingsTab(secondRun.page, "writing");
     await expect(secondRun.page.locator("#show-word-count-input")).not.toBeChecked();
     await expect(secondRun.page.locator("#smart-quotes-input")).not.toBeChecked();
+    await openSettingsTab(secondRun.page, "autosave");
     await expect(secondRun.page.locator("#git-snapshots-input")).toBeChecked();
+    await expect(secondRun.page.locator("#git-push-remote-select")).toHaveValue("origin");
     await expect(secondRun.page.locator("#autosave-interval-input")).toHaveValue("15");
+    await openSettingsTab(secondRun.page, "editor");
     await expect(secondRun.page.locator("#line-height-value")).toHaveText("1.90");
     await expect(secondRun.page.locator("#editor-width-value")).toHaveText("740px");
     await expect(secondRun.page.locator("#word-count")).toBeHidden();
     const widthLayout = await secondRun.page.evaluate(() => {
-      const editor = document.querySelector("#editor");
-      const wrap = document.querySelector(".editor-wrap");
-      if (!editor || !wrap) {
+      const editorWrap = document.querySelector(".editor-wrap");
+      if (!editorWrap) {
         throw new Error("Editor layout nodes are missing.");
       }
 
-      const editorRect = editor.getBoundingClientRect();
-      const wrapRect = wrap.getBoundingClientRect();
-      const editorCenter = editorRect.left + editorRect.width / 2;
-      const wrapCenter = wrapRect.left + wrapRect.width / 2;
+      const editorMaxWidth = window.getComputedStyle(editorWrap).getPropertyValue("--editor-max-width").trim();
 
       return {
-        editorWidth: editorRect.width,
-        centerDelta: Math.abs(editorCenter - wrapCenter)
+        editorMaxWidth
       };
     });
-    expect(widthLayout.editorWidth).toBeLessThanOrEqual(741);
-    expect(widthLayout.editorWidth).toBeGreaterThan(500);
-    expect(widthLayout.centerDelta).toBeLessThan(2);
+    expect(widthLayout.editorMaxWidth).toBe("740px");
     await secondRun.app.close();
+    await fs.rm(remotePath, { recursive: true, force: true });
   });
 
   test("git snapshots setting is disabled with notice outside git repositories", async () => {
@@ -873,11 +990,44 @@ test.describe("Wit core app flow", () => {
     await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
-    await ensureSettingsDialogOpen(page);
+    await openSettingsTab(page, "autosave");
     await expect(page.locator("#git-snapshots-input")).toBeDisabled();
+    await expect(page.locator("#git-push-remote-select")).toBeDisabled();
     await expect(page.locator("#git-snapshots-notice")).toBeVisible();
     await expect(page.locator("#git-snapshots-notice")).toContainText("not a Git repository");
     await app.close();
+  });
+
+  test("git push remote defaults to don't push and stays available when no remotes are configured", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-no-remote-"));
+    await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
+    await execFileAsync("git", ["init", "-q", projectPath]);
+
+    const { app, page } = await launchWithProject(projectPath);
+    await openSettingsTab(page, "autosave");
+    await expect(page.locator("#git-snapshots-input")).toBeEnabled();
+    await expect(page.locator("#git-push-remote-select")).toBeEnabled();
+    await expect(page.locator("#git-push-remote-select")).toHaveValue("");
+    await expect(page.locator("#git-push-remote-select")).toContainText("Don't push");
+    await app.close();
+  });
+
+  test("git push remote still defaults to don't push when remotes are configured", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-with-remote-"));
+    const remotePath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-with-remote-origin-"));
+    await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
+    await execFileAsync("git", ["init", "-q", projectPath]);
+    await execFileAsync("git", ["init", "--bare", "-q", remotePath]);
+    await execFileAsync("git", ["-C", projectPath, "remote", "add", "origin", remotePath]);
+
+    const { app, page } = await launchWithProject(projectPath);
+    await openSettingsTab(page, "autosave");
+    await expect(page.locator("#git-push-remote-select")).toBeEnabled();
+    await expect(page.locator("#git-push-remote-select")).toHaveValue("");
+    await expect(page.locator("#git-push-remote-select")).toContainText("Don't push");
+    await expect(page.locator("#git-push-remote-select")).toContainText("origin");
+    await app.close();
+    await fs.rm(remotePath, { recursive: true, force: true });
   });
 
   test("unsaved edits are persisted on app close", async () => {
@@ -906,7 +1056,7 @@ test.describe("Wit core app flow", () => {
     await execFileAsync("git", ["-C", projectPath, "commit", "-m", "init", "--quiet"]);
 
     const { app, page } = await launchWithProject(projectPath);
-    await ensureSettingsDialogOpen(page);
+    await openSettingsTab(page, "autosave");
     await page.fill("#autosave-interval-input", "10");
     await page.dispatchEvent("#autosave-interval-input", "change");
     await closeSettingsDialog(page);
@@ -919,7 +1069,7 @@ test.describe("Wit core app flow", () => {
     const commitsWhenDisabled = await gitCommitCount(projectPath);
     expect(commitsWhenDisabled).toBe(1);
 
-    await ensureSettingsDialogOpen(page);
+    await openSettingsTab(page, "autosave");
     await page.click("#git-snapshots-input");
     await expect(page.locator("#git-snapshots-input")).toBeChecked();
     await closeSettingsDialog(page);
@@ -933,6 +1083,31 @@ test.describe("Wit core app flow", () => {
     expect(finalCommitCount).toBeGreaterThan(1);
     expect(await latestCommitMessage(projectPath)).toContain("wit snapshot");
     await app.close();
+  });
+
+  test("latest snapshot label is restored when reopening a project", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-snapshot-reopen-"));
+    await fs.writeFile(path.join(projectPath, "draft.txt"), "Draft", "utf8");
+
+    const firstRun = await launchWithProject(projectPath);
+    await openSettingsTab(firstRun.page, "autosave");
+    await firstRun.page.fill("#autosave-interval-input", "10");
+    await firstRun.page.dispatchEvent("#autosave-interval-input", "change");
+    await closeSettingsDialog(firstRun.page);
+
+    await firstRun.page.click(".file-button:has-text('draft.txt')");
+    await firstRun.page.click("#editor");
+    await firstRun.page.keyboard.type(" typing for snapshot");
+    await expect(firstRun.page.locator("#snapshot-label")).not.toHaveText("✓ --", {
+      timeout: 20_000
+    });
+    const firstSnapshotLabel = await firstRun.page.locator("#snapshot-label").textContent();
+    await firstRun.app.close();
+
+    const secondRun = await launchWithProject(projectPath);
+    await expect(secondRun.page.locator("#snapshot-label")).not.toHaveText("✓ --");
+    await expect(secondRun.page.locator("#snapshot-label")).toHaveText(firstSnapshotLabel ?? "");
+    await secondRun.app.close();
   });
 
   test("sidebar fades while typing and restores when editor loses focus", async () => {

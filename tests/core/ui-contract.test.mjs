@@ -12,6 +12,13 @@ test("renderer markup contains core writing controls", async () => {
   const requiredIds = [
     "toggle-sidebar-btn",
     "toggle-fullscreen-btn",
+    "sidebar-resizer",
+    "settings-tab-writing",
+    "settings-tab-editor",
+    "settings-tab-autosave",
+    "settings-panel-writing",
+    "settings-panel-editor",
+    "settings-panel-autosave",
     "open-project-btn",
     "new-file-btn",
     "new-folder-btn",
@@ -19,8 +26,10 @@ test("renderer markup contains core writing controls", async () => {
     "editor",
     "show-word-count-input",
     "show-writing-time-input",
+    "show-current-file-bar-input",
     "smart-quotes-input",
     "git-snapshots-input",
+    "git-push-remote-select",
     "git-snapshots-notice",
     "autosave-interval-input",
     "line-height-input",
@@ -49,10 +58,34 @@ test("renderer markup contains core writing controls", async () => {
   }
 });
 
+test("renderer markup separates writing and editor appearance settings", async () => {
+  const html = await fs.readFile(path.join(repoRoot, "src/renderer/index.html"), "utf8");
+
+  assert.match(html, /id="settings-section-writing"/);
+  assert.match(html, /id="settings-section-editor"/);
+  assert.match(html, /id="settings-section-autosave"/);
+  assert.match(html, /id="settings-section-snapshots"/);
+  assert.match(html, />Editor Appearance</);
+  assert.match(html, />Git</);
+});
+
 test("renderer styles include dedicated writing font configuration", async () => {
   const css = await fs.readFile(path.join(repoRoot, "src/renderer/styles.css"), "utf8");
 
   assert.match(css, /@font-face\s*\{/);
   assert.match(css, /font-family:\s*"WitWriter"/);
   assert.match(css, /#editor\s*\{[\s\S]*font-family:\s*"WitWriter"/);
+});
+
+test("renderer styles keep buttons on the system UI font", async () => {
+  const css = await fs.readFile(path.join(repoRoot, "src/renderer/styles.css"), "utf8");
+
+  assert.match(css, /button\s*\{[\s\S]*font-family:\s*system-ui,\s*-apple-system,\s*"Segoe UI",\s*sans-serif;/);
+});
+
+test("main window keeps a minimum size for the current settings layout", async () => {
+  const mainSource = await fs.readFile(path.join(repoRoot, "src/main/main.ts"), "utf8");
+
+  assert.match(mainSource, /minWidth:\s*1040/);
+  assert.match(mainSource, /minHeight:\s*700/);
 });
