@@ -89,7 +89,7 @@ const SIDEBAR_WIDTH_STORAGE_KEY = "wit.sidebar-width";
 const MIN_SIDEBAR_WIDTH_PX = 220;
 const MAX_SIDEBAR_WIDTH_PX = 420;
 const DEFAULT_SIDEBAR_WIDTH_PX = 270;
-const BUILT_IN_EDITOR_FONTS = ["Sourcerer", "Readerly", "iA Writer Mono"] as const;
+const BUILT_IN_EDITOR_FONTS = ["Sourcerer", "Readerly", "iA Writer Mono", "iA Writer Duo", "iA Writer Quattro"] as const;
 const DEFAULT_EDITOR_FONT = "Readerly";
 
 type FolderNode = {
@@ -168,7 +168,6 @@ function formatWritingTime(totalSeconds: number): string {
 function primaryShortcutLabel(key: string): string {
   return window.witApi.getPlatform() === "darwin" ? `Cmd+${key}` : `Ctrl+${key}`;
 }
-
 
 function normalizePathInput(input: string): string {
   return input.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
@@ -374,6 +373,12 @@ function setDirty(nextDirty: boolean): void {
   dirty = nextDirty;
   dirtyIndicator.hidden = !nextDirty;
   syncActiveFileMarkerState();
+}
+
+function refreshEditorLayout(): void {
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new Event("resize"));
+  });
 }
 
 function syncActiveFileMarkerState(): void {
@@ -2183,6 +2188,7 @@ function handleEditorKeydown(event: KeyboardEvent): void {
 }
 
 async function initialize(): Promise<void> {
+  document.body.dataset.appReady = "false";
   const platform = window.witApi.getPlatform();
   document.body.classList.add(`platform-${platform}`);
   await loadAboutInfo();
@@ -2265,6 +2271,8 @@ async function initialize(): Promise<void> {
       syncFullscreenToggleButton(isFullscreen);
     })
   );
+
+  document.body.dataset.appReady = "true";
 }
 
 openProjectButton.addEventListener("click", () => {
@@ -2444,6 +2452,7 @@ lineHeightInput.addEventListener("change", () => {
 paragraphSpacingSelect.addEventListener("change", () => {
   const selectedSpacing = normalizeParagraphSpacingValue(paragraphSpacingSelect.value);
   applyEditorParagraphSpacing(selectedSpacing);
+  refreshEditorLayout();
   void persistSettings({ editorParagraphSpacing: selectedSpacing });
 });
 
@@ -2455,6 +2464,7 @@ editorWidthInput.addEventListener("input", () => {
   fontSelect.addEventListener("change", () => {
     const selectedFont = fontSelect.value;
     applyEditorFont(selectedFont);
+    refreshEditorLayout();
     void persistSettings({ editorFontFamily: selectedFont });
   });
 
@@ -2477,6 +2487,7 @@ textZoomSelect.addEventListener("change", () => {
   }
 
   setEditorZoomFromPercent(selectedPercent);
+  refreshEditorLayout();
 });
 
 themeSelect.addEventListener("change", () => {

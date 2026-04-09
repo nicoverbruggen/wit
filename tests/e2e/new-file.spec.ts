@@ -6,6 +6,11 @@ import { _electron as electron } from "playwright";
 
 const repoRoot = path.resolve(__dirname, "../..");
 
+async function waitForAppReady(page: Awaited<ReturnType<ReturnType<typeof electron.launch>["firstWindow"]>>): Promise<void> {
+  await page.waitForLoadState("domcontentloaded");
+  await page.waitForFunction(() => document.body.dataset.appReady === "true");
+}
+
 test.describe("Wit new file flow", () => {
   test("creates a new file from the in-app dialog", async () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-"));
@@ -17,7 +22,7 @@ test.describe("Wit new file flow", () => {
     });
 
     const page = await app.firstWindow();
-    await page.waitForLoadState("domcontentloaded");
+    await waitForAppReady(page);
 
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => {
@@ -28,7 +33,7 @@ test.describe("Wit new file flow", () => {
       await window.witApi.openProjectPath(targetPath);
     }, projectPath);
     await page.reload();
-    await page.waitForLoadState("domcontentloaded");
+    await waitForAppReady(page);
 
     await expect(page.locator("#new-file-btn")).toBeEnabled();
     await page.click("#new-file-btn");
@@ -61,13 +66,13 @@ test.describe("Wit new file flow", () => {
     });
 
     const page = await app.firstWindow();
-    await page.waitForLoadState("domcontentloaded");
+    await waitForAppReady(page);
 
     await page.evaluate(async (targetPath) => {
       await window.witApi.openProjectPath(targetPath);
     }, projectPath);
     await page.reload();
-    await page.waitForLoadState("domcontentloaded");
+    await waitForAppReady(page);
 
     await page.click("#settings-toggle-btn");
     await page.click("#settings-tab-writing");

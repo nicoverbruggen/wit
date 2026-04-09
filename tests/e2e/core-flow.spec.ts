@@ -11,6 +11,11 @@ const execFileAsync = promisify(execFile);
 const LAST_PROJECT_STATE_FILE_NAME = "last-project.json";
 let cachedUserDataPath: string | null = null;
 
+async function waitForAppReady(page: Page): Promise<void> {
+  await page.waitForLoadState("domcontentloaded");
+  await page.waitForFunction(() => document.body.dataset.appReady === "true");
+}
+
 async function launchWithProject(projectPath: string): Promise<{ app: ElectronApplication; page: Page }> {
   const app = await electron.launch({
     args: [repoRoot],
@@ -18,14 +23,14 @@ async function launchWithProject(projectPath: string): Promise<{ app: ElectronAp
   });
 
   const page = await app.firstWindow();
-  await page.waitForLoadState("domcontentloaded");
+  await waitForAppReady(page);
 
   await page.evaluate(async (targetPath) => {
     await window.witApi.openProjectPath(targetPath);
   }, projectPath);
 
   await page.reload();
-  await page.waitForLoadState("domcontentloaded");
+  await waitForAppReady(page);
 
   return { app, page };
 }
@@ -124,6 +129,18 @@ async function getEditorTypography(page: Page): Promise<{ fontSize: number; line
   });
 }
 
+async function setSelectValueWithoutMovingFocus(page: Page, selector: string, value: string): Promise<void> {
+  await page.evaluate(({ selector: targetSelector, value: targetValue }) => {
+    const element = document.querySelector(targetSelector);
+    if (!(element instanceof HTMLSelectElement)) {
+      throw new Error(`Select ${targetSelector} is missing.`);
+    }
+
+    element.value = targetValue;
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  }, { selector, value });
+}
+
 test.describe("Wit core app flow", () => {
   test.beforeEach(async () => {
     await clearLastProjectState();
@@ -140,7 +157,7 @@ test.describe("Wit core app flow", () => {
     });
 
     const page = await app.firstWindow();
-    await page.waitForLoadState("domcontentloaded");
+    await waitForAppReady(page);
 
     await expect(page.locator("#app-shell")).toHaveClass(/sidebar-hidden/);
     await expect(page.locator(".sidebar")).toBeHidden();
@@ -368,7 +385,7 @@ test.describe("Wit core app flow", () => {
     });
 
     const secondPage = await secondRun.firstWindow();
-    await secondPage.waitForLoadState("domcontentloaded");
+    await waitForAppReady(secondPage);
     await expect(secondPage.locator("#sidebar-project-title")).toHaveText(path.basename(projectPath));
     await expect(secondPage.locator(".file-button", { hasText: "persist.txt" })).toBeVisible();
     await expect(secondPage.locator("#open-project-btn")).toBeHidden();
@@ -390,7 +407,7 @@ test.describe("Wit core app flow", () => {
     });
 
     const secondPage = await secondRun.firstWindow();
-    await secondPage.waitForLoadState("domcontentloaded");
+    await waitForAppReady(secondPage);
     await expect(secondPage.locator("#sidebar-project-title")).toHaveText("No Project");
     await expect(secondPage.locator("#open-project-btn")).toBeEnabled();
     await expect(secondPage.locator(".file-button", { hasText: "draft.txt" })).toHaveCount(0);
@@ -888,6 +905,25 @@ test.describe("Wit core app flow", () => {
 
     await expect.poll(async () => getEditorText(page)).toBe("replacement text");
     await expect(page.locator("#word-count")).toContainText("Words: 2");
+
+    await app.close();
+  });
+
+  test("selection still replaces text after font and zoom changes", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-selection-typography-"));
+    await fs.writeFile(path.join(projectPath, "selection.txt"), "alpha beta gamma", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await page.click(".file-button:has-text('selection.txt')");
+    await page.click("#editor");
+
+    const modifier = process.platform === "darwin" ? "Meta" : "Control";
+    await page.keyboard.press(`${modifier}+A`);
+    await setSelectValueWithoutMovingFocus(page, "#text-zoom-select", "150");
+    await setSelectValueWithoutMovingFocus(page, "#font-select", "iA Writer Duo");
+    await page.keyboard.type("replacement text");
+
+    await expect.poll(async () => getEditorText(page)).toBe("replacement text");
 
     await app.close();
   });

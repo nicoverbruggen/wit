@@ -104,6 +104,16 @@ test("renderer styles include dedicated writing font configuration", async () =>
   assert.match(css, /#editor\s*\{[\s\S]*font-family:\s*"WitWriter"/);
 });
 
+test("renderer exposes bundled editor font options", async () => {
+  const css = await fs.readFile(path.join(repoRoot, "src/renderer/styles.css"), "utf8");
+  const rendererSource = await fs.readFile(path.join(repoRoot, "src/renderer/renderer.ts"), "utf8");
+
+  for (const fontName of ["Sourcerer", "Readerly", "iA Writer Mono", "iA Writer Duo", "iA Writer Quattro"]) {
+    assert.match(css, new RegExp(`font-family:\\s*"${fontName.replaceAll(" ", "\\s+")}"`));
+    assert.match(rendererSource, new RegExp(`"${fontName.replaceAll(" ", "\\s+")}"`));
+  }
+});
+
 test("renderer styles keep buttons on the system UI font", async () => {
   const css = await fs.readFile(path.join(repoRoot, "src/renderer/styles.css"), "utf8");
 

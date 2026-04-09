@@ -159,6 +159,70 @@
 }
 
 @font-face {
+  font-family: "iA Writer Duo";
+  src: url("./font/iAWriterDuoS-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "iA Writer Duo";
+  src: url("./font/iAWriterDuoS-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "iA Writer Duo";
+  src: url("./font/iAWriterDuoS-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "iA Writer Duo";
+  src: url("./font/iAWriterDuoS-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "iA Writer Quattro";
+  src: url("./font/iAWriterQuattroS-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "iA Writer Quattro";
+  src: url("./font/iAWriterQuattroS-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "iA Writer Quattro";
+  src: url("./font/iAWriterQuattroS-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "iA Writer Quattro";
+  src: url("./font/iAWriterQuattroS-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
   font-family: "Material Symbols Outlined";
   src: url("./vendor/material-symbols/material-symbols-outlined.woff2") format("woff2");
   font-weight: 400;
