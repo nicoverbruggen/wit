@@ -73,7 +73,7 @@ async function closeSettingsDialog(page: Page): Promise<void> {
   await expect(dialog).toBeHidden();
 }
 
-async function openSettingsTab(page: Page, tab: "writing" | "editor" | "autosave"): Promise<void> {
+async function openSettingsTab(page: Page, tab: "writing" | "editor" | "autosave" | "about"): Promise<void> {
   await ensureSettingsDialogOpen(page);
   await page.click(`#settings-tab-${tab}`);
   await expect(page.locator(`#settings-panel-${tab}`)).toBeVisible();
@@ -797,6 +797,22 @@ test.describe("Wit core app flow", () => {
     await app.close();
   });
 
+  test("about settings tab shows populated application metadata", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-about-"));
+    await fs.writeFile(path.join(projectPath, "about.txt"), "metadata", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await openSettingsTab(page, "about");
+
+    await expect(page.locator("#settings-panel-about .about-hero")).toBeVisible();
+    await expect(page.locator("#about-version")).toHaveText("0.1.0");
+    await expect(page.locator("#about-description")).toContainText("Minimalist desktop writing app");
+    await expect(page.locator("#about-author")).toHaveText("Nico Verbruggen");
+    await expect(page.locator("#about-website")).toHaveAttribute("href", "https://nicoverbruggen.be");
+
+    await app.close();
+  });
+
   test("word count updates live per typed word and stays correct after save", async () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-count-"));
     await fs.writeFile(path.join(projectPath, "count.txt"), "one two", "utf8");
@@ -920,6 +936,7 @@ test.describe("Wit core app flow", () => {
     await firstRun.page.click("#git-snapshots-input");
     await firstRun.page.selectOption("#git-push-remote-select", "origin");
     await openSettingsTab(firstRun.page, "editor");
+    await firstRun.page.selectOption("#theme-select", "dark");
     await firstRun.page.evaluate(() => {
       const input = document.querySelector("#line-height-input");
       if (!input) {
@@ -965,6 +982,7 @@ test.describe("Wit core app flow", () => {
     await expect(secondRun.page.locator("#git-push-remote-select")).toHaveValue("origin");
     await expect(secondRun.page.locator("#autosave-interval-input")).toHaveValue("15");
     await openSettingsTab(secondRun.page, "editor");
+    await expect(secondRun.page.locator("#theme-select")).toHaveValue("dark");
     await expect(secondRun.page.locator("#line-height-value")).toHaveText("1.90");
     await expect(secondRun.page.locator("#editor-width-value")).toHaveText("740px");
     await expect(secondRun.page.locator("#word-count")).toBeHidden();
@@ -981,8 +999,36 @@ test.describe("Wit core app flow", () => {
       };
     });
     expect(widthLayout.editorMaxWidth).toBe("740px");
+    await expect(secondRun.page.locator("body")).toHaveAttribute("data-theme", "dark");
     await secondRun.app.close();
     await fs.rm(remotePath, { recursive: true, force: true });
+  });
+
+  test("theme can be switched to dark and resets to light after closing the project", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-theme-"));
+    await fs.writeFile(path.join(projectPath, "theme.txt"), "one two", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await expect(page.locator("body")).toHaveAttribute("data-theme", "light");
+
+    await openSettingsTab(page, "editor");
+    await page.selectOption("#theme-select", "dark");
+    await expect(page.locator("body")).toHaveAttribute("data-theme", "dark");
+    await closeSettingsDialog(page);
+
+    await page.evaluate(() => {
+      (window as typeof window & { __WIT_TEST_TREE_ACTION?: "close-project" }).__WIT_TEST_TREE_ACTION =
+        "close-project";
+    });
+    await page.dispatchEvent(".tree-root-item", "contextmenu", {
+      button: 2,
+      clientX: 40,
+      clientY: 40
+    });
+
+    await expect(page.locator("#sidebar-project-title")).toHaveText("No Project");
+    await expect(page.locator("body")).toHaveAttribute("data-theme", "light");
+    await app.close();
   });
 
   test("git snapshots setting is disabled with notice outside git repositories", async () => {

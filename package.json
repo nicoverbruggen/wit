@@ -3,14 +3,16 @@
   "version": "0.1.0",
   "description": "Minimalist desktop writing app for plain text projects.",
   "main": "dist/main/main.js",
-  "author": "",
+  "author": "Nico Verbruggen",
+  "homepage": "https://nicoverbruggen.be",
   "license": "MIT",
   "scripts": {
     "clean": "rimraf dist release",
     "copy:renderer": "copyfiles -u 2 \"src/renderer/**/*.html\" \"src/renderer/**/*.css\" \"src/renderer/assets/**/*\" dist/renderer",
     "copy:font": "copyfiles -u 1 \"font/**/*\" dist/renderer/font",
+    "copy:inter": "copyfiles -f \"node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-400-italic.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-500-normal.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-500-italic.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-600-italic.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-700-italic.woff2\" dist/renderer/vendor/inter",
     "copy:material-symbols": "copyfiles -f \"node_modules/@material-symbols/font-400/material-symbols-outlined.woff2\" dist/renderer/vendor/material-symbols",
-    "build": "npm run clean && tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && npm run copy:renderer && npm run copy:font && npm run copy:material-symbols",
+    "build": "npm run clean && tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && npm run copy:renderer && npm run copy:font && npm run copy:inter && npm run copy:material-symbols",
     "start": "npm run build && electron .",
     "dev": "npm run start",
     "lint": "eslint \"src/**/*.ts\"",
@@ -68,6 +70,7 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
     "@material-symbols/font-400": "^0.44.0"
   }
 }

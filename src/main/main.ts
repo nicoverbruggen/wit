@@ -48,6 +48,13 @@ let mainWindow: BrowserWindow | null = null;
 let activeProjectPath: string | null = null;
 const LAST_PROJECT_STATE_FILE_NAME = "last-project.json";
 
+type AppInfo = {
+  version: string;
+  description: string;
+  author: string;
+  website: string;
+};
+
 function getLastProjectStatePath(): string {
   return path.join(app.getPath("userData"), LAST_PROJECT_STATE_FILE_NAME);
 }
@@ -85,6 +92,41 @@ async function loadLastProjectPath(): Promise<string | null> {
 function resetWindowZoomToDefault(browserWindow: BrowserWindow): void {
   browserWindow.webContents.setZoomLevel(0);
   browserWindow.webContents.setZoomFactor(1);
+}
+
+async function getAppInfo(): Promise<AppInfo> {
+  try {
+    const packageJsonPath = path.join(app.getAppPath(), "package.json");
+    const raw = await fs.readFile(packageJsonPath, "utf8");
+    const parsed = JSON.parse(raw) as {
+      description?: unknown;
+      author?: unknown;
+      homepage?: unknown;
+    };
+
+    return {
+      version: app.getVersion(),
+      description:
+        typeof parsed.description === "string" && parsed.description.trim().length > 0
+          ? parsed.description.trim()
+          : "Minimalist desktop writing app for plain text projects.",
+      author:
+        typeof parsed.author === "string" && parsed.author.trim().length > 0
+          ? parsed.author.trim()
+          : "Not specified",
+      website:
+        typeof parsed.homepage === "string" && parsed.homepage.trim().length > 0
+          ? parsed.homepage.trim()
+          : ""
+    };
+  } catch {
+    return {
+      version: app.getVersion(),
+      description: "Minimalist desktop writing app for plain text projects.",
+      author: "Not specified",
+      website: ""
+    };
+  }
 }
 
 function buildEditableContextMenuTemplate(params: Electron.ContextMenuParams): MenuItemConstructorOptions[] {
@@ -565,6 +607,7 @@ function setupIpcHandlers(): void {
   });
 
   ipcMain.handle("app:version", () => app.getVersion());
+  ipcMain.handle("app:info", () => getAppInfo());
 }
 
 app.whenReady().then(async () => {

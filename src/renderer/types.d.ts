@@ -12,6 +12,12 @@ import type {
 } from "../shared/types";
 
 type Unsubscribe = () => void;
+type AppInfo = {
+  version: string;
+  description: string;
+  author: string;
+  website: string;
+};
 
 type WitApi = {
   getPlatform: () => NodeJS.Platform;
@@ -34,6 +40,7 @@ type WitApi = {
   updateSettings: (settings: AppSettings) => Promise<AppSettings>;
   autosaveTick: (activeSeconds: number) => Promise<AutosaveTickResult>;
   getAppVersion: () => Promise<string>;
+  getAppInfo: () => Promise<AppInfo>;
   onMenuOpenProject: (listener: () => void) => Unsubscribe;
   onMenuNewFile: (listener: () => void) => Unsubscribe;
   onMenuSaveCurrentFile: (listener: () => void) => Unsubscribe;

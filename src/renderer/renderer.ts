@@ -11,9 +11,11 @@ const settingsDialog = document.getElementById("settings-dialog") as HTMLDialogE
 const settingsTabWriting = document.getElementById("settings-tab-writing") as HTMLButtonElement;
 const settingsTabEditor = document.getElementById("settings-tab-editor") as HTMLButtonElement;
 const settingsTabAutosave = document.getElementById("settings-tab-autosave") as HTMLButtonElement;
+const settingsTabAbout = document.getElementById("settings-tab-about") as HTMLButtonElement;
 const settingsPanelWriting = document.getElementById("settings-panel-writing") as HTMLElement;
 const settingsPanelEditor = document.getElementById("settings-panel-editor") as HTMLElement;
 const settingsPanelAutosave = document.getElementById("settings-panel-autosave") as HTMLElement;
+const settingsPanelAbout = document.getElementById("settings-panel-about") as HTMLElement;
 const appShell = document.getElementById("app-shell") as HTMLElement;
 const toggleSidebarButton = document.getElementById("toggle-sidebar-btn") as HTMLButtonElement;
 const sidebarResizer = document.getElementById("sidebar-resizer") as HTMLDivElement;
@@ -67,7 +69,12 @@ const editorWidthInput = document.getElementById("editor-width-input") as HTMLIn
 const editorWidthValue = document.getElementById("editor-width-value") as HTMLSpanElement;
 const settingsCloseButton = document.getElementById("settings-close-btn") as HTMLButtonElement;
 const textZoomSelect = document.getElementById("text-zoom-select") as HTMLSelectElement;
+const themeSelect = document.getElementById("theme-select") as HTMLSelectElement;
 const fontSelect = document.getElementById("font-select") as HTMLSelectElement;
+const aboutVersion = document.getElementById("about-version") as HTMLSpanElement;
+const aboutDescription = document.getElementById("about-description") as HTMLParagraphElement;
+const aboutAuthor = document.getElementById("about-author") as HTMLSpanElement;
+const aboutWebsite = document.getElementById("about-website") as HTMLAnchorElement;
 
 const EDITOR_ZOOM_PRESETS = [50, 75, 90, 100, 110, 125, 150, 175, 200, 225, 250];
 const LIVE_WORD_COUNT_DEBOUNCE_MS = 280;
@@ -79,6 +86,8 @@ const SIDEBAR_WIDTH_STORAGE_KEY = "wit.sidebar-width";
 const MIN_SIDEBAR_WIDTH_PX = 220;
 const MAX_SIDEBAR_WIDTH_PX = 420;
 const DEFAULT_SIDEBAR_WIDTH_PX = 270;
+const BUILT_IN_EDITOR_FONTS = ["Sourcerer", "Readerly", "iA Writer Mono"] as const;
+const DEFAULT_EDITOR_FONT = "Readerly";
 
 type FolderNode = {
   kind: "folder";
@@ -95,7 +104,22 @@ type FileNode = {
 
 type TreeNode = FolderNode | FileNode;
 type SelectedTreeKind = "file" | "folder";
-type SettingsTabKey = "writing" | "editor" | "autosave";
+type SettingsTabKey = "writing" | "editor" | "autosave" | "about";
+
+type AppInfo = {
+  version: string;
+  description: string;
+  author: string;
+  website: string;
+};
+
+type LocalFontData = {
+  family: string;
+};
+
+type WindowWithLocalFonts = Window & {
+  queryLocalFonts?: () => Promise<LocalFontData[]>;
+};
 
 let project: ProjectMetadata | null = null;
 let currentFilePath: string | null = null;
@@ -126,6 +150,7 @@ let sidebarVisibleBeforeFullscreen = true;
 let sidebarWidthPx = DEFAULT_SIDEBAR_WIDTH_PX;
 let sidebarResizeCleanup: (() => void) | null = null;
 let currentSettingsTab: SettingsTabKey = "writing";
+let systemFontFamilies: string[] = [];
 
 const subscriptions: Array<() => void> = [];
 type TreeContextAction = "new-file" | "new-folder" | "rename" | "delete" | "close-project";
@@ -383,6 +408,7 @@ function setProjectControlsEnabled(enabled: boolean): void {
   autosaveIntervalInput.disabled = !enabled;
   lineHeightInput.disabled = !enabled;
   editorWidthInput.disabled = !enabled;
+  themeSelect.disabled = !enabled;
   fontSelect.disabled = !enabled;
   gitSnapshotsNotice.hidden = !enabled || Boolean(project?.isGitRepository);
 }
@@ -540,7 +566,8 @@ function setActiveSettingsTab(nextTab: SettingsTabKey): void {
   const tabs: Array<{ key: SettingsTabKey; button: HTMLButtonElement; panel: HTMLElement }> = [
     { key: "writing", button: settingsTabWriting, panel: settingsPanelWriting },
     { key: "editor", button: settingsTabEditor, panel: settingsPanelEditor },
-    { key: "autosave", button: settingsTabAutosave, panel: settingsPanelAutosave }
+    { key: "autosave", button: settingsTabAutosave, panel: settingsPanelAutosave },
+    { key: "about", button: settingsTabAbout, panel: settingsPanelAbout }
   ];
 
   for (const tab of tabs) {
@@ -548,6 +575,25 @@ function setActiveSettingsTab(nextTab: SettingsTabKey): void {
     tab.button.setAttribute("aria-selected", String(isActive));
     tab.button.tabIndex = isActive ? 0 : -1;
     tab.panel.hidden = !isActive;
+  }
+}
+
+async function loadAboutInfo(): Promise<void> {
+  try {
+    const info = await window.witApi.getAppInfo();
+    aboutVersion.textContent = info.version;
+    aboutDescription.textContent = info.description;
+    aboutAuthor.textContent = info.author;
+    aboutWebsite.textContent = info.website || "Not specified";
+    aboutWebsite.href = info.website || "#";
+    aboutWebsite.hidden = info.website.length === 0;
+  } catch {
+    aboutVersion.textContent = "--";
+    aboutDescription.textContent = "Minimalist desktop writing app for plain text projects.";
+    aboutAuthor.textContent = "Nico Verbruggen";
+    aboutWebsite.textContent = "https://nicoverbruggen.be";
+    aboutWebsite.href = "https://nicoverbruggen.be";
+    aboutWebsite.hidden = false;
   }
 }
 
@@ -577,6 +623,81 @@ function applyEditorMaxWidth(editorWidth: number): void {
 
 function applyEditorFont(fontFamily: string): void {
   editor.style.fontFamily = `"${fontFamily}", "Palatino", "Times New Roman", serif`;
+}
+
+function populateFontSelect(selectedFont: string): void {
+  fontSelect.innerHTML = "";
+
+  const seenValues = new Set<string>();
+  const appendOption = (value: string, label = value): void => {
+    if (seenValues.has(value)) {
+      return;
+    }
+
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    fontSelect.appendChild(option);
+    seenValues.add(value);
+  };
+
+  for (const fontName of BUILT_IN_EDITOR_FONTS) {
+    appendOption(fontName);
+  }
+
+  if (systemFontFamilies.length > 0) {
+    const separator = document.createElement("option");
+    separator.disabled = true;
+    separator.textContent = "\u2014\u2014 System Fonts \u2014\u2014";
+    fontSelect.appendChild(separator);
+
+    for (const fontName of systemFontFamilies) {
+      appendOption(fontName);
+    }
+  }
+
+  if (selectedFont && !seenValues.has(selectedFont)) {
+    appendOption(selectedFont, `${selectedFont} (Current)`);
+  }
+
+  fontSelect.value = seenValues.has(selectedFont) ? selectedFont : DEFAULT_EDITOR_FONT;
+}
+
+async function loadSystemFonts(): Promise<void> {
+  const fontWindow = window as WindowWithLocalFonts;
+  if (typeof fontWindow.queryLocalFonts !== "function") {
+    systemFontFamilies = [];
+    return;
+  }
+
+  try {
+    const localFonts = await fontWindow.queryLocalFonts();
+    const uniqueFamilies = new Set<string>();
+
+    for (const font of localFonts) {
+      if (typeof font.family !== "string") {
+        continue;
+      }
+
+      const normalizedFamily = font.family.trim();
+      if (
+        !normalizedFamily ||
+        BUILT_IN_EDITOR_FONTS.includes(normalizedFamily as typeof BUILT_IN_EDITOR_FONTS[number])
+      ) {
+        continue;
+      }
+
+      uniqueFamilies.add(normalizedFamily);
+    }
+
+    systemFontFamilies = [...uniqueFamilies].sort((left, right) => left.localeCompare(right));
+  } catch {
+    systemFontFamilies = [];
+  }
+}
+
+function applyTheme(theme: AppSettings["theme"]): void {
+  document.body.dataset.theme = theme;
 }
 
 function ensureEditorBaseFontSize(): void {
@@ -726,6 +847,8 @@ function clearProjectState(showStatusMessage = false): void {
   setProjectControlsEnabled(false);
   setSidebarVisibility(false, false);
   setSidebarFaded(false);
+  themeSelect.value = "light";
+  applyTheme("light");
   renderStatusFooter();
   renderFileList();
   restartAutosaveTimer();
@@ -916,6 +1039,7 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
     if (node.kind === "folder") {
       const item = document.createElement("li");
       const button = document.createElement("button");
+      const disclosure = document.createElement("span");
       const icon = document.createElement("span");
       const label = document.createElement("span");
       const isCollapsed = collapsedFolderPaths.has(node.relativePath);
@@ -928,13 +1052,16 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
       button.dataset.itemKind = "folder";
       button.title = node.relativePath;
       button.setAttribute("aria-expanded", String(!isCollapsed));
+      disclosure.className = "material-symbol-icon tree-disclosure";
+      disclosure.textContent = isCollapsed ? "chevron_right" : "expand_more";
+      disclosure.setAttribute("aria-hidden", "true");
       icon.className = "material-symbol-icon folder-icon";
-      icon.textContent = "folder";
+      icon.textContent = isCollapsed ? "folder" : "folder_open";
       icon.setAttribute("aria-hidden", "true");
       label.className = "tree-label";
       label.textContent = node.name;
 
-      button.append(icon, label);
+      button.append(disclosure, icon, label);
       button.addEventListener("click", () => {
         closeTreeContextMenu();
 
@@ -996,6 +1123,7 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
 
     const item = document.createElement("li");
     const button = document.createElement("button");
+    const disclosurePlaceholder = document.createElement("span");
     const icon = document.createElement("span");
     const label = document.createElement("span");
     const marker = document.createElement("span");
@@ -1009,6 +1137,8 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
     button.dataset.itemKind = "file";
     button.draggable = true;
     button.title = node.relativePath;
+    disclosurePlaceholder.className = "tree-disclosure-placeholder";
+    disclosurePlaceholder.setAttribute("aria-hidden", "true");
     icon.className = "material-symbol-icon file-icon";
     icon.textContent = "description";
     icon.setAttribute("aria-hidden", "true");
@@ -1019,7 +1149,7 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
     marker.dataset.dirty = String(isCurrentFile && dirty);
     marker.setAttribute("aria-hidden", "true");
 
-    button.append(icon, label, marker);
+    button.append(disclosurePlaceholder, icon, label, marker);
     button.addEventListener("click", () => {
       selectedTreePath = node.relativePath;
       selectedTreeKind = "file";
@@ -1057,6 +1187,7 @@ function renderRootTreeItem(): void {
   const button = document.createElement("button");
   const icon = document.createElement("span");
   const label = document.createElement("span");
+  const projectSuffix = document.createElement("span");
   const selectedClass = selectedTreeKind === "folder" && selectedTreePath === "" ? "active" : "";
 
   button.type = "button";
@@ -1065,12 +1196,14 @@ function renderRootTreeItem(): void {
   button.dataset.itemKind = "project";
   button.title = project.projectPath;
   icon.className = "material-symbol-icon folder-icon";
-  icon.textContent = "folder";
+  icon.textContent = "work";
   icon.setAttribute("aria-hidden", "true");
   label.className = "tree-label";
   label.textContent = getProjectDisplayTitle(project.projectPath);
+  projectSuffix.className = "tree-root-suffix";
+  projectSuffix.textContent = "PROJECT";
 
-  button.append(icon, label);
+  button.append(icon, label, projectSuffix);
   button.addEventListener("click", () => {
     const closingCurrentFile =
       selectedTreePath === "" && selectedTreeKind === "folder" && currentFilePath !== null;
@@ -1272,8 +1405,7 @@ function renderFileList(): void {
     return;
   }
 
-  // Depth starts at 1 so all project contents are visually nested under the root project item.
-  renderTreeNodes(buildProjectTree(project.files, project.folders), 1);
+  renderTreeNodes(buildProjectTree(project.files, project.folders), 0);
 }
 
 function syncGitSnapshotsAvailability(): void {
@@ -1305,6 +1437,8 @@ function syncGitSnapshotsAvailability(): void {
 }
 
 function syncSettingsInputs(settings: AppSettings): void {
+  themeSelect.value = settings.theme;
+  applyTheme(settings.theme);
   showWordCountInput.checked = settings.showWordCount;
   showWritingTimeInput.checked = settings.showWritingTime;
   showCurrentFileBarInput.checked = settings.showCurrentFileBar;
@@ -1314,8 +1448,8 @@ function syncSettingsInputs(settings: AppSettings): void {
   applyEditorLineHeight(settings.editorLineHeight);
   applyEditorMaxWidth(settings.editorMaxWidthPx);
   setEditorZoomFromPercent(settings.editorZoomPercent, false);
-  fontSelect.value = settings.editorFontFamily ?? "Readerly";
-  applyEditorFont(settings.editorFontFamily ?? "Readerly");
+  populateFontSelect(settings.editorFontFamily ?? DEFAULT_EDITOR_FONT);
+  applyEditorFont(settings.editorFontFamily ?? DEFAULT_EDITOR_FONT);
   syncGitSnapshotsAvailability();
   gitPushRemoteSelect.value =
     settings.gitPushRemote && project?.gitRemotes.includes(settings.gitPushRemote)
@@ -2021,6 +2155,7 @@ function handleEditorKeydown(event: KeyboardEvent): void {
 async function initialize(): Promise<void> {
   const platform = window.witApi.getPlatform();
   document.body.classList.add(`platform-${platform}`);
+  await loadAboutInfo();
 
   loadSidebarWidthPreference();
   setProjectControlsEnabled(false);
@@ -2030,11 +2165,13 @@ async function initialize(): Promise<void> {
   setSidebarVisibility(false, false);
   setSidebarFaded(false);
   setEditorWritable(false);
+  await loadSystemFonts();
+  populateFontSelect(DEFAULT_EDITOR_FONT);
+  applyTheme("light");
   applyEditorLineHeight(Number.parseFloat(lineHeightInput.value));
   applyEditorMaxWidth(Number.parseInt(editorWidthInput.value, 10));
   applyEditorZoom(false);
-  applyEditorFont("Readerly");
-  fontSelect.value = "Readerly";
+  applyEditorFont(DEFAULT_EDITOR_FONT);
   renderSnapshotLabel();
   restartSnapshotLabelTimer();
   renderFileList();
@@ -2170,6 +2307,10 @@ settingsTabAutosave.addEventListener("click", () => {
   setActiveSettingsTab("autosave");
 });
 
+settingsTabAbout.addEventListener("click", () => {
+  setActiveSettingsTab("about");
+});
+
 toggleSidebarButton.addEventListener("click", () => {
   closeTreeContextMenu();
   toggleSidebarVisibility();
@@ -2293,6 +2434,12 @@ textZoomSelect.addEventListener("change", () => {
   }
 
   setEditorZoomFromPercent(selectedPercent);
+});
+
+themeSelect.addEventListener("change", () => {
+  const selectedTheme = themeSelect.value === "dark" ? "dark" : "light";
+  applyTheme(selectedTheme);
+  void persistSettings({ theme: selectedTheme });
 });
 
 editor.addEventListener("input", () => {

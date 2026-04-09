@@ -72,6 +72,10 @@ function normalizeEditorZoomPercent(value: number): number {
   return Math.max(50, Math.min(250, Math.round(value)));
 }
 
+function normalizeTheme(value: unknown): AppSettings["theme"] {
+  return value === "dark" ? "dark" : "light";
+}
+
 export async function ensureProjectInitialized(projectPath: string): Promise<void> {
   const witDir = getWitDir(projectPath);
   const snapshotDir = path.join(witDir, SNAPSHOT_DIR_NAME);
@@ -452,6 +456,7 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
       typeof parsed.autosaveIntervalSec === "number" && parsed.autosaveIntervalSec > 0
         ? Math.round(parsed.autosaveIntervalSec)
         : DEFAULT_SETTINGS.autosaveIntervalSec,
+    theme: normalizeTheme(parsed.theme),
     showWordCount:
       typeof parsed.showWordCount === "boolean"
         ? parsed.showWordCount
@@ -501,6 +506,7 @@ export async function saveSettings(projectPath: string, settings: AppSettings): 
       : null;
   const normalizedSettings: AppSettings = {
     autosaveIntervalSec: Math.max(10, Math.round(settings.autosaveIntervalSec)),
+    theme: normalizeTheme(settings.theme),
     showWordCount: Boolean(settings.showWordCount),
     showWritingTime: Boolean(settings.showWritingTime),
     showCurrentFileBar: Boolean(settings.showCurrentFileBar),

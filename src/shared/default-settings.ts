@@ -2,6 +2,7 @@ import type { AppSettings } from "./types";
 
 export const DEFAULT_SETTINGS: AppSettings = {
   autosaveIntervalSec: 60,
+  theme: "light",
   showWordCount: false,
   showWritingTime: false,
   showCurrentFileBar: false,

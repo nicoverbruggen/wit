@@ -13,6 +13,12 @@ import type {
 } from "../shared/types";
 
 type Unsubscribe = () => void;
+type AppInfo = {
+  version: string;
+  description: string;
+  author: string;
+  website: string;
+};
 
 const api = {
   getPlatform: (): NodeJS.Platform => process.platform,
@@ -50,6 +56,7 @@ const api = {
   autosaveTick: (activeSeconds: number): Promise<AutosaveTickResult> =>
     ipcRenderer.invoke("project:autosave-tick", activeSeconds),
   getAppVersion: (): Promise<string> => ipcRenderer.invoke("app:version"),
+  getAppInfo: (): Promise<AppInfo> => ipcRenderer.invoke("app:info"),
   onMenuOpenProject: (listener: () => void): Unsubscribe => {
     const channel = "menu:open-project";
     const wrappedListener = () => listener();

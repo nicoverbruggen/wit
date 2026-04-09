@@ -1,5 +1,6 @@
 export type AppSettings = {
   autosaveIntervalSec: number;
+  theme: "light" | "dark";
   showWordCount: boolean;
   showWritingTime: boolean;
   showCurrentFileBar: boolean;

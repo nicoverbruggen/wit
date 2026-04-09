@@ -16,9 +16,11 @@ test("renderer markup contains core writing controls", async () => {
     "settings-tab-writing",
     "settings-tab-editor",
     "settings-tab-autosave",
+    "settings-tab-about",
     "settings-panel-writing",
     "settings-panel-editor",
     "settings-panel-autosave",
+    "settings-panel-about",
     "open-project-btn",
     "new-file-btn",
     "new-folder-btn",
@@ -36,6 +38,11 @@ test("renderer markup contains core writing controls", async () => {
     "line-height-value",
     "editor-width-input",
     "editor-width-value",
+    "theme-select",
+    "about-version",
+    "about-description",
+    "about-author",
+    "about-website",
     "new-file-error",
     "new-folder-error",
     "new-file-cancel-btn",
@@ -69,6 +76,24 @@ test("renderer markup separates writing and editor appearance settings", async (
   assert.match(html, />Git</);
 });
 
+test("renderer markup gives the about panel a compact metadata grid layout", async () => {
+  const html = await fs.readFile(path.join(repoRoot, "src/renderer/index.html"), "utf8");
+
+  assert.match(html, /class="about-header"/);
+  assert.match(html, /class="about-version-badge"/);
+  assert.match(html, /class="about-details"/);
+  assert.match(html, /class="about-detail-row"/);
+  assert.match(html, /class="about-description-copy"/);
+});
+
+test("renderer markup uses material symbols for toolbar and open-project icons", async () => {
+  const html = await fs.readFile(path.join(repoRoot, "src/renderer/index.html"), "utf8");
+
+  assert.match(html, /id="toggle-sidebar-btn"[\s\S]*material-symbol-icon[\s\S]*left_panel_open/);
+  assert.match(html, /id="toggle-fullscreen-btn"[\s\S]*material-symbol-icon[\s\S]*fullscreen/);
+  assert.match(html, /id="open-project-btn"[\s\S]*material-symbol-icon[\s\S]*folder_open/);
+});
+
 test("renderer styles include dedicated writing font configuration", async () => {
   const css = await fs.readFile(path.join(repoRoot, "src/renderer/styles.css"), "utf8");
 
@@ -80,7 +105,7 @@ test("renderer styles include dedicated writing font configuration", async () =>
 test("renderer styles keep buttons on the system UI font", async () => {
   const css = await fs.readFile(path.join(repoRoot, "src/renderer/styles.css"), "utf8");
 
-  assert.match(css, /button\s*\{[\s\S]*font-family:\s*system-ui,\s*-apple-system,\s*"Segoe UI",\s*sans-serif;/);
+  assert.match(css, /button\s*\{[\s\S]*font-family:\s*"Inter",\s*system-ui,\s*-apple-system,\s*"Segoe UI",\s*sans-serif;/);
 });
 
 test("main window keeps a minimum size for the current settings layout", async () => {

@@ -18,7 +18,7 @@
             aria-label="Hide sidebar"
             aria-pressed="false"
           >
-            <span class="button-icon sidebar-toggle-icon" aria-hidden="true"></span>
+            <span class="material-symbol-icon toolbar-symbol-icon sidebar-toggle-icon" aria-hidden="true">left_panel_open</span>
           </button>
           <button
             id="toggle-fullscreen-btn"
@@ -27,7 +27,7 @@
             aria-label="Enter fullscreen"
             aria-pressed="false"
           >
-            <span class="button-icon fullscreen-icon" aria-hidden="true"></span>
+            <span class="material-symbol-icon toolbar-symbol-icon fullscreen-icon" aria-hidden="true">fullscreen</span>
           </button>
         </div>
       </header>
@@ -39,7 +39,7 @@
         </div>
         <div class="open-project-wrap">
           <button id="open-project-btn" class="project-button project-action open-project-action">
-            <span class="button-icon open-project-icon" aria-hidden="true"></span>
+            <span class="material-symbol-icon open-project-icon" aria-hidden="true">folder_open</span>
             Open Project
           </button>
         </div>
@@ -177,6 +177,9 @@
           <button id="settings-tab-autosave" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settings-panel-autosave" tabindex="-1">
             Autosave
           </button>
+          <button id="settings-tab-about" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settings-panel-about" tabindex="-1">
+            About
+          </button>
         </div>
         <div class="settings-panels">
           <section id="settings-panel-writing" class="settings-panel" role="tabpanel" aria-labelledby="settings-tab-writing">
@@ -225,14 +228,18 @@
                 <p>Typography and layout controls for the writing column itself.</p>
               </div>
               <div class="settings-grid">
+                <label class="setting-card" title="Choose the project theme">
+                  <span class="setting-card-title">Theme</span>
+                  <span class="setting-card-description">Choose the project interface theme.</span>
+                  <select id="theme-select">
+                    <option value="light" selected>Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </label>
                 <label class="setting-card" title="Choose editor font">
                   <span class="setting-card-title">Editor font</span>
                   <span class="setting-card-description">Switch the reading texture of the editor without changing the project files.</span>
-                  <select id="font-select">
-                    <option value="Sourcerer">Sourcerer</option>
-                    <option value="Readerly" selected>Readerly</option>
-                    <option value="iA Writer Mono">iA Writer Mono</option>
-                  </select>
+                  <select id="font-select"></select>
                 </label>
                 <label class="setting-card" title="Adjust editor text zoom">
                   <span class="setting-card-title">Text zoom</span>
@@ -313,6 +320,43 @@
                 <p id="git-snapshots-notice" class="settings-notice" hidden>
                   Git snapshots are unavailable because this project is not a Git repository.
                 </p>
+              </div>
+            </div>
+          </section>
+
+          <section id="settings-panel-about" class="settings-panel" role="tabpanel" aria-labelledby="settings-tab-about" hidden>
+            <div class="settings-section">
+              <div class="settings-grid settings-grid--single">
+                <div class="about-panel">
+                  <div class="about-header">
+                    <div class="about-title-block">
+                      <h4>Wit</h4>
+                      <p class="about-subtitle">Installed build information and project metadata.</p>
+                    </div>
+                    <span id="about-version" class="about-version-badge">--</span>
+                  </div>
+
+                  <div class="about-details">
+                    <div class="about-detail-row">
+                      <span class="about-meta-label">Made By</span>
+                      <span id="about-author" class="about-value">--</span>
+                    </div>
+                    <div class="about-detail-row">
+                      <span class="about-meta-label">Website</span>
+                      <a
+                        id="about-website"
+                        class="about-link"
+                        href="https://nicoverbruggen.be"
+                        target="_blank"
+                        rel="noreferrer"
+                      >https://nicoverbruggen.be</a>
+                    </div>
+                    <div class="about-detail-row about-detail-row--description">
+                      <span class="about-meta-label">Description</span>
+                      <p id="about-description" class="about-description-copy">--</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </section>

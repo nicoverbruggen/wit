@@ -50,6 +50,7 @@ test("project initialization and metadata defaults", async () => {
     assert.equal(metadata.isGitRepository, false);
     assert.deepEqual(metadata.gitRemotes, []);
     assert.equal(metadata.settings.autosaveIntervalSec, 60);
+    assert.equal(metadata.settings.theme, "light");
     assert.equal(metadata.settings.showWordCount, false);
     assert.equal(metadata.settings.showWritingTime, false);
     assert.equal(metadata.settings.showCurrentFileBar, false);
@@ -88,6 +89,7 @@ test("create/list/save/read files with word count and settings", async () => {
 
     const savedSettings = await projectService.saveSettings(projectPath, {
       autosaveIntervalSec: 1,
+      theme: "dark",
       showWordCount: false,
       showWritingTime: false,
       showCurrentFileBar: false,
@@ -101,6 +103,7 @@ test("create/list/save/read files with word count and settings", async () => {
     });
 
     assert.equal(savedSettings.autosaveIntervalSec, 10);
+    assert.equal(savedSettings.theme, "dark");
     assert.equal(savedSettings.showWordCount, false);
     assert.equal(savedSettings.showWritingTime, false);
     assert.equal(savedSettings.showCurrentFileBar, false);
@@ -240,6 +243,7 @@ test("settings normalize git auto-push remote against configured remotes", async
 
     const savedSettings = await projectService.saveSettings(projectPath, {
       autosaveIntervalSec: 60,
+      theme: "light",
       showWordCount: true,
       showWritingTime: true,
       showCurrentFileBar: true,
@@ -275,6 +279,7 @@ test("settings keep git push remote disabled by default even when remotes exist"
 
     const savedSettings = await projectService.saveSettings(projectPath, {
       autosaveIntervalSec: 60,
+      theme: "light",
       showWordCount: true,
       showWritingTime: true,
       showCurrentFileBar: true,
