@@ -16,7 +16,8 @@ This repository now contains a first working prototype built with:
 - Saves manually with `Cmd/Ctrl + S`
 - Autosaves on a configurable interval (default: 60s)
 - Saves on window close (sync save for unsaved current file)
-- Creates snapshots under `.wit/snapshots/<timestamp>` on each autosave tick
+- Stores snapshot system version metadata in `.wit/snapshots/version.json`
+- Creates compressed full snapshots under `.wit/snapshots/<timestamp>.json.gz` on each autosave tick
 - Optionally runs git snapshot commits on each snapshot (setting toggle)
 - Tracks total writing time in `.wit/stats.json` based on active typing intervals
 - Shows total project word count (toggleable)

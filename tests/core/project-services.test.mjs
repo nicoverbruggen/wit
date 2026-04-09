@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
+import { gunzipSync } from "node:zlib";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -30,6 +31,12 @@ test("project initialization and metadata defaults", async () => {
     assert.equal(fssync.existsSync(path.join(projectPath, ".wit", "config.json")), true);
     assert.equal(fssync.existsSync(path.join(projectPath, ".wit", "stats.json")), true);
     assert.equal(fssync.existsSync(path.join(projectPath, ".wit", "snapshots")), true);
+    assert.equal(
+      fssync.existsSync(
+        path.join(projectPath, ".wit", "snapshots", snapshotService.SNAPSHOT_VERSION_FILE_NAME)
+      ),
+      true
+    );
 
     const metadata = await projectService.getProjectMetadata(projectPath);
     assert.equal(metadata.projectPath, projectPath);
@@ -128,8 +135,19 @@ test("snapshot creation and git snapshot commit flow", async () => {
       createGitCommit: false
     });
 
-    const snapshotFile = path.join(snapshotDir, snapshotName, "chapter.txt");
-    assert.equal(fssync.existsSync(snapshotFile), true);
+    const snapshotArchive = path.join(snapshotDir, `${snapshotName}.json.gz`);
+    assert.equal(fssync.existsSync(snapshotArchive), true);
+    const snapshotVersionRaw = await fs.readFile(
+      path.join(snapshotDir, snapshotService.SNAPSHOT_VERSION_FILE_NAME),
+      "utf8"
+    );
+    const snapshotVersion = JSON.parse(snapshotVersionRaw);
+    assert.equal(snapshotVersion.version, snapshotService.SNAPSHOT_SYSTEM_VERSION);
+
+    const snapshotPayload = JSON.parse(gunzipSync(await fs.readFile(snapshotArchive)).toString("utf8"));
+    assert.equal(snapshotPayload.version, 1);
+    assert.equal(snapshotPayload.createdAt, snapshotName);
+    assert.equal(snapshotPayload.files["chapter.txt"], "Initial");
 
     await execFileAsync("git", ["init", "-q", projectPath]);
     await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
@@ -333,8 +351,8 @@ test("snapshot pruning keeps at most 120 snapshots", async () => {
 
     const snapshotDir = projectService.getSnapshotDirectory(projectPath);
     for (let i = 0; i < 125; i += 1) {
-      const label = String(i).padStart(4, "0");
-      await fs.mkdir(path.join(snapshotDir, `2000-01-01T00-00-00-${label}Z`), { recursive: true });
+      const label = String(i).padStart(3, "0");
+      await fs.writeFile(path.join(snapshotDir, `2000-01-01T00-00-00-${label}Z.json.gz`), "", "utf8");
     }
 
     await snapshotService.createSnapshot({
@@ -345,7 +363,9 @@ test("snapshot pruning keeps at most 120 snapshots", async () => {
     });
 
     const entries = await fs.readdir(snapshotDir);
-    assert.equal(entries.length <= 120, true);
+    const snapshotArchives = entries.filter((entry) => entry.endsWith(".json.gz"));
+    assert.equal(snapshotArchives.length <= 120, true);
+    assert.equal(entries.includes(snapshotService.SNAPSHOT_VERSION_FILE_NAME), true);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

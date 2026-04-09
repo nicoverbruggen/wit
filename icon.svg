@@ -9,6 +9,9 @@
    id="svg1"
    inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
    sodipodi:docname="icon.svg"
+   inkscape:export-filename="icon.png"
+   inkscape:export-xdpi="132.78477"
+   inkscape:export-ydpi="132.78477"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
@@ -23,15 +26,15 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="px"
-     inkscape:zoom="1.1284246"
-     inkscape:cx="-251.23522"
-     inkscape:cy="201.60851"
+     inkscape:zoom="6.3833335"
+     inkscape:cx="75.665795"
+     inkscape:cy="116.31854"
      inkscape:window-width="2560"
      inkscape:window-height="1352"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
-     inkscape:current-layer="layer1" />
+     inkscape:current-layer="svg1" />
   <defs
      id="defs1">
     <rect
@@ -48,8 +51,8 @@
      height="180"
      x="1.4210855e-14"
      y="1.4210855e-14"
-     rx="3.4720757"
-     ry="3.4720757" />
+     rx="30.10393"
+     ry="25.090874" />
   <g
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"

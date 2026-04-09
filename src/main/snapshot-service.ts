@@ -2,9 +2,20 @@ import path from "node:path";
 import { promises as fs } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { gzip } from "node:zlib";
 
 const execFileAsync = promisify(execFile);
+const gzipAsync = promisify(gzip);
 const MAX_SNAPSHOTS_TO_KEEP = 120;
+const SNAPSHOT_FILE_EXTENSION = ".json.gz";
+export const SNAPSHOT_VERSION_FILE_NAME = "version.json";
+export const SNAPSHOT_SYSTEM_VERSION = 2;
+
+type SnapshotPayload = {
+  version: 1;
+  createdAt: string;
+  files: Record<string, string>;
+};
 
 function timestampForFilename(date: Date): string {
   return date.toISOString().replace(/[.:]/g, "-");
@@ -12,23 +23,84 @@ function timestampForFilename(date: Date): string {
 
 async function ensureSnapshotDirectory(snapshotDirectory: string): Promise<void> {
   await fs.mkdir(snapshotDirectory, { recursive: true });
+  await fs.writeFile(
+    path.join(snapshotDirectory, SNAPSHOT_VERSION_FILE_NAME),
+    `${JSON.stringify({ version: SNAPSHOT_SYSTEM_VERSION }, null, 2)}\n`,
+    "utf8"
+  );
 }
 
-async function copyFileToSnapshot(
-  projectPath: string,
-  snapshotRoot: string,
-  relativePath: string
-): Promise<void> {
-  const sourcePath = path.resolve(projectPath, relativePath);
-  const destinationPath = path.join(snapshotRoot, relativePath);
+function getSnapshotBaseName(snapshotName: string): string | null {
+  if (snapshotName.endsWith(SNAPSHOT_FILE_EXTENSION)) {
+    return snapshotName.slice(0, -SNAPSHOT_FILE_EXTENSION.length);
+  }
 
-  await fs.mkdir(path.dirname(destinationPath), { recursive: true });
-  await fs.copyFile(sourcePath, destinationPath);
+  return snapshotName;
+}
+
+function parseSnapshotTimestamp(snapshotName: string): Date | null {
+  const baseName = getSnapshotBaseName(snapshotName);
+  if (!baseName) {
+    return null;
+  }
+
+  const matches = baseName.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})(?:-(\d{3}))?Z$/
+  );
+  if (!matches) {
+    return null;
+  }
+
+  const [, year, month, day, hour, minute, second, millisecond] = matches;
+  const date = new Date(
+    Date.UTC(
+      Number.parseInt(year, 10),
+      Number.parseInt(month, 10) - 1,
+      Number.parseInt(day, 10),
+      Number.parseInt(hour, 10),
+      Number.parseInt(minute, 10),
+      Number.parseInt(second, 10),
+      Number.parseInt(millisecond ?? "0", 10)
+    )
+  );
+
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+async function buildSnapshotPayload(
+  projectPath: string,
+  snapshotTimestamp: string,
+  filePaths: string[]
+): Promise<SnapshotPayload> {
+  const files: Record<string, string> = {};
+
+  for (const relativePath of filePaths) {
+    try {
+      files[relativePath] = await fs.readFile(path.resolve(projectPath, relativePath), "utf8");
+    } catch {
+      // A file could have been removed between listing and snapshot creation.
+    }
+  }
+
+  return {
+    version: 1,
+    createdAt: snapshotTimestamp,
+    files
+  };
+}
+
+async function writeSnapshotArchive(snapshotDirectory: string, snapshotTimestamp: string, payload: SnapshotPayload) {
+  const snapshotPath = path.join(snapshotDirectory, `${snapshotTimestamp}${SNAPSHOT_FILE_EXTENSION}`);
+  const compressed = await gzipAsync(Buffer.from(JSON.stringify(payload), "utf8"));
+  await fs.writeFile(snapshotPath, compressed);
 }
 
 async function pruneSnapshots(snapshotDirectory: string): Promise<void> {
   const entries = await fs.readdir(snapshotDirectory, { withFileTypes: true });
-  const snapshots = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  const snapshots = entries
+    .filter((entry) => parseSnapshotTimestamp(entry.name) !== null)
+    .map((entry) => entry.name)
+    .sort();
 
   if (snapshots.length <= MAX_SNAPSHOTS_TO_KEEP) {
     return;
@@ -82,22 +154,15 @@ async function commitSnapshotToGit(
 async function getLatestSnapshotTimestamp(snapshotDirectory: string): Promise<Date | null> {
   try {
     const entries = await fs.readdir(snapshotDirectory, { withFileTypes: true });
-    const names = entries.filter((e) => e.isDirectory()).map((e) => e.name).sort();
+    const names = entries
+      .filter((entry) => parseSnapshotTimestamp(entry.name) !== null)
+      .map((entry) => entry.name)
+      .sort();
     if (names.length === 0) {
       return null;
     }
 
-    const latest = names[names.length - 1];
-    const parsed = latest.replace(/-/g, (m, offset: number) => {
-      if (offset === 4 || offset === 7) return "-";
-      if (offset === 10) return "T";
-      if (offset === 13 || offset === 16) return ":";
-      if (offset === 19) return ".";
-      return m;
-    }).replace(/Z$/, "Z");
-
-    const date = new Date(parsed);
-    return Number.isFinite(date.getTime()) ? date : null;
+    return parseSnapshotTimestamp(names[names.length - 1]);
   } catch {
     return null;
   }
@@ -134,15 +199,8 @@ export async function createSnapshot(options: {
 
   const snapshotDate = new Date();
   const snapshotTimestamp = timestampForFilename(snapshotDate);
-  const snapshotRoot = path.join(options.snapshotDirectory, snapshotTimestamp);
-
-  for (const relativePath of options.filePaths) {
-    try {
-      await copyFileToSnapshot(options.projectPath, snapshotRoot, relativePath);
-    } catch {
-      // A file could have been removed between listing and snapshot creation.
-    }
-  }
+  const payload = await buildSnapshotPayload(options.projectPath, snapshotTimestamp, options.filePaths);
+  await writeSnapshotArchive(options.snapshotDirectory, snapshotTimestamp, payload);
 
   await pruneSnapshots(options.snapshotDirectory);
 

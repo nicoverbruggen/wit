@@ -2,6 +2,7 @@ import path from "node:path";
 import { mkdirSync, promises as fs, writeFileSync } from "node:fs";
 import type { AppSettings, ProjectMetadata } from "../shared/types";
 import { countWordsInFilesUsingSystemTool } from "./word-count-service";
+import { SNAPSHOT_SYSTEM_VERSION, SNAPSHOT_VERSION_FILE_NAME } from "./snapshot-service";
 
 const WIT_DIR_NAME = ".wit";
 const CONFIG_FILE_NAME = "config.json";
@@ -78,6 +79,11 @@ export async function ensureProjectInitialized(projectPath: string): Promise<voi
 
   await fs.mkdir(witDir, { recursive: true });
   await fs.mkdir(snapshotDir, { recursive: true });
+  await fs.writeFile(
+    path.join(snapshotDir, SNAPSHOT_VERSION_FILE_NAME),
+    `${JSON.stringify({ version: SNAPSHOT_SYSTEM_VERSION }, null, 2)}\n`,
+    "utf8"
+  );
 
   await ensureJsonFile(getConfigPath(projectPath), DEFAULT_SETTINGS);
   await ensureJsonFile(getStatsPath(projectPath), DEFAULT_STATS);

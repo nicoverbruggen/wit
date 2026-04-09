@@ -507,7 +507,8 @@ test.describe("Wit core app flow", () => {
 
     const snapshotsDir = path.join(projectPath, ".wit", "snapshots");
     const snapshotEntries = await fs.readdir(snapshotsDir);
-    expect(snapshotEntries.length).toBeGreaterThan(0);
+    expect(snapshotEntries).toContain("version.json");
+    expect(snapshotEntries.some((entry) => entry.endsWith(".json.gz"))).toBe(true);
 
     await app.close();
   });
