@@ -506,6 +506,10 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
         : DEFAULT_SETTINGS.showCurrentFileBar,
     smartQuotes:
       typeof rawSettings.smartQuotes === "boolean" ? rawSettings.smartQuotes : DEFAULT_SETTINGS.smartQuotes,
+    snapshotMaxSizeMb:
+      typeof rawSettings.snapshotMaxSizeMb === "number" && rawSettings.snapshotMaxSizeMb > 0
+        ? Math.round(rawSettings.snapshotMaxSizeMb)
+        : DEFAULT_SETTINGS.snapshotMaxSizeMb,
     gitSnapshots:
       typeof rawSettings.gitSnapshots === "boolean"
         ? rawSettings.gitSnapshots
@@ -548,6 +552,7 @@ export async function saveSettings(projectPath: string, settings: AppSettings): 
     showWritingTime: Boolean(settings.showWritingTime),
     showCurrentFileBar: Boolean(settings.showCurrentFileBar),
     smartQuotes: Boolean(settings.smartQuotes),
+    snapshotMaxSizeMb: Math.max(1, Math.round(settings.snapshotMaxSizeMb)),
     gitSnapshots: Boolean(settings.gitSnapshots),
     gitPushRemote: normalizedRemote,
     editorLineHeight: normalizeEditorLineHeight(settings.editorLineHeight),

@@ -198,6 +198,7 @@ test("snapshot creation and git snapshot commit flow", async () => {
       projectPath,
       snapshotDirectory: snapshotDir,
       filePaths: files,
+      snapshotMaxSizeMb: 10,
       createGitCommit: false,
       pushGitCommit: false,
       gitPushRemote: null
@@ -232,6 +233,7 @@ test("snapshot creation and git snapshot commit flow", async () => {
       projectPath,
       snapshotDirectory: snapshotDir,
       filePaths: await projectService.listProjectFiles(projectPath),
+      snapshotMaxSizeMb: 10,
       createGitCommit: true,
       pushGitCommit: false,
       gitPushRemote: null
@@ -268,6 +270,7 @@ test("git snapshot commit stages deleted writing files", async () => {
       projectPath,
       snapshotDirectory: snapshotDir,
       filePaths: await projectService.listProjectFiles(projectPath),
+      snapshotMaxSizeMb: 10,
       createGitCommit: true,
       pushGitCommit: false,
       gitPushRemote: null
@@ -554,7 +557,7 @@ test("path traversal is blocked for read/save sync and async file operations", a
   }
 });
 
-test("snapshot pruning keeps at most 120 snapshots", async () => {
+test("snapshot pruning removes oldest snapshots when folder exceeds size limit", async () => {
   const { root, projectPath } = await createTempProject();
 
   try {
@@ -562,15 +565,18 @@ test("snapshot pruning keeps at most 120 snapshots", async () => {
     await projectService.createProjectFile(projectPath, "book.txt", "draft");
 
     const snapshotDir = projectService.getSnapshotDirectory(projectPath);
-    for (let i = 0; i < 125; i += 1) {
+    const padding = "x".repeat(1024);
+    for (let i = 0; i < 20; i += 1) {
       const label = String(i).padStart(3, "0");
-      await fs.writeFile(path.join(snapshotDir, `2000-01-01T00-00-00-${label}Z.json.gz`), "", "utf8");
+      await fs.writeFile(path.join(snapshotDir, `2000-01-01T00-00-00-${label}Z.json.gz`), padding, "utf8");
     }
 
+    // Use a tiny size limit (1 KB) so old snapshots get pruned.
     await snapshotService.createSnapshot({
       projectPath,
       snapshotDirectory: snapshotDir,
       filePaths: await projectService.listProjectFiles(projectPath),
+      snapshotMaxSizeMb: 0.001,
       createGitCommit: false,
       pushGitCommit: false,
       gitPushRemote: null
@@ -578,7 +584,8 @@ test("snapshot pruning keeps at most 120 snapshots", async () => {
 
     const entries = await fs.readdir(snapshotDir);
     const snapshotArchives = entries.filter((entry) => entry.endsWith(".json.gz"));
-    assert.equal(snapshotArchives.length <= 120, true);
+    assert.equal(snapshotArchives.length < 20, true);
+    assert.equal(snapshotArchives.length >= 1, true);
     assert.equal(entries.includes(snapshotService.SNAPSHOT_VERSION_FILE_NAME), true);
   } finally {
     await fs.rm(root, { recursive: true, force: true });

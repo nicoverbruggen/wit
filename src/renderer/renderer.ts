@@ -68,6 +68,7 @@ const gitSnapshotsInput = document.getElementById("git-snapshots-input") as HTML
 const gitPushRemoteSelect = document.getElementById("git-push-remote-select") as HTMLSelectElement;
 const gitSnapshotsNotice = document.getElementById("git-snapshots-notice") as HTMLParagraphElement;
 const autosaveIntervalInput = document.getElementById("autosave-interval-input") as HTMLInputElement;
+const snapshotMaxSizeInput = document.getElementById("snapshot-max-size-input") as HTMLInputElement;
 const lineHeightInput = document.getElementById("line-height-input") as HTMLInputElement;
 const lineHeightValue = document.getElementById("line-height-value") as HTMLSpanElement;
 const paragraphSpacingSelect = document.getElementById("paragraph-spacing-select") as HTMLSelectElement;
@@ -127,6 +128,9 @@ let dirty = false;
 let lastTypedAtMs: number | null = null;
 let activeTypingSeconds = 0;
 const TYPING_IDLE_THRESHOLD_MS = 5_000;
+const AUTOSAVE_LENIENCY_THRESHOLD_SEC = 60;
+const AUTOSAVE_LENIENCY_MAX_MS = 5_000;
+const AUTOSAVE_LENIENCY_POLL_MS = 500;
 let autosaveTimer: number | null = null;
 let autosaveInFlight = false;
 let statusResetTimer: number | null = null;
@@ -426,6 +430,7 @@ function setProjectControlsEnabled(enabled: boolean): void {
   gitSnapshotsInput.disabled = !enabled || !project?.isGitRepository;
   gitPushRemoteSelect.disabled = true;
   autosaveIntervalInput.disabled = !enabled;
+  snapshotMaxSizeInput.disabled = !enabled;
   lineHeightInput.disabled = !enabled;
   editorWidthInput.disabled = !enabled;
   themeSelect.disabled = !enabled;
@@ -1584,6 +1589,7 @@ function syncSettingsInputs(settings: AppSettings): void {
   smartQuotesInput.checked = settings.smartQuotes;
   gitSnapshotsInput.checked = settings.gitSnapshots && Boolean(project?.isGitRepository);
   autosaveIntervalInput.value = String(settings.autosaveIntervalSec);
+  snapshotMaxSizeInput.value = String(settings.snapshotMaxSizeMb);
   applyEditorLineHeight(settings.editorLineHeight);
   applyEditorParagraphSpacing(settings.editorParagraphSpacing ?? "none");
   applyEditorMaxWidth(settings.editorMaxWidthPx);
@@ -1744,6 +1750,24 @@ async function openFile(relativePath: string): Promise<void> {
   }
 }
 
+function isUserTyping(): boolean {
+  return lastTypedAtMs !== null && (Date.now() - lastTypedAtMs) < TYPING_IDLE_THRESHOLD_MS;
+}
+
+function waitForTypingPause(): Promise<void> {
+  return new Promise((resolve) => {
+    const deadline = Date.now() + AUTOSAVE_LENIENCY_MAX_MS;
+    const check = () => {
+      if (!isUserTyping() || Date.now() >= deadline) {
+        resolve();
+        return;
+      }
+      window.setTimeout(check, AUTOSAVE_LENIENCY_POLL_MS);
+    };
+    check();
+  });
+}
+
 function restartAutosaveTimer(): void {
   if (autosaveTimer) {
     window.clearInterval(autosaveTimer);
@@ -1754,9 +1778,14 @@ function restartAutosaveTimer(): void {
     return;
   }
 
-  const intervalMs = project.settings.autosaveIntervalSec * 1000;
+  const intervalSec = project.settings.autosaveIntervalSec;
+  const intervalMs = intervalSec * 1000;
   autosaveTimer = window.setInterval(() => {
-    void runAutosaveTick();
+    if (intervalSec >= AUTOSAVE_LENIENCY_THRESHOLD_SEC && isUserTyping()) {
+      void waitForTypingPause().then(() => runAutosaveTick());
+    } else {
+      void runAutosaveTick();
+    }
   }, intervalMs);
 }
 
@@ -2579,6 +2608,12 @@ autosaveIntervalInput.addEventListener("change", () => {
   const parsed = Number.parseInt(autosaveIntervalInput.value, 10);
   const safeValue = Number.isFinite(parsed) ? Math.max(5, parsed) : 60;
   void persistSettings({ autosaveIntervalSec: safeValue });
+});
+
+snapshotMaxSizeInput.addEventListener("change", () => {
+  const parsed = Number.parseInt(snapshotMaxSizeInput.value, 10);
+  const safeValue = Number.isFinite(parsed) ? Math.max(1, parsed) : 10;
+  void persistSettings({ snapshotMaxSizeMb: safeValue });
 });
 
 lineHeightInput.addEventListener("input", () => {

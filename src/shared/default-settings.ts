@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showWritingTime: false,
   showCurrentFileBar: false,
   smartQuotes: true,
+  snapshotMaxSizeMb: 10,
   gitSnapshots: false,
   gitPushRemote: null,
   editorLineHeight: 1.68,

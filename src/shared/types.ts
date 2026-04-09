@@ -6,6 +6,7 @@ export type AppSettings = {
   showWritingTime: boolean;
   showCurrentFileBar: boolean;
   smartQuotes: boolean;
+  snapshotMaxSizeMb: number;
   gitSnapshots: boolean;
   gitPushRemote: string | null;
   editorLineHeight: number;

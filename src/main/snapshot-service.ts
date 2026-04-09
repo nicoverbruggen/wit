@@ -7,7 +7,6 @@ import { gzip, gunzip } from "node:zlib";
 const execFileAsync = promisify(execFile);
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
-const MAX_SNAPSHOTS_TO_KEEP = 120;
 const SNAPSHOT_FILE_EXTENSION = ".json.gz";
 export const SNAPSHOT_VERSION_FILE_NAME = "version.json";
 export const SNAPSHOT_SYSTEM_VERSION = 2;
@@ -96,24 +95,39 @@ async function writeSnapshotArchive(snapshotDirectory: string, snapshotTimestamp
   await fs.writeFile(snapshotPath, compressed);
 }
 
-async function pruneSnapshots(snapshotDirectory: string): Promise<void> {
+async function pruneSnapshots(snapshotDirectory: string, maxSizeBytes: number): Promise<void> {
   const entries = await fs.readdir(snapshotDirectory, { withFileTypes: true });
-  const snapshots = entries
+  const snapshotNames = entries
     .filter((entry) => parseSnapshotTimestamp(entry.name) !== null)
     .map((entry) => entry.name)
     .sort();
 
-  if (snapshots.length <= MAX_SNAPSHOTS_TO_KEEP) {
+  if (snapshotNames.length === 0) {
     return;
   }
 
-  const staleSnapshots = snapshots.slice(0, snapshots.length - MAX_SNAPSHOTS_TO_KEEP);
+  const sizes: { name: string; size: number }[] = [];
+  let totalSize = 0;
 
-  await Promise.all(
-    staleSnapshots.map((snapshotName) =>
-      fs.rm(path.join(snapshotDirectory, snapshotName), { recursive: true, force: true })
-    )
-  );
+  for (const name of snapshotNames) {
+    try {
+      const stat = await fs.stat(path.join(snapshotDirectory, name));
+      sizes.push({ name, size: stat.size });
+      totalSize += stat.size;
+    } catch {
+      // File may have been removed between readdir and stat.
+    }
+  }
+
+  if (totalSize <= maxSizeBytes) {
+    return;
+  }
+
+  // Remove oldest snapshots first, but always keep at least the latest one.
+  for (let i = 0; i < sizes.length - 1 && totalSize > maxSizeBytes; i++) {
+    await fs.rm(path.join(snapshotDirectory, sizes[i].name), { recursive: true, force: true });
+    totalSize -= sizes[i].size;
+  }
 }
 
 async function isPathGitignored(projectPath: string, relativePath: string): Promise<boolean> {
@@ -314,6 +328,7 @@ export async function createSnapshot(options: {
   projectPath: string;
   snapshotDirectory: string;
   filePaths: string[];
+  snapshotMaxSizeMb: number;
   createGitCommit: boolean;
   pushGitCommit: boolean;
   gitPushRemote: string | null;
@@ -335,7 +350,7 @@ export async function createSnapshot(options: {
   const payload = await buildSnapshotPayload(options.projectPath, snapshotTimestamp, options.filePaths);
   await writeSnapshotArchive(options.snapshotDirectory, snapshotTimestamp, payload);
 
-  await pruneSnapshots(options.snapshotDirectory);
+  await pruneSnapshots(options.snapshotDirectory, options.snapshotMaxSizeMb * 1024 * 1024);
 
   if (options.createGitCommit) {
     const message = options.commitMessage ?? `automatic snapshot`;
