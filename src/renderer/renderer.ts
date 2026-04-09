@@ -59,12 +59,14 @@ const showWordCountInput = document.getElementById("show-word-count-input") as H
 const showWritingTimeInput = document.getElementById("show-writing-time-input") as HTMLInputElement;
 const showCurrentFileBarInput = document.getElementById("show-current-file-bar-input") as HTMLInputElement;
 const smartQuotesInput = document.getElementById("smart-quotes-input") as HTMLInputElement;
+const defaultFileExtensionSelect = document.getElementById("default-file-extension-select") as HTMLSelectElement;
 const gitSnapshotsInput = document.getElementById("git-snapshots-input") as HTMLInputElement;
 const gitPushRemoteSelect = document.getElementById("git-push-remote-select") as HTMLSelectElement;
 const gitSnapshotsNotice = document.getElementById("git-snapshots-notice") as HTMLParagraphElement;
 const autosaveIntervalInput = document.getElementById("autosave-interval-input") as HTMLInputElement;
 const lineHeightInput = document.getElementById("line-height-input") as HTMLInputElement;
 const lineHeightValue = document.getElementById("line-height-value") as HTMLSpanElement;
+const paragraphSpacingSelect = document.getElementById("paragraph-spacing-select") as HTMLSelectElement;
 const editorWidthInput = document.getElementById("editor-width-input") as HTMLInputElement;
 const editorWidthValue = document.getElementById("editor-width-value") as HTMLSpanElement;
 const settingsCloseButton = document.getElementById("settings-close-btn") as HTMLButtonElement;
@@ -150,6 +152,8 @@ let sidebarVisibleBeforeFullscreen = true;
 let sidebarWidthPx = DEFAULT_SIDEBAR_WIDTH_PX;
 let sidebarResizeCleanup: (() => void) | null = null;
 let currentSettingsTab: SettingsTabKey = "writing";
+let currentEditorLineHeight = 1.68;
+let currentEditorParagraphSpacing: AppSettings["editorParagraphSpacing"] = "none";
 let systemFontFamilies: string[] = [];
 
 const subscriptions: Array<() => void> = [];
@@ -606,11 +610,59 @@ function normalizeLineHeightValue(value: number): number {
   return Number(bounded.toFixed(2));
 }
 
+function normalizeParagraphSpacingValue(value: string): AppSettings["editorParagraphSpacing"] {
+  switch (value) {
+    case "tight":
+    case "loose":
+    case "very-loose":
+      return value;
+    default:
+      return "none";
+  }
+}
+
+function normalizeDefaultFileExtensionValue(value: string): AppSettings["defaultFileExtension"] {
+  switch (value) {
+    case ".md":
+    case ".wxt":
+      return value;
+    default:
+      return ".txt";
+  }
+}
+
+function getParagraphSpacingLineHeightBoost(spacing: AppSettings["editorParagraphSpacing"]): number {
+  switch (spacing) {
+    case "tight":
+      return 0.1;
+    case "loose":
+      return 0.22;
+    case "very-loose":
+      return 0.36;
+    default:
+      return 0;
+  }
+}
+
+function refreshEditorLineHeight(): void {
+  const effectiveLineHeight = normalizeLineHeightValue(
+    currentEditorLineHeight + getParagraphSpacingLineHeightBoost(currentEditorParagraphSpacing)
+  );
+  editor.style.lineHeight = String(effectiveLineHeight);
+}
+
 function applyEditorLineHeight(lineHeight: number): void {
   const normalized = normalizeLineHeightValue(lineHeight);
-  editor.style.lineHeight = String(normalized);
+  currentEditorLineHeight = normalized;
+  refreshEditorLineHeight();
   lineHeightValue.textContent = normalized.toFixed(2);
   lineHeightInput.value = normalized.toFixed(2);
+}
+
+function applyEditorParagraphSpacing(spacing: AppSettings["editorParagraphSpacing"]): void {
+  currentEditorParagraphSpacing = spacing;
+  paragraphSpacingSelect.value = spacing;
+  refreshEditorLineHeight();
 }
 
 function applyEditorMaxWidth(editorWidth: number): void {
@@ -1303,8 +1355,9 @@ function resolveNewFilePath(rawInput: string): { relativePath: string | null; er
     relativePath = `${selectedFolder}/${relativePath}`;
   }
 
-  if (!/\.(txt|md|markdown|text)$/i.test(relativePath)) {
-    relativePath = `${relativePath}.txt`;
+  if (!/\.(txt|md|markdown|text|wxt)$/i.test(relativePath)) {
+    const defaultExtension = normalizeDefaultFileExtensionValue(project.settings.defaultFileExtension);
+    relativePath = `${relativePath}${defaultExtension}`;
   }
 
   const existingFile = project.files.find((filePath) => pathEquals(filePath, relativePath));
@@ -1439,6 +1492,7 @@ function syncGitSnapshotsAvailability(): void {
 function syncSettingsInputs(settings: AppSettings): void {
   themeSelect.value = settings.theme;
   applyTheme(settings.theme);
+  defaultFileExtensionSelect.value = settings.defaultFileExtension ?? ".txt";
   showWordCountInput.checked = settings.showWordCount;
   showWritingTimeInput.checked = settings.showWritingTime;
   showCurrentFileBarInput.checked = settings.showCurrentFileBar;
@@ -1446,6 +1500,7 @@ function syncSettingsInputs(settings: AppSettings): void {
   gitSnapshotsInput.checked = settings.gitSnapshots && Boolean(project?.isGitRepository);
   autosaveIntervalInput.value = String(settings.autosaveIntervalSec);
   applyEditorLineHeight(settings.editorLineHeight);
+  applyEditorParagraphSpacing(settings.editorParagraphSpacing ?? "none");
   applyEditorMaxWidth(settings.editorMaxWidthPx);
   setEditorZoomFromPercent(settings.editorZoomPercent, false);
   populateFontSelect(settings.editorFontFamily ?? DEFAULT_EDITOR_FONT);
@@ -2169,6 +2224,7 @@ async function initialize(): Promise<void> {
   populateFontSelect(DEFAULT_EDITOR_FONT);
   applyTheme("light");
   applyEditorLineHeight(Number.parseFloat(lineHeightInput.value));
+  applyEditorParagraphSpacing(normalizeParagraphSpacingValue(paragraphSpacingSelect.value));
   applyEditorMaxWidth(Number.parseInt(editorWidthInput.value, 10));
   applyEditorZoom(false);
   applyEditorFont(DEFAULT_EDITOR_FONT);
@@ -2369,6 +2425,12 @@ smartQuotesInput.addEventListener("change", () => {
   void persistSettings({ smartQuotes: smartQuotesInput.checked });
 });
 
+defaultFileExtensionSelect.addEventListener("change", () => {
+  const selectedExtension = normalizeDefaultFileExtensionValue(defaultFileExtensionSelect.value);
+  defaultFileExtensionSelect.value = selectedExtension;
+  void persistSettings({ defaultFileExtension: selectedExtension });
+});
+
 gitSnapshotsInput.addEventListener("change", () => {
   void persistSettings({ gitSnapshots: gitSnapshotsInput.checked });
 });
@@ -2402,6 +2464,12 @@ lineHeightInput.addEventListener("change", () => {
 
   applyEditorLineHeight(parsed);
   void persistSettings({ editorLineHeight: normalizeLineHeightValue(parsed) });
+});
+
+paragraphSpacingSelect.addEventListener("change", () => {
+  const selectedSpacing = normalizeParagraphSpacingValue(paragraphSpacingSelect.value);
+  applyEditorParagraphSpacing(selectedSpacing);
+  void persistSettings({ editorParagraphSpacing: selectedSpacing });
 });
 
 editorWidthInput.addEventListener("input", () => {

@@ -930,6 +930,7 @@ test.describe("Wit core app flow", () => {
     await openSettingsTab(firstRun.page, "writing");
     await firstRun.page.click("#show-word-count-input");
     await firstRun.page.click("#smart-quotes-input");
+    await firstRun.page.selectOption("#default-file-extension-select", ".md");
     await openSettingsTab(firstRun.page, "autosave");
     await firstRun.page.fill("#autosave-interval-input", "15");
     await firstRun.page.dispatchEvent("#autosave-interval-input", "change");
@@ -937,6 +938,7 @@ test.describe("Wit core app flow", () => {
     await firstRun.page.selectOption("#git-push-remote-select", "origin");
     await openSettingsTab(firstRun.page, "editor");
     await firstRun.page.selectOption("#theme-select", "dark");
+    await firstRun.page.selectOption("#paragraph-spacing-select", "loose");
     await firstRun.page.evaluate(() => {
       const input = document.querySelector("#line-height-input");
       if (!input) {
@@ -977,12 +979,14 @@ test.describe("Wit core app flow", () => {
     await openSettingsTab(secondRun.page, "writing");
     await expect(secondRun.page.locator("#show-word-count-input")).not.toBeChecked();
     await expect(secondRun.page.locator("#smart-quotes-input")).not.toBeChecked();
+    await expect(secondRun.page.locator("#default-file-extension-select")).toHaveValue(".md");
     await openSettingsTab(secondRun.page, "autosave");
     await expect(secondRun.page.locator("#git-snapshots-input")).toBeChecked();
     await expect(secondRun.page.locator("#git-push-remote-select")).toHaveValue("origin");
     await expect(secondRun.page.locator("#autosave-interval-input")).toHaveValue("15");
     await openSettingsTab(secondRun.page, "editor");
     await expect(secondRun.page.locator("#theme-select")).toHaveValue("dark");
+    await expect(secondRun.page.locator("#paragraph-spacing-select")).toHaveValue("loose");
     await expect(secondRun.page.locator("#line-height-value")).toHaveText("1.90");
     await expect(secondRun.page.locator("#editor-width-value")).toHaveText("740px");
     await expect(secondRun.page.locator("#word-count")).toBeHidden();

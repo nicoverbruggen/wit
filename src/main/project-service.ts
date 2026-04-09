@@ -14,7 +14,7 @@ const CONFIG_FILE_NAME = "config.json";
 const STATS_FILE_NAME = "stats.json";
 const SNAPSHOT_DIR_NAME = "snapshots";
 const GITIGNORE_FILE_NAME = ".gitignore";
-const TEXT_FILE_EXTENSIONS = new Set([".txt", ".md", ".markdown", ".text"]);
+const TEXT_FILE_EXTENSIONS = new Set([".txt", ".md", ".markdown", ".text", ".wxt"]);
 
 type ProjectStats = {
   totalWritingSeconds: number;
@@ -72,8 +72,29 @@ function normalizeEditorZoomPercent(value: number): number {
   return Math.max(50, Math.min(250, Math.round(value)));
 }
 
+function normalizeEditorParagraphSpacing(value: unknown): AppSettings["editorParagraphSpacing"] {
+  switch (value) {
+    case "tight":
+    case "loose":
+    case "very-loose":
+      return value;
+    default:
+      return "none";
+  }
+}
+
 function normalizeTheme(value: unknown): AppSettings["theme"] {
   return value === "dark" ? "dark" : "light";
+}
+
+function normalizeDefaultFileExtension(value: unknown): AppSettings["defaultFileExtension"] {
+  switch (value) {
+    case ".md":
+    case ".wxt":
+      return value;
+    default:
+      return ".txt";
+  }
 }
 
 export async function ensureProjectInitialized(projectPath: string): Promise<void> {
@@ -227,7 +248,7 @@ export async function createProjectFile(
   const absolutePath = ensureInsideProject(projectPath, relativePath);
 
   if (!isTextFile(absolutePath)) {
-    throw new Error("Only plain text and markdown files are supported.");
+    throw new Error("Only plain text, Markdown, and Wit text files are supported.");
   }
 
   await fs.mkdir(path.dirname(absolutePath), { recursive: true });
@@ -457,6 +478,7 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
         ? Math.round(parsed.autosaveIntervalSec)
         : DEFAULT_SETTINGS.autosaveIntervalSec,
     theme: normalizeTheme(parsed.theme),
+    defaultFileExtension: normalizeDefaultFileExtension(parsed.defaultFileExtension),
     showWordCount:
       typeof parsed.showWordCount === "boolean"
         ? parsed.showWordCount
@@ -483,6 +505,7 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
       typeof parsed.editorLineHeight === "number" && Number.isFinite(parsed.editorLineHeight)
         ? normalizeEditorLineHeight(parsed.editorLineHeight)
         : DEFAULT_SETTINGS.editorLineHeight,
+    editorParagraphSpacing: normalizeEditorParagraphSpacing(parsed.editorParagraphSpacing),
     editorMaxWidthPx:
       typeof parsed.editorMaxWidthPx === "number" && Number.isFinite(parsed.editorMaxWidthPx)
         ? normalizeEditorMaxWidth(parsed.editorMaxWidthPx)
@@ -507,6 +530,7 @@ export async function saveSettings(projectPath: string, settings: AppSettings): 
   const normalizedSettings: AppSettings = {
     autosaveIntervalSec: Math.max(10, Math.round(settings.autosaveIntervalSec)),
     theme: normalizeTheme(settings.theme),
+    defaultFileExtension: normalizeDefaultFileExtension(settings.defaultFileExtension),
     showWordCount: Boolean(settings.showWordCount),
     showWritingTime: Boolean(settings.showWritingTime),
     showCurrentFileBar: Boolean(settings.showCurrentFileBar),
@@ -514,6 +538,7 @@ export async function saveSettings(projectPath: string, settings: AppSettings): 
     gitSnapshots: Boolean(settings.gitSnapshots),
     gitPushRemote: normalizedRemote,
     editorLineHeight: normalizeEditorLineHeight(settings.editorLineHeight),
+    editorParagraphSpacing: normalizeEditorParagraphSpacing(settings.editorParagraphSpacing),
     editorMaxWidthPx: normalizeEditorMaxWidth(settings.editorMaxWidthPx),
     editorZoomPercent: normalizeEditorZoomPercent(settings.editorZoomPercent),
     editorFontFamily: settings.editorFontFamily || DEFAULT_SETTINGS.editorFontFamily

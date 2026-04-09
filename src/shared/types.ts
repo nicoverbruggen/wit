@@ -1,6 +1,7 @@
 export type AppSettings = {
   autosaveIntervalSec: number;
   theme: "light" | "dark";
+  defaultFileExtension: ".txt" | ".md" | ".wxt";
   showWordCount: boolean;
   showWritingTime: boolean;
   showCurrentFileBar: boolean;
@@ -8,6 +9,7 @@ export type AppSettings = {
   gitSnapshots: boolean;
   gitPushRemote: string | null;
   editorLineHeight: number;
+  editorParagraphSpacing: "none" | "tight" | "loose" | "very-loose";
   editorMaxWidthPx: number;
   editorZoomPercent: number;
   editorFontFamily: string;

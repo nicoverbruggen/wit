@@ -50,4 +50,37 @@ test.describe("Wit new file flow", () => {
 
     await app.close();
   });
+
+  test("uses the configured default extension for new files without one", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-default-ext-"));
+    await fs.writeFile(path.join(projectPath, "start.txt"), "Opening chapter", "utf8");
+
+    const app = await electron.launch({
+      args: [repoRoot],
+      cwd: repoRoot
+    });
+
+    const page = await app.firstWindow();
+    await page.waitForLoadState("domcontentloaded");
+
+    await page.evaluate(async (targetPath) => {
+      await window.witApi.openProjectPath(targetPath);
+    }, projectPath);
+    await page.reload();
+    await page.waitForLoadState("domcontentloaded");
+
+    await page.click("#settings-toggle-btn");
+    await page.click("#settings-tab-writing");
+    await page.selectOption("#default-file-extension-select", ".wxt");
+    await page.click("#settings-close-btn");
+
+    await page.click("#new-file-btn");
+    await page.fill("#new-file-path-input", "chapter-03");
+    await page.click("#new-file-create-btn");
+
+    await expect(page.locator("#active-file-label")).toHaveText("chapter-03.wxt");
+    await expect(fs.stat(path.join(projectPath, "chapter-03.wxt"))).resolves.toBeTruthy();
+
+    await app.close();
+  });
 });

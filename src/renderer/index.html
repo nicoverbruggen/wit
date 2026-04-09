@@ -122,7 +122,7 @@
     <dialog id="new-file-dialog" class="new-file-dialog">
       <form method="dialog" id="new-file-form">
         <h2>Create New File</h2>
-        <p>Enter a relative path for a plain text or markdown file.</p>
+        <p>Enter a relative path for a plain text, Markdown, or Wit text file.</p>
         <label for="new-file-path-input">File path</label>
         <input id="new-file-path-input" name="new-file-path" type="text" value="" />
         <p id="new-file-error" class="dialog-error" aria-live="polite"></p>
@@ -217,6 +217,15 @@
                   </span>
                   <span class="setting-card-description">Turns straight quotation marks into curly quotes as you type in the editor.</span>
                 </label>
+                <label class="setting-card" title="Choose the default file extension for new files">
+                  <span class="setting-card-title">Default file extension</span>
+                  <span class="setting-card-description">Used when you create a new file without typing an extension.</span>
+                  <select id="default-file-extension-select">
+                    <option value=".txt" selected>.txt</option>
+                    <option value=".md">.md (Markdown)</option>
+                    <option value=".wxt">.wxt (Wit text)</option>
+                  </select>
+                </label>
               </div>
             </div>
           </section>
@@ -268,6 +277,16 @@
                     <input id="line-height-input" type="range" min="1.2" max="2.4" step="0.02" value="1.68" />
                     <span id="line-height-value">1.68</span>
                   </div>
+                </label>
+                <label class="setting-card" title="Adjust paragraph spacing">
+                  <span class="setting-card-title">Paragraph spacing</span>
+                  <span class="setting-card-description">Adds visual breathing room to paragraph breaks while keeping your raw Markdown text unchanged.</span>
+                  <select id="paragraph-spacing-select">
+                    <option value="none" selected>None</option>
+                    <option value="tight">Tight</option>
+                    <option value="loose">Loose</option>
+                    <option value="very-loose">Very Loose</option>
+                  </select>
                 </label>
                 <label class="setting-card slider-control" title="Limit editor column width for readability">
                   <span class="setting-card-title">Editor max width</span>

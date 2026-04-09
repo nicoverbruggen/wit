@@ -51,6 +51,7 @@ test("project initialization and metadata defaults", async () => {
     assert.deepEqual(metadata.gitRemotes, []);
     assert.equal(metadata.settings.autosaveIntervalSec, 60);
     assert.equal(metadata.settings.theme, "light");
+    assert.equal(metadata.settings.defaultFileExtension, ".txt");
     assert.equal(metadata.settings.showWordCount, false);
     assert.equal(metadata.settings.showWritingTime, false);
     assert.equal(metadata.settings.showCurrentFileBar, false);
@@ -58,6 +59,7 @@ test("project initialization and metadata defaults", async () => {
     assert.equal(metadata.settings.gitSnapshots, false);
     assert.equal(metadata.settings.gitPushRemote, null);
     assert.equal(metadata.settings.editorLineHeight, 1.68);
+    assert.equal(metadata.settings.editorParagraphSpacing, "none");
     assert.equal(metadata.settings.editorMaxWidthPx, 750);
     assert.equal(metadata.settings.editorZoomPercent, 100);
     assert.equal(metadata.settings.editorFontFamily, "iA Writer Mono");
@@ -90,6 +92,7 @@ test("create/list/save/read files with word count and settings", async () => {
     const savedSettings = await projectService.saveSettings(projectPath, {
       autosaveIntervalSec: 1,
       theme: "dark",
+      defaultFileExtension: ".wxt",
       showWordCount: false,
       showWritingTime: false,
       showCurrentFileBar: false,
@@ -97,6 +100,7 @@ test("create/list/save/read files with word count and settings", async () => {
       gitSnapshots: true,
       gitPushRemote: "origin",
       editorLineHeight: 9,
+      editorParagraphSpacing: "very-loose",
       editorMaxWidthPx: 9999,
       editorZoomPercent: 999,
       editorFontFamily: ""
@@ -104,6 +108,7 @@ test("create/list/save/read files with word count and settings", async () => {
 
     assert.equal(savedSettings.autosaveIntervalSec, 10);
     assert.equal(savedSettings.theme, "dark");
+    assert.equal(savedSettings.defaultFileExtension, ".wxt");
     assert.equal(savedSettings.showWordCount, false);
     assert.equal(savedSettings.showWritingTime, false);
     assert.equal(savedSettings.showCurrentFileBar, false);
@@ -111,6 +116,7 @@ test("create/list/save/read files with word count and settings", async () => {
     assert.equal(savedSettings.gitSnapshots, true);
     assert.equal(savedSettings.gitPushRemote, null);
     assert.equal(savedSettings.editorLineHeight, 2.4);
+    assert.equal(savedSettings.editorParagraphSpacing, "very-loose");
     assert.equal(savedSettings.editorMaxWidthPx, 1200);
     assert.equal(savedSettings.editorZoomPercent, 250);
 
@@ -130,7 +136,7 @@ test("create/list/save/read files with word count and settings", async () => {
 
     await assert.rejects(
       () => projectService.createProjectFile(projectPath, "invalid.bin", "x"),
-      /Only plain text and markdown files are supported/
+      /Only plain text, Markdown, and Wit text files are supported/
     );
   } finally {
     await fs.rm(root, { recursive: true, force: true });
@@ -244,6 +250,7 @@ test("settings normalize git auto-push remote against configured remotes", async
     const savedSettings = await projectService.saveSettings(projectPath, {
       autosaveIntervalSec: 60,
       theme: "light",
+      defaultFileExtension: ".md",
       showWordCount: true,
       showWritingTime: true,
       showCurrentFileBar: true,
@@ -251,6 +258,7 @@ test("settings normalize git auto-push remote against configured remotes", async
       gitSnapshots: true,
       gitPushRemote: "origin",
       editorLineHeight: 1.68,
+      editorParagraphSpacing: "tight",
       editorMaxWidthPx: 750,
       editorZoomPercent: 100,
       editorFontFamily: "Readerly"
@@ -280,6 +288,7 @@ test("settings keep git push remote disabled by default even when remotes exist"
     const savedSettings = await projectService.saveSettings(projectPath, {
       autosaveIntervalSec: 60,
       theme: "light",
+      defaultFileExtension: ".txt",
       showWordCount: true,
       showWritingTime: true,
       showCurrentFileBar: true,
@@ -287,6 +296,7 @@ test("settings keep git push remote disabled by default even when remotes exist"
       gitSnapshots: true,
       gitPushRemote: null,
       editorLineHeight: 1.68,
+      editorParagraphSpacing: "none",
       editorMaxWidthPx: 750,
       editorZoomPercent: 100,
       editorFontFamily: "Readerly"
@@ -316,6 +326,7 @@ test("listProjectFiles filters by supported text extensions and ignores system d
     await fs.writeFile(path.join(projectPath, "chapter.md"), "chapter", "utf8");
     await fs.writeFile(path.join(projectPath, "notes.markdown"), "notes", "utf8");
     await fs.writeFile(path.join(projectPath, "scene.text"), "scene", "utf8");
+    await fs.writeFile(path.join(projectPath, "world.wxt"), "world", "utf8");
     await fs.writeFile(path.join(projectPath, "binary.bin"), "bin", "utf8");
     await fs.writeFile(path.join(projectPath, ".git", "ignored.txt"), "ignored", "utf8");
     await fs.writeFile(path.join(projectPath, "node_modules", "ignored.md"), "ignored", "utf8");
@@ -327,7 +338,8 @@ test("listProjectFiles filters by supported text extensions and ignores system d
       "chapter.md",
       "nested/nested.txt",
       "notes.markdown",
-      "scene.text"
+      "scene.text",
+      "world.wxt"
     ]);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
