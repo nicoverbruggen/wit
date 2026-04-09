@@ -10,19 +10,13 @@ import {
   type MenuItemConstructorOptions
 } from "electron";
 import {
-  addWritingSeconds,
   calculateTotalWordCount,
   createProjectFile,
   createProjectFolder,
   deleteProjectEntry,
-  ensureProjectInitialized,
   getProjectMetadata,
-  getProjectStats,
-  getGitRepositoryStatus,
-  getSnapshotDirectory,
   listProjectFiles,
   listProjectFolders,
-  loadSettings,
   moveProjectFile,
   renameProjectEntry,
   readProjectFile,
@@ -31,59 +25,22 @@ import {
   saveProjectFileSync,
   saveSettings
 } from "./project-service";
-import { createSnapshot } from "./snapshot-service";
+import { createProjectSessionService } from "./project-session-service";
 import { countWordsUsingSystemTool } from "./word-count-service";
 import type {
   AppInfo,
   AppSettings,
-  AutosaveTickResult,
   DeleteEntryPayload,
   MoveFilePayload,
   NewFilePayload,
   NewFolderPayload,
-  ProjectMetadata,
   RenameEntryPayload,
   ShowTreeContextMenuPayload,
   TreeContextAction
 } from "../shared/types";
+import { IPC_CHANNELS } from "../shared/ipc";
 
 let mainWindow: BrowserWindow | null = null;
-let activeProjectPath: string | null = null;
-const LAST_PROJECT_STATE_FILE_NAME = "last-project.json";
-
-function getLastProjectStatePath(): string {
-  return path.join(app.getPath("userData"), LAST_PROJECT_STATE_FILE_NAME);
-}
-
-async function saveLastProjectPath(projectPath: string): Promise<void> {
-  const statePath = getLastProjectStatePath();
-  const payload = { projectPath };
-  await fs.mkdir(path.dirname(statePath), { recursive: true });
-  await fs.writeFile(statePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
-}
-
-async function clearLastProjectPath(): Promise<void> {
-  try {
-    await fs.rm(getLastProjectStatePath(), { force: true });
-  } catch {
-    // Ignore best-effort cleanup failures.
-  }
-}
-
-async function loadLastProjectPath(): Promise<string | null> {
-  try {
-    const raw = await fs.readFile(getLastProjectStatePath(), "utf8");
-    const parsed = JSON.parse(raw) as { projectPath?: unknown };
-
-    if (typeof parsed.projectPath === "string" && parsed.projectPath.trim().length > 0) {
-      return parsed.projectPath;
-    }
-  } catch {
-    // Ignore malformed/missing state and start without an active project.
-  }
-
-  return null;
-}
 
 function resetWindowZoomToDefault(browserWindow: BrowserWindow): void {
   browserWindow.webContents.setZoomLevel(0);
@@ -123,25 +80,6 @@ async function getAppInfo(): Promise<AppInfo> {
       website: ""
     };
   }
-}
-
-function buildSnapshotOptions(
-  projectPath: string,
-  settings: AppSettings,
-  files: string[],
-  gitRepository: boolean,
-  commitMessage: string
-): Parameters<typeof createSnapshot>[0] {
-  return {
-    projectPath,
-    snapshotDirectory: getSnapshotDirectory(projectPath),
-    filePaths: files,
-    snapshotMaxSizeMb: settings.snapshotMaxSizeMb,
-    createGitCommit: settings.gitSnapshots && gitRepository,
-    pushGitCommit: settings.gitSnapshots && settings.gitPushRemote !== null && gitRepository,
-    gitPushRemote: settings.gitPushRemote,
-    commitMessage
-  };
 }
 
 function buildEditableContextMenuTemplate(params: ContextMenuParams): MenuItemConstructorOptions[] {
@@ -186,7 +124,7 @@ function setupContextMenus(browserWindow: BrowserWindow): void {
 
 function setupWindowStateEvents(browserWindow: BrowserWindow): void {
   const emitFullscreenState = (): void => {
-    browserWindow.webContents.send("window:fullscreen-changed", browserWindow.isFullScreen());
+    browserWindow.webContents.send(IPC_CHANNELS.window.fullscreenChanged, browserWindow.isFullScreen());
   };
 
   browserWindow.on("enter-full-screen", emitFullscreenState);
@@ -256,21 +194,21 @@ function setupMenu(): void {
           label: "Open Project",
           accelerator: "CmdOrCtrl+O",
           click: () => {
-            emitMenuEvent("menu:open-project");
+            emitMenuEvent(IPC_CHANNELS.menu.openProject);
           }
         },
         {
           label: "New File",
           accelerator: "CmdOrCtrl+N",
           click: () => {
-            emitMenuEvent("menu:new-file");
+            emitMenuEvent(IPC_CHANNELS.menu.newFile);
           }
         },
         {
           label: "Save",
           accelerator: "CmdOrCtrl+S",
           click: () => {
-            emitMenuEvent("menu:save-current-file");
+            emitMenuEvent(IPC_CHANNELS.menu.saveCurrentFile);
           }
         },
         { type: "separator" },
@@ -285,7 +223,7 @@ function setupMenu(): void {
           label: "Toggle Sidebar",
           accelerator: "CmdOrCtrl+B",
           click: () => {
-            emitMenuEvent("menu:toggle-sidebar");
+            emitMenuEvent(IPC_CHANNELS.menu.toggleSidebar);
           }
         },
         { type: "separator" },
@@ -293,21 +231,21 @@ function setupMenu(): void {
           label: "Zoom In Editor Text",
           accelerator: "CmdOrCtrl+=",
           click: () => {
-            emitMenuEvent("menu:zoom-in-text");
+            emitMenuEvent(IPC_CHANNELS.menu.zoomInText);
           }
         },
         {
           label: "Zoom Out Editor Text",
           accelerator: "CmdOrCtrl+-",
           click: () => {
-            emitMenuEvent("menu:zoom-out-text");
+            emitMenuEvent(IPC_CHANNELS.menu.zoomOutText);
           }
         },
         {
           label: "Reset Editor Text Zoom",
           accelerator: "CmdOrCtrl+0",
           click: () => {
-            emitMenuEvent("menu:zoom-reset-text");
+            emitMenuEvent(IPC_CHANNELS.menu.zoomResetText);
           }
         },
         { type: "separator" },
@@ -320,92 +258,12 @@ function setupMenu(): void {
   Menu.setApplicationMenu(appMenu);
 }
 
-function requireActiveProjectPath(): string {
-  if (!activeProjectPath) {
-    throw new Error("No project is currently open.");
-  }
-
-  return activeProjectPath;
-}
-
-async function openProject(projectPath: string): Promise<ProjectMetadata> {
-  await ensureProjectInitialized(projectPath);
-  activeProjectPath = projectPath;
-  void saveLastProjectPath(projectPath).catch(() => {
-    // Non-blocking persistence; keep project opening even if write fails.
-  });
-  return getProjectMetadata(projectPath);
-}
-
-async function restoreLastProjectFromDisk(): Promise<void> {
-  const lastProjectPath = await loadLastProjectPath();
-  if (!lastProjectPath) {
-    return;
-  }
-
-  try {
-    const stats = await fs.stat(lastProjectPath);
-    if (!stats.isDirectory()) {
-      await clearLastProjectPath();
-      return;
-    }
-  } catch {
-    await clearLastProjectPath();
-    return;
-  }
-
-  try {
-    await openProject(lastProjectPath);
-  } catch {
-    await clearLastProjectPath();
-  }
-}
-
-async function runAutosaveTick(activeSeconds: number): Promise<AutosaveTickResult> {
-  const projectPath = requireActiveProjectPath();
-
-  if (activeSeconds > 0) {
-    await addWritingSeconds(projectPath, activeSeconds);
-  }
-
-  const [settings, files, gitRepository] = await Promise.all([
-    loadSettings(projectPath),
-    listProjectFiles(projectPath),
-    getGitRepositoryStatus(projectPath)
-  ]);
-
-  const snapshotCreatedAt = await createSnapshot(
-    buildSnapshotOptions(projectPath, settings, files, gitRepository, "automatic snapshot")
-  );
-
-  const [wordCount, stats] = await Promise.all([
-    calculateTotalWordCount(projectPath),
-    getProjectStats(projectPath)
-  ]);
-
-  return {
-    wordCount,
-    totalWritingSeconds: stats.totalWritingSeconds,
-    snapshotCreatedAt
-  };
-}
-
-async function runExitSnapshot(projectPath: string): Promise<void> {
-  try {
-    const [settings, files, gitRepository] = await Promise.all([
-      loadSettings(projectPath),
-      listProjectFiles(projectPath),
-      getGitRepositoryStatus(projectPath)
-    ]);
-
-    await createSnapshot(buildSnapshotOptions(projectPath, settings, files, gitRepository, "exit snapshot"));
-  } catch (error) {
-    console.warn("Exit snapshot failed.", error);
-  }
-}
+const projectSession = createProjectSessionService({
+  userDataPath: app.getPath("userData")
+});
 
 function setupIpcHandlers(): void {
-  ipcMain.handle("project:select", async () => {
+  ipcMain.handle(IPC_CHANNELS.project.select, async () => {
     if (!mainWindow) {
       return null;
     }
@@ -420,36 +278,22 @@ function setupIpcHandlers(): void {
     }
 
     const selectedPath = selection.filePaths[0];
-    return openProject(selectedPath);
+    return projectSession.openProject(selectedPath);
   });
 
-  ipcMain.handle("project:get-active", async () => {
-    if (!activeProjectPath) {
-      return null;
-    }
+  ipcMain.handle(IPC_CHANNELS.project.getActive, async () => projectSession.getActiveProject());
 
-    return getProjectMetadata(activeProjectPath);
-  });
+  ipcMain.handle(IPC_CHANNELS.project.close, async () => projectSession.closeProject());
 
-  ipcMain.handle("project:close", async () => {
-    if (activeProjectPath) {
-      await runExitSnapshot(activeProjectPath);
-    }
-
-    activeProjectPath = null;
-    await clearLastProjectPath();
-    return null;
-  });
-
-  ipcMain.handle("project:exit-snapshot", async () => {
-    if (!activeProjectPath) {
+  ipcMain.handle(IPC_CHANNELS.project.exitSnapshot, async () => {
+    if (!projectSession.hasActiveProject()) {
       return;
     }
 
-    await runExitSnapshot(activeProjectPath);
+    await projectSession.runExitSnapshot();
   });
 
-  ipcMain.handle("window:toggle-fullscreen", () => {
+  ipcMain.handle(IPC_CHANNELS.window.toggleFullscreen, () => {
     if (!mainWindow) {
       return false;
     }
@@ -459,54 +303,54 @@ function setupIpcHandlers(): void {
     return nextState;
   });
 
-  ipcMain.handle("project:open-path", async (_event, projectPath: string) => {
-    return openProject(projectPath);
+  ipcMain.handle(IPC_CHANNELS.project.openPath, async (_event, projectPath: string) => {
+    return projectSession.openProject(projectPath);
   });
 
-  ipcMain.handle("project:open-file", async (_event, relativePath: string) => {
-    return readProjectFile(requireActiveProjectPath(), relativePath);
+  ipcMain.handle(IPC_CHANNELS.project.openFile, async (_event, relativePath: string) => {
+    return readProjectFile(projectSession.requireActiveProjectPath(), relativePath);
   });
 
-  ipcMain.handle("project:save-file", async (_event, relativePath: string, content: string) => {
-    await saveProjectFile(requireActiveProjectPath(), relativePath, content);
+  ipcMain.handle(IPC_CHANNELS.project.saveFile, async (_event, relativePath: string, content: string) => {
+    await saveProjectFile(projectSession.requireActiveProjectPath(), relativePath, content);
     return true;
   });
 
-  ipcMain.handle("project:get-word-count", async () => {
-    return calculateTotalWordCount(requireActiveProjectPath());
+  ipcMain.handle(IPC_CHANNELS.project.getWordCount, async () => {
+    return calculateTotalWordCount(projectSession.requireActiveProjectPath());
   });
 
-  ipcMain.handle("project:count-preview-words", async (_event, text: string) => {
+  ipcMain.handle(IPC_CHANNELS.project.countPreviewWords, async (_event, text: string) => {
     return countWordsUsingSystemTool(text);
   });
 
-  ipcMain.on("project:save-file-sync", (event, relativePath: string, content: string) => {
+  ipcMain.on(IPC_CHANNELS.project.saveFileSync, (event, relativePath: string, content: string) => {
     try {
-      saveProjectFileSync(requireActiveProjectPath(), relativePath, content);
+      saveProjectFileSync(projectSession.requireActiveProjectPath(), relativePath, content);
       event.returnValue = true;
     } catch {
       event.returnValue = false;
     }
   });
 
-  ipcMain.handle("project:new-file", async (_event, payload: NewFilePayload) => {
-    await createProjectFile(requireActiveProjectPath(), payload.relativePath, payload.initialContent ?? "");
-    return listProjectFiles(requireActiveProjectPath());
+  ipcMain.handle(IPC_CHANNELS.project.newFile, async (_event, payload: NewFilePayload) => {
+    await createProjectFile(projectSession.requireActiveProjectPath(), payload.relativePath, payload.initialContent ?? "");
+    return listProjectFiles(projectSession.requireActiveProjectPath());
   });
 
-  ipcMain.handle("project:new-folder", async (_event, payload: NewFolderPayload) => {
-    await createProjectFolder(requireActiveProjectPath(), payload.relativePath);
-    return listProjectFolders(requireActiveProjectPath());
+  ipcMain.handle(IPC_CHANNELS.project.newFolder, async (_event, payload: NewFolderPayload) => {
+    await createProjectFolder(projectSession.requireActiveProjectPath(), payload.relativePath);
+    return listProjectFolders(projectSession.requireActiveProjectPath());
   });
 
-  ipcMain.handle("project:delete-entry", async (_event, payload: DeleteEntryPayload) => {
-    const projectPath = requireActiveProjectPath();
+  ipcMain.handle(IPC_CHANNELS.project.deleteEntry, async (_event, payload: DeleteEntryPayload) => {
+    const projectPath = projectSession.requireActiveProjectPath();
     await deleteProjectEntry(projectPath, payload.relativePath, payload.kind);
     return getProjectMetadata(projectPath);
   });
 
-  ipcMain.handle("project:move-file", async (_event, payload: MoveFilePayload) => {
-    const projectPath = requireActiveProjectPath();
+  ipcMain.handle(IPC_CHANNELS.project.moveFile, async (_event, payload: MoveFilePayload) => {
+    const projectPath = projectSession.requireActiveProjectPath();
     const nextFilePath = await moveProjectFile(
       projectPath,
       payload.fromRelativePath,
@@ -519,8 +363,8 @@ function setupIpcHandlers(): void {
     };
   });
 
-  ipcMain.handle("project:rename-entry", async (_event, payload: RenameEntryPayload) => {
-    const projectPath = requireActiveProjectPath();
+  ipcMain.handle(IPC_CHANNELS.project.renameEntry, async (_event, payload: RenameEntryPayload) => {
+    const projectPath = projectSession.requireActiveProjectPath();
     const nextRelativePath = await renameProjectEntry(
       projectPath,
       payload.relativePath,
@@ -534,7 +378,7 @@ function setupIpcHandlers(): void {
     };
   });
 
-  ipcMain.handle("project:show-tree-context-menu", async (event, payload: ShowTreeContextMenuPayload) => {
+  ipcMain.handle(IPC_CHANNELS.project.showTreeContextMenu, async (event, payload: ShowTreeContextMenuPayload) => {
     if (payload.testAction) {
       return payload.testAction;
     }
@@ -647,27 +491,27 @@ function setupIpcHandlers(): void {
     });
   });
 
-  ipcMain.handle("project:update-settings", async (_event, settings: AppSettings) => {
-    const saved = await saveSettings(requireActiveProjectPath(), settings);
+  ipcMain.handle(IPC_CHANNELS.project.updateSettings, async (_event, settings: AppSettings) => {
+    const saved = await saveSettings(projectSession.requireActiveProjectPath(), settings);
     return saved;
   });
 
-  ipcMain.handle("project:set-last-opened-file-path", async (_event, relativePath: string | null) => {
-    return saveLastOpenedFilePath(requireActiveProjectPath(), relativePath);
+  ipcMain.handle(IPC_CHANNELS.project.setLastOpenedFilePath, async (_event, relativePath: string | null) => {
+    return saveLastOpenedFilePath(projectSession.requireActiveProjectPath(), relativePath);
   });
 
-  ipcMain.handle("project:autosave-tick", async (_event, activeSeconds: number) => {
-    return runAutosaveTick(activeSeconds);
+  ipcMain.handle(IPC_CHANNELS.project.autosaveTick, async (_event, activeSeconds: number) => {
+    return projectSession.runAutosaveTick(activeSeconds);
   });
 
-  ipcMain.handle("app:version", () => app.getVersion());
-  ipcMain.handle("app:info", () => getAppInfo());
+  ipcMain.handle(IPC_CHANNELS.app.version, () => app.getVersion());
+  ipcMain.handle(IPC_CHANNELS.app.info, () => getAppInfo());
 }
 
 app.whenReady().then(async () => {
   setupIpcHandlers();
   setupMenu();
-  await restoreLastProjectFromDisk();
+  await projectSession.restoreLastProjectFromDisk();
 
   mainWindow = createMainWindow();
 
@@ -681,13 +525,12 @@ app.whenReady().then(async () => {
 let exitSnapshotDone = false;
 
 app.on("before-quit", (event) => {
-  if (exitSnapshotDone || !activeProjectPath) {
+  if (exitSnapshotDone || !projectSession.hasActiveProject()) {
     return;
   }
 
   event.preventDefault();
-  const projectPath = activeProjectPath;
-  runExitSnapshot(projectPath).finally(() => {
+  projectSession.runExitSnapshot().finally(() => {
     exitSnapshotDone = true;
     app.quit();
   });

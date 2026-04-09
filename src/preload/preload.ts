@@ -1,20 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
-import type {
-  AppInfo,
-  AppSettings,
-  AutosaveTickResult,
-  DeleteEntryPayload,
-  MoveFilePayload,
-  NewFilePayload,
-  NewFolderPayload,
-  ProjectMetadata,
-  RenameEntryPayload,
-  ShowTreeContextMenuPayload,
-  TreeContextAction
-} from "../shared/types";
-
-type Unsubscribe = () => void;
+import { IPC_CHANNELS, type Unsubscribe, type WitApi } from "../shared/ipc";
 type NodePlatform = typeof process.platform;
 
 function createMenuListener(channel: string, listener: () => void): Unsubscribe {
@@ -26,59 +12,44 @@ function createMenuListener(channel: string, listener: () => void): Unsubscribe 
   };
 }
 
-const api = {
+const api: WitApi = {
   getPlatform: (): NodePlatform => process.platform,
-  selectProject: (): Promise<ProjectMetadata | null> => ipcRenderer.invoke("project:select"),
-  getActiveProject: (): Promise<ProjectMetadata | null> => ipcRenderer.invoke("project:get-active"),
-  closeProject: (): Promise<null> => ipcRenderer.invoke("project:close"),
-  exitSnapshot: (): Promise<void> => ipcRenderer.invoke("project:exit-snapshot"),
-  toggleFullscreen: (): Promise<boolean> => ipcRenderer.invoke("window:toggle-fullscreen"),
-  openProjectPath: (projectPath: string): Promise<ProjectMetadata> =>
-    ipcRenderer.invoke("project:open-path", projectPath),
-  openFile: (relativePath: string): Promise<string> =>
-    ipcRenderer.invoke("project:open-file", relativePath),
-  saveFile: (relativePath: string, content: string): Promise<boolean> =>
-    ipcRenderer.invoke("project:save-file", relativePath, content),
-  getWordCount: (): Promise<number> => ipcRenderer.invoke("project:get-word-count"),
-  countPreviewWords: (text: string): Promise<number> => ipcRenderer.invoke("project:count-preview-words", text),
+  selectProject: () => ipcRenderer.invoke(IPC_CHANNELS.project.select),
+  getActiveProject: () => ipcRenderer.invoke(IPC_CHANNELS.project.getActive),
+  closeProject: () => ipcRenderer.invoke(IPC_CHANNELS.project.close),
+  exitSnapshot: () => ipcRenderer.invoke(IPC_CHANNELS.project.exitSnapshot),
+  toggleFullscreen: () => ipcRenderer.invoke(IPC_CHANNELS.window.toggleFullscreen),
+  openProjectPath: (projectPath: string) => ipcRenderer.invoke(IPC_CHANNELS.project.openPath, projectPath),
+  openFile: (relativePath: string) => ipcRenderer.invoke(IPC_CHANNELS.project.openFile, relativePath),
+  saveFile: (relativePath: string, content: string) => ipcRenderer.invoke(IPC_CHANNELS.project.saveFile, relativePath, content),
+  getWordCount: () => ipcRenderer.invoke(IPC_CHANNELS.project.getWordCount),
+  countPreviewWords: (text: string) => ipcRenderer.invoke(IPC_CHANNELS.project.countPreviewWords, text),
   saveFileSync: (relativePath: string, content: string): boolean =>
-    ipcRenderer.sendSync("project:save-file-sync", relativePath, content),
-  newFile: (payload: NewFilePayload): Promise<string[]> => ipcRenderer.invoke("project:new-file", payload),
-  newFolder: (payload: NewFolderPayload): Promise<string[]> =>
-    ipcRenderer.invoke("project:new-folder", payload),
-  deleteEntry: (payload: DeleteEntryPayload): Promise<ProjectMetadata> =>
-    ipcRenderer.invoke("project:delete-entry", payload),
-  renameEntry: (
-    payload: RenameEntryPayload
-  ): Promise<{ nextRelativePath: string; metadata: ProjectMetadata }> =>
-    ipcRenderer.invoke("project:rename-entry", payload),
-  moveFile: (
-    payload: MoveFilePayload
-  ): Promise<{ nextFilePath: string; metadata: ProjectMetadata }> =>
-    ipcRenderer.invoke("project:move-file", payload),
-  showTreeContextMenu: (payload: ShowTreeContextMenuPayload): Promise<TreeContextAction | null> =>
-    ipcRenderer.invoke("project:show-tree-context-menu", payload),
-  updateSettings: (settings: AppSettings): Promise<AppSettings> =>
-    ipcRenderer.invoke("project:update-settings", settings),
-  setLastOpenedFilePath: (relativePath: string | null): Promise<string | null> =>
-    ipcRenderer.invoke("project:set-last-opened-file-path", relativePath),
-  autosaveTick: (activeSeconds: number): Promise<AutosaveTickResult> =>
-    ipcRenderer.invoke("project:autosave-tick", activeSeconds),
-  getAppVersion: (): Promise<string> => ipcRenderer.invoke("app:version"),
-  getAppInfo: (): Promise<AppInfo> => ipcRenderer.invoke("app:info"),
-  onMenuOpenProject: (listener: () => void): Unsubscribe => createMenuListener("menu:open-project", listener),
-  onMenuNewFile: (listener: () => void): Unsubscribe => createMenuListener("menu:new-file", listener),
+    ipcRenderer.sendSync(IPC_CHANNELS.project.saveFileSync, relativePath, content),
+  newFile: (payload) => ipcRenderer.invoke(IPC_CHANNELS.project.newFile, payload),
+  newFolder: (payload) => ipcRenderer.invoke(IPC_CHANNELS.project.newFolder, payload),
+  deleteEntry: (payload) => ipcRenderer.invoke(IPC_CHANNELS.project.deleteEntry, payload),
+  renameEntry: (payload) => ipcRenderer.invoke(IPC_CHANNELS.project.renameEntry, payload),
+  moveFile: (payload) => ipcRenderer.invoke(IPC_CHANNELS.project.moveFile, payload),
+  showTreeContextMenu: (payload) => ipcRenderer.invoke(IPC_CHANNELS.project.showTreeContextMenu, payload),
+  updateSettings: (settings) => ipcRenderer.invoke(IPC_CHANNELS.project.updateSettings, settings),
+  setLastOpenedFilePath: (relativePath: string | null) => ipcRenderer.invoke(IPC_CHANNELS.project.setLastOpenedFilePath, relativePath),
+  autosaveTick: (activeSeconds: number) => ipcRenderer.invoke(IPC_CHANNELS.project.autosaveTick, activeSeconds),
+  getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.app.version),
+  getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.app.info),
+  onMenuOpenProject: (listener: () => void): Unsubscribe => createMenuListener(IPC_CHANNELS.menu.openProject, listener),
+  onMenuNewFile: (listener: () => void): Unsubscribe => createMenuListener(IPC_CHANNELS.menu.newFile, listener),
   onMenuSaveCurrentFile: (listener: () => void): Unsubscribe =>
-    createMenuListener("menu:save-current-file", listener),
-  onMenuZoomInText: (listener: () => void): Unsubscribe => createMenuListener("menu:zoom-in-text", listener),
+    createMenuListener(IPC_CHANNELS.menu.saveCurrentFile, listener),
+  onMenuZoomInText: (listener: () => void): Unsubscribe => createMenuListener(IPC_CHANNELS.menu.zoomInText, listener),
   onMenuZoomOutText: (listener: () => void): Unsubscribe =>
-    createMenuListener("menu:zoom-out-text", listener),
+    createMenuListener(IPC_CHANNELS.menu.zoomOutText, listener),
   onMenuZoomResetText: (listener: () => void): Unsubscribe =>
-    createMenuListener("menu:zoom-reset-text", listener),
+    createMenuListener(IPC_CHANNELS.menu.zoomResetText, listener),
   onMenuToggleSidebar: (listener: () => void): Unsubscribe =>
-    createMenuListener("menu:toggle-sidebar", listener),
+    createMenuListener(IPC_CHANNELS.menu.toggleSidebar, listener),
   onFullscreenChanged: (listener: (isFullscreen: boolean) => void): Unsubscribe => {
-    const channel = "window:fullscreen-changed";
+    const channel = IPC_CHANNELS.window.fullscreenChanged;
     const wrappedListener = (_event: IpcRendererEvent, isFullscreen: boolean) => {
       listener(isFullscreen);
     };
