@@ -197,7 +197,10 @@ function createMainWindow(): BrowserWindow {
 
   const titleBarOptions =
     process.platform === "darwin"
-      ? { titleBarStyle: "hiddenInset" as const }
+      ? {
+          titleBarStyle: "hiddenInset" as const,
+          trafficLightPosition: { x: 16, y: 14 }
+        }
       : {
           titleBarStyle: "hidden" as const,
           titleBarOverlay: {

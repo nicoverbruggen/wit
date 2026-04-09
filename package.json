@@ -8,7 +8,7 @@
   "license": "MIT",
   "scripts": {
     "clean": "rimraf dist release icon.png",
-    "build:icon": "rsvg-convert -w 1024 -h 1024 icon.svg -o icon.png",
+    "build:icon": "node build/build_icon.mjs",
     "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js",
     "copy:renderer": "copyfiles -u 2 \"src/renderer/**/*.html\" \"src/renderer/**/*.css\" \"src/renderer/assets/**/*\" dist/renderer",
     "copy:font": "copyfiles -u 1 \"font/**/*\" dist/renderer/font",
@@ -70,6 +70,7 @@
     "globals": "^15.15.0",
     "playwright": "^1.54.2",
     "rimraf": "^6.0.1",
+    "sharp": "^0.34.5",
     "typescript": "^5.8.3"
   },
   "dependencies": {

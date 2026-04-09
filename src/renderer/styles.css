@@ -834,7 +834,7 @@ progress {
 }
 
 body.platform-darwin .toolbar {
-  padding-left: 86px;
+  padding-left: 96px;
 }
 
 body.platform-win32 .toolbar {
