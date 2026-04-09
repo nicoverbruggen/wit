@@ -657,7 +657,7 @@ progress {
 
 .empty-state {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   padding: 6px;
 }
 

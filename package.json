@@ -23,12 +23,12 @@
     "test:e2e": "npm run build && playwright test",
     "test": "npm run test:core && npm run test:e2e",
     "dist": "npm run build && npm run build:icon && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
-    "dist:mac": "npm run build && npm run build:icon && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac",
+    "dist:mac": "npm run build && npm run build:icon && electron-builder --mac",
     "dist:linux": "npm run build && npm run build:icon && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --linux",
     "dist:win": "npm run build && npm run build:icon && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win"
   },
   "build": {
-    "appId": "com.wit.app",
+    "appId": "be.nicoverbruggen.wit",
     "productName": "Wit",
     "icon": "icon.svg",
     "files": [
@@ -43,7 +43,6 @@
     "mac": {
       "target": "dmg",
       "category": "public.app-category.productivity",
-      "identity": null,
       "icon": "icon.png"
     },
     "linux": {
