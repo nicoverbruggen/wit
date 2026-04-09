@@ -2,6 +2,16 @@ import path from "node:path";
 import { mkdirSync, promises as fs, writeFileSync } from "node:fs";
 import { DEFAULT_SETTINGS } from "../shared/default-settings";
 import type { AppSettings, ProjectMetadata } from "../shared/types";
+import {
+  normalizeDefaultFileExtension,
+  normalizeEditorLineHeight,
+  normalizeEditorMaxWidth,
+  normalizeEditorParagraphSpacing,
+  normalizeEditorZoomPercent,
+  normalizePathInput,
+  normalizeTheme,
+  pathEquals
+} from "../shared/utils";
 import { countWordsInFilesUsingSystemTool } from "./word-count-service";
 import {
   getLatestSnapshotName,
@@ -32,6 +42,7 @@ const DEFAULT_STATS: ProjectStats = {
 const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   settings: DEFAULT_SETTINGS
 };
+const initializedProjects = new Set<string>();
 
 function toProjectRelativePath(root: string, absolutePath: string): string {
   return path.relative(root, absolutePath).split(path.sep).join("/");
@@ -68,45 +79,12 @@ function isTextFile(filePath: string): boolean {
   return TEXT_FILE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 }
 
-function normalizeEditorLineHeight(value: number): number {
-  const bounded = Math.max(1.2, Math.min(2.4, value));
-  return Number(bounded.toFixed(2));
-}
-
-function normalizeEditorMaxWidth(value: number): number {
-  return Math.max(360, Math.min(1200, Math.round(value)));
-}
-
-function normalizeEditorZoomPercent(value: number): number {
-  return Math.max(50, Math.min(250, Math.round(value)));
-}
-
-function normalizeEditorParagraphSpacing(value: unknown): AppSettings["editorParagraphSpacing"] {
-  switch (value) {
-    case "tight":
-    case "loose":
-    case "very-loose":
-      return value;
-    default:
-      return "none";
-  }
-}
-
-function normalizeTheme(value: unknown): AppSettings["theme"] {
-  return value === "dark" ? "dark" : "light";
-}
-
-function normalizeDefaultFileExtension(value: unknown): AppSettings["defaultFileExtension"] {
-  switch (value) {
-    case ".md":
-    case ".wxt":
-      return value;
-    default:
-      return ".txt";
-  }
-}
-
 export async function ensureProjectInitialized(projectPath: string): Promise<void> {
+  const normalizedProjectPath = path.resolve(projectPath);
+  if (initializedProjects.has(normalizedProjectPath)) {
+    return;
+  }
+
   const witDir = getWitDir(projectPath);
   const snapshotDir = path.join(witDir, SNAPSHOT_DIR_NAME);
 
@@ -121,6 +99,7 @@ export async function ensureProjectInitialized(projectPath: string): Promise<voi
   await ensureJsonFile(getConfigPath(projectPath), DEFAULT_PROJECT_CONFIG);
   await ensureJsonFile(getStatsPath(projectPath), DEFAULT_STATS);
   await ensureGitignoreFile(projectPath);
+  initializedProjects.add(normalizedProjectPath);
 }
 
 async function ensureJsonFile<T>(filePath: string, fallback: T): Promise<void> {
@@ -178,7 +157,7 @@ async function walkTextFiles(projectPath: string, currentPath: string, results: 
     const absolutePath = path.join(currentPath, entry.name);
 
     if (entry.isDirectory()) {
-      if (entry.name === ".git" || entry.name === ".wit" || entry.name === "node_modules") {
+      if (shouldIgnoreDirectory(entry.name)) {
         continue;
       }
 
@@ -467,14 +446,6 @@ export async function renameProjectEntry(
   return normalizedNextPath;
 }
 
-function normalizePathInput(input: string): string {
-  return input.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
-}
-
-function pathEquals(left: string, right: string): boolean {
-  return left.toLowerCase() === right.toLowerCase();
-}
-
 export async function loadSettings(projectPath: string): Promise<AppSettings> {
   await ensureProjectInitialized(projectPath);
 
@@ -657,8 +628,18 @@ export async function addWritingSeconds(projectPath: string, seconds: number): P
 export async function getProjectMetadata(projectPath: string): Promise<ProjectMetadata> {
   await ensureProjectInitialized(projectPath);
 
-  const [files, folders, settings, lastOpenedFilePath, hasStoredPath, wordCount, stats, gitRepository, gitRemotes, latestSnapshotCreatedAt] =
-    await Promise.all([
+  const [
+    files,
+    folders,
+    settings,
+    lastOpenedFilePath,
+    hasStoredPath,
+    wordCount,
+    stats,
+    gitRepository,
+    gitRemotes,
+    latestSnapshotCreatedAt
+  ] = await Promise.all([
     listProjectFiles(projectPath),
     listProjectFolders(projectPath),
     loadSettings(projectPath),

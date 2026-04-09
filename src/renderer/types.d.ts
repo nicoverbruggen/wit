@@ -1,4 +1,5 @@
 import type {
+  AppInfo,
   AppSettings,
   AutosaveTickResult,
   DeleteEntryPayload,
@@ -13,12 +14,6 @@ import type {
 
 type Unsubscribe = () => void;
 type NodePlatform = typeof process.platform;
-type AppInfo = {
-  version: string;
-  description: string;
-  author: string;
-  website: string;
-};
 
 type WitApi = {
   getPlatform: () => NodePlatform;

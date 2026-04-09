@@ -35,7 +35,7 @@ function getSnapshotBaseName(snapshotName: string): string | null {
     return snapshotName.slice(0, -SNAPSHOT_FILE_EXTENSION.length);
   }
 
-  return snapshotName;
+  return null;
 }
 
 function parseSnapshotTimestamp(snapshotName: string): Date | null {
@@ -95,12 +95,16 @@ async function writeSnapshotArchive(snapshotDirectory: string, snapshotTimestamp
   await fs.writeFile(snapshotPath, compressed);
 }
 
-async function pruneSnapshots(snapshotDirectory: string, maxSizeBytes: number): Promise<void> {
+async function listSnapshotNames(snapshotDirectory: string): Promise<string[]> {
   const entries = await fs.readdir(snapshotDirectory, { withFileTypes: true });
-  const snapshotNames = entries
+  return entries
     .filter((entry) => parseSnapshotTimestamp(entry.name) !== null)
     .map((entry) => entry.name)
     .sort();
+}
+
+async function pruneSnapshots(snapshotDirectory: string, maxSizeBytes: number): Promise<void> {
+  const snapshotNames = await listSnapshotNames(snapshotDirectory);
 
   if (snapshotNames.length === 0) {
     return;
@@ -240,11 +244,7 @@ async function pushSnapshotToGitRemote(projectPath: string, remoteName: string):
 
 async function getLatestSnapshotTimestamp(snapshotDirectory: string): Promise<Date | null> {
   try {
-    const entries = await fs.readdir(snapshotDirectory, { withFileTypes: true });
-    const names = entries
-      .filter((entry) => parseSnapshotTimestamp(entry.name) !== null)
-      .map((entry) => entry.name)
-      .sort();
+    const names = await listSnapshotNames(snapshotDirectory);
     if (names.length === 0) {
       return null;
     }
@@ -257,12 +257,7 @@ async function getLatestSnapshotTimestamp(snapshotDirectory: string): Promise<Da
 
 export async function getLatestSnapshotName(snapshotDirectory: string): Promise<string | null> {
   try {
-    const entries = await fs.readdir(snapshotDirectory, { withFileTypes: true });
-    const names = entries
-      .filter((entry) => parseSnapshotTimestamp(entry.name) !== null)
-      .map((entry) => entry.name)
-      .sort();
-
+    const names = await listSnapshotNames(snapshotDirectory);
     if (names.length === 0) {
       return null;
     }
@@ -275,12 +270,7 @@ export async function getLatestSnapshotName(snapshotDirectory: string): Promise<
 
 async function getLatestSnapshotFilePaths(snapshotDirectory: string): Promise<string[] | null> {
   try {
-    const entries = await fs.readdir(snapshotDirectory, { withFileTypes: true });
-    const names = entries
-      .filter((entry) => parseSnapshotTimestamp(entry.name) !== null)
-      .map((entry) => entry.name)
-      .sort();
-
+    const names = await listSnapshotNames(snapshotDirectory);
     if (names.length === 0) {
       return null;
     }

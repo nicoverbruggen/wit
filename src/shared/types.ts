@@ -71,3 +71,10 @@ export type ShowTreeContextMenuPayload = {
   y: number;
   testAction?: TreeContextAction;
 };
+
+export type AppInfo = {
+  version: string;
+  description: string;
+  author: string;
+  website: string;
+};

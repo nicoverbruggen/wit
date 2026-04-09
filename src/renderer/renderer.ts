@@ -1,4 +1,14 @@
 import type { AppSettings, ProjectMetadata } from "../shared/types";
+import {
+  normalizeDefaultFileExtension,
+  normalizeEditorLineHeight,
+  normalizeEditorMaxWidth,
+  normalizeEditorParagraphSpacing,
+  normalizeEditorZoomPercent,
+  normalizePathInput,
+  normalizeTheme,
+  pathEquals
+} from "../shared/utils.js";
 import { createCodeMirrorEditor } from "./codemirror-editor-adapter.js";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
@@ -176,14 +186,6 @@ function primaryShortcutLabel(key: string): string {
   return window.witApi.getPlatform() === "darwin" ? `Cmd+${key}` : `Ctrl+${key}`;
 }
 
-function normalizePathInput(input: string): string {
-  return input.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
-}
-
-function pathEquals(left: string, right: string): boolean {
-  return left.toLowerCase() === right.toLowerCase();
-}
-
 function getBaseName(relativePath: string): string {
   const normalized = normalizePathInput(relativePath);
   const parts = normalized.split("/").filter((part) => part.length > 0);
@@ -224,10 +226,6 @@ function withOriginalFileExtension(newName: string, originalPath: string): strin
 function buildSiblingPath(relativePath: string, nextName: string): string {
   const parentPath = getParentFolderPath(relativePath);
   return parentPath ? `${parentPath}/${nextName}` : nextName;
-}
-
-function normalizeEditorMaxWidth(value: number): number {
-  return Math.max(360, Math.min(1200, Math.round(value)));
 }
 
 function formatRelativeElapsed(milliseconds: number): string {
@@ -626,34 +624,8 @@ function setEditorWritable(enabled: boolean): void {
   editor.setDisabled(!enabled);
 }
 
-function normalizeLineHeightValue(value: number): number {
-  const bounded = Math.max(1.2, Math.min(2.4, value));
-  return Number(bounded.toFixed(2));
-}
-
-function normalizeParagraphSpacingValue(value: string): AppSettings["editorParagraphSpacing"] {
-  switch (value) {
-    case "tight":
-    case "loose":
-    case "very-loose":
-      return value;
-    default:
-      return "none";
-  }
-}
-
-function normalizeDefaultFileExtensionValue(value: string): AppSettings["defaultFileExtension"] {
-  switch (value) {
-    case ".md":
-    case ".wxt":
-      return value;
-    default:
-      return ".txt";
-  }
-}
-
 function applyEditorLineHeight(lineHeight: number): void {
-  const normalized = normalizeLineHeightValue(lineHeight);
+  const normalized = normalizeEditorLineHeight(lineHeight);
   editor.setLineHeight(normalized);
   lineHeightValue.textContent = normalized.toFixed(2);
   lineHeightInput.value = normalized.toFixed(2);
@@ -783,7 +755,7 @@ function applyEditorZoom(showStatus = true): void {
 }
 
 function setEditorZoomFromPercent(percent: number, showStatus = true): void {
-  const bounded = Math.max(50, Math.min(250, Math.round(percent)));
+  const bounded = normalizeEditorZoomPercent(percent);
   editorZoomFactor = bounded / 100;
   applyEditorZoom(showStatus);
 
@@ -1173,7 +1145,9 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
       button.type = "button";
       const selectedClass =
         selectedTreeKind === "folder" && selectedTreePath === node.relativePath ? "active" : "";
-      button.className = `tree-item folder-button ${toIndentClass(depth)} ${selectedClass}`;
+      button.className = ["tree-item", "folder-button", toIndentClass(depth), selectedClass]
+        .filter(Boolean)
+        .join(" ");
       button.dataset.relativePath = node.relativePath;
       button.dataset.itemKind = "folder";
       button.title = node.relativePath;
@@ -1260,7 +1234,9 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
       selectedTreeKind === "file" && selectedTreePath === node.relativePath ? "active" : "";
     const currentFileClass = isCurrentFile ? "current-file" : "";
     const rootFileClass = depth === 0 ? "tree-root-file" : "";
-    button.className = `tree-item file-button ${toIndentClass(depth)} ${selectedClass} ${currentFileClass} ${rootFileClass}`;
+    button.className = ["tree-item", "file-button", toIndentClass(depth), selectedClass, currentFileClass, rootFileClass]
+      .filter(Boolean)
+      .join(" ");
     button.dataset.relativePath = node.relativePath;
     button.dataset.itemKind = "file";
     button.draggable = true;
@@ -1322,7 +1298,7 @@ function renderRootTreeItem(): void {
   const selectedClass = selectedTreeKind === "folder" && selectedTreePath === "" ? "active" : "";
 
   button.type = "button";
-  button.className = `tree-item folder-button tree-root-item ${selectedClass}`;
+  button.className = ["tree-item", "folder-button", "tree-root-item", selectedClass].filter(Boolean).join(" ");
   button.dataset.relativePath = "";
   button.dataset.itemKind = "project";
   button.title = project.projectPath;
@@ -1432,7 +1408,7 @@ function resolveNewFilePath(rawInput: string): { relativePath: string | null; er
   }
 
   if (!/\.(txt|md|markdown|text|wxt)$/i.test(relativePath)) {
-    const defaultExtension = normalizeDefaultFileExtensionValue(project.settings.defaultFileExtension);
+    const defaultExtension = normalizeDefaultFileExtension(project.settings.defaultFileExtension);
     relativePath = `${relativePath}${defaultExtension}`;
   }
 
@@ -1504,19 +1480,19 @@ function renderStatusFooter(): void {
   writingTimeLabel.hidden = false;
   snapshotLabel.hidden = false;
 
-  const totalWords = project?.wordCount ?? 0;
-  const totalWritingSeconds = project?.totalWritingSeconds ?? 0;
+  const totalWords = project.wordCount;
+  const totalWritingSeconds = project.totalWritingSeconds;
 
   wordCountLabel.textContent = `Words: ${totalWords.toLocaleString()}`;
   writingTimeLabel.textContent = `Writing: ${formatWritingTime(totalWritingSeconds)}`;
 
-  if (project && !project.settings.showWordCount) {
+  if (!project.settings.showWordCount) {
     wordCountLabel.style.display = "none";
   } else {
     wordCountLabel.style.display = "inline";
   }
 
-  if (project && !project.settings.showWritingTime) {
+  if (!project.settings.showWritingTime) {
     writingTimeLabel.style.display = "none";
   } else {
     writingTimeLabel.style.display = "inline";
@@ -2378,7 +2354,7 @@ async function initialize(): Promise<void> {
   populateFontSelect(DEFAULT_EDITOR_FONT);
   applyTheme("light");
   applyEditorLineHeight(Number.parseFloat(lineHeightInput.value));
-  applyEditorParagraphSpacing(normalizeParagraphSpacingValue(paragraphSpacingSelect.value));
+  applyEditorParagraphSpacing(normalizeEditorParagraphSpacing(paragraphSpacingSelect.value));
   applyEditorMaxWidth(Number.parseInt(editorWidthInput.value, 10));
   applyEditorZoom(false);
   applyEditorFont(DEFAULT_EDITOR_FONT);
@@ -2589,7 +2565,7 @@ smartQuotesInput.addEventListener("change", () => {
 });
 
 defaultFileExtensionSelect.addEventListener("change", () => {
-  const selectedExtension = normalizeDefaultFileExtensionValue(defaultFileExtensionSelect.value);
+  const selectedExtension = normalizeDefaultFileExtension(defaultFileExtensionSelect.value);
   defaultFileExtensionSelect.value = selectedExtension;
   void persistSettings({ defaultFileExtension: selectedExtension });
 });
@@ -2632,27 +2608,26 @@ lineHeightInput.addEventListener("change", () => {
   }
 
   applyEditorLineHeight(parsed);
-  void persistSettings({ editorLineHeight: normalizeLineHeightValue(parsed) });
+  void persistSettings({ editorLineHeight: normalizeEditorLineHeight(parsed) });
 });
 
 paragraphSpacingSelect.addEventListener("change", () => {
-  const selectedSpacing = normalizeParagraphSpacingValue(paragraphSpacingSelect.value);
+  const selectedSpacing = normalizeEditorParagraphSpacing(paragraphSpacingSelect.value);
   applyEditorParagraphSpacing(selectedSpacing);
   refreshEditorLayout();
   void persistSettings({ editorParagraphSpacing: selectedSpacing });
 });
 
 editorWidthInput.addEventListener("input", () => {
-    applyEditorMaxWidth(Number.parseInt(editorWidthInput.value, 10));
-    void persistSettings({ editorMaxWidthPx: Number.parseInt(editorWidthInput.value, 10) });
-  });
+  applyEditorMaxWidth(Number.parseInt(editorWidthInput.value, 10));
+});
 
-  fontSelect.addEventListener("change", () => {
-    const selectedFont = fontSelect.value;
-    applyEditorFont(selectedFont);
-    refreshEditorLayout();
-    void persistSettings({ editorFontFamily: selectedFont });
-  });
+fontSelect.addEventListener("change", () => {
+  const selectedFont = fontSelect.value;
+  applyEditorFont(selectedFont);
+  refreshEditorLayout();
+  void persistSettings({ editorFontFamily: selectedFont });
+});
 
 editorWidthInput.addEventListener("change", () => {
   const parsed = Number.parseInt(editorWidthInput.value, 10);
@@ -2677,7 +2652,7 @@ textZoomInput.addEventListener("input", () => {
 });
 
 themeSelect.addEventListener("change", () => {
-  const selectedTheme = themeSelect.value === "dark" ? "dark" : "light";
+  const selectedTheme = normalizeTheme(themeSelect.value);
   applyTheme(selectedTheme);
   void persistSettings({ theme: selectedTheme });
 });

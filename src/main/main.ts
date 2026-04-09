@@ -34,6 +34,7 @@ import {
 import { createSnapshot } from "./snapshot-service";
 import { countWordsUsingSystemTool } from "./word-count-service";
 import type {
+  AppInfo,
   AppSettings,
   AutosaveTickResult,
   DeleteEntryPayload,
@@ -49,13 +50,6 @@ import type {
 let mainWindow: BrowserWindow | null = null;
 let activeProjectPath: string | null = null;
 const LAST_PROJECT_STATE_FILE_NAME = "last-project.json";
-
-type AppInfo = {
-  version: string;
-  description: string;
-  author: string;
-  website: string;
-};
 
 function getLastProjectStatePath(): string {
   return path.join(app.getPath("userData"), LAST_PROJECT_STATE_FILE_NAME);
@@ -129,6 +123,25 @@ async function getAppInfo(): Promise<AppInfo> {
       website: ""
     };
   }
+}
+
+function buildSnapshotOptions(
+  projectPath: string,
+  settings: AppSettings,
+  files: string[],
+  gitRepository: boolean,
+  commitMessage: string
+): Parameters<typeof createSnapshot>[0] {
+  return {
+    projectPath,
+    snapshotDirectory: getSnapshotDirectory(projectPath),
+    filePaths: files,
+    snapshotMaxSizeMb: settings.snapshotMaxSizeMb,
+    createGitCommit: settings.gitSnapshots && gitRepository,
+    pushGitCommit: settings.gitSnapshots && settings.gitPushRemote !== null && gitRepository,
+    gitPushRemote: settings.gitPushRemote,
+    commitMessage
+  };
 }
 
 function buildEditableContextMenuTemplate(params: ContextMenuParams): MenuItemConstructorOptions[] {
@@ -361,16 +374,9 @@ async function runAutosaveTick(activeSeconds: number): Promise<AutosaveTickResul
     getGitRepositoryStatus(projectPath)
   ]);
 
-  const snapshotCreatedAt = await createSnapshot({
-    projectPath,
-    snapshotDirectory: getSnapshotDirectory(projectPath),
-    filePaths: files,
-    snapshotMaxSizeMb: settings.snapshotMaxSizeMb,
-    createGitCommit: settings.gitSnapshots && gitRepository,
-    pushGitCommit: settings.gitSnapshots && settings.gitPushRemote !== null && gitRepository,
-    gitPushRemote: settings.gitPushRemote,
-    commitMessage: "automatic snapshot"
-  });
+  const snapshotCreatedAt = await createSnapshot(
+    buildSnapshotOptions(projectPath, settings, files, gitRepository, "automatic snapshot")
+  );
 
   const [wordCount, stats] = await Promise.all([
     calculateTotalWordCount(projectPath),
@@ -392,16 +398,7 @@ async function runExitSnapshot(projectPath: string): Promise<void> {
       getGitRepositoryStatus(projectPath)
     ]);
 
-    await createSnapshot({
-      projectPath,
-      snapshotDirectory: getSnapshotDirectory(projectPath),
-      filePaths: files,
-      snapshotMaxSizeMb: settings.snapshotMaxSizeMb,
-      createGitCommit: settings.gitSnapshots && gitRepository,
-      pushGitCommit: settings.gitSnapshots && settings.gitPushRemote !== null && gitRepository,
-      gitPushRemote: settings.gitPushRemote,
-      commitMessage: "exit snapshot"
-    });
+    await createSnapshot(buildSnapshotOptions(projectPath, settings, files, gitRepository, "exit snapshot"));
   } catch (error) {
     console.warn("Exit snapshot failed.", error);
   }

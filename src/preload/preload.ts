@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import type {
+  AppInfo,
   AppSettings,
   AutosaveTickResult,
   DeleteEntryPayload,
@@ -15,12 +16,15 @@ import type {
 
 type Unsubscribe = () => void;
 type NodePlatform = typeof process.platform;
-type AppInfo = {
-  version: string;
-  description: string;
-  author: string;
-  website: string;
-};
+
+function createMenuListener(channel: string, listener: () => void): Unsubscribe {
+  const wrappedListener = () => listener();
+
+  ipcRenderer.on(channel, wrappedListener);
+  return () => {
+    ipcRenderer.removeListener(channel, wrappedListener);
+  };
+}
 
 const api = {
   getPlatform: (): NodePlatform => process.platform,
@@ -62,69 +66,17 @@ const api = {
     ipcRenderer.invoke("project:autosave-tick", activeSeconds),
   getAppVersion: (): Promise<string> => ipcRenderer.invoke("app:version"),
   getAppInfo: (): Promise<AppInfo> => ipcRenderer.invoke("app:info"),
-  onMenuOpenProject: (listener: () => void): Unsubscribe => {
-    const channel = "menu:open-project";
-    const wrappedListener = () => listener();
-
-    ipcRenderer.on(channel, wrappedListener);
-    return () => {
-      ipcRenderer.removeListener(channel, wrappedListener);
-    };
-  },
-  onMenuNewFile: (listener: () => void): Unsubscribe => {
-    const channel = "menu:new-file";
-    const wrappedListener = () => listener();
-
-    ipcRenderer.on(channel, wrappedListener);
-    return () => {
-      ipcRenderer.removeListener(channel, wrappedListener);
-    };
-  },
-  onMenuSaveCurrentFile: (listener: () => void): Unsubscribe => {
-    const channel = "menu:save-current-file";
-    const wrappedListener = () => listener();
-
-    ipcRenderer.on(channel, wrappedListener);
-    return () => {
-      ipcRenderer.removeListener(channel, wrappedListener);
-    };
-  },
-  onMenuZoomInText: (listener: () => void): Unsubscribe => {
-    const channel = "menu:zoom-in-text";
-    const wrappedListener = () => listener();
-
-    ipcRenderer.on(channel, wrappedListener);
-    return () => {
-      ipcRenderer.removeListener(channel, wrappedListener);
-    };
-  },
-  onMenuZoomOutText: (listener: () => void): Unsubscribe => {
-    const channel = "menu:zoom-out-text";
-    const wrappedListener = () => listener();
-
-    ipcRenderer.on(channel, wrappedListener);
-    return () => {
-      ipcRenderer.removeListener(channel, wrappedListener);
-    };
-  },
-  onMenuZoomResetText: (listener: () => void): Unsubscribe => {
-    const channel = "menu:zoom-reset-text";
-    const wrappedListener = () => listener();
-
-    ipcRenderer.on(channel, wrappedListener);
-    return () => {
-      ipcRenderer.removeListener(channel, wrappedListener);
-    };
-  },
-  onMenuToggleSidebar: (listener: () => void): Unsubscribe => {
-    const channel = "menu:toggle-sidebar";
-    const wrappedListener = () => listener();
-
-    ipcRenderer.on(channel, wrappedListener);
-    return () => {
-      ipcRenderer.removeListener(channel, wrappedListener);
-    };
-  },
+  onMenuOpenProject: (listener: () => void): Unsubscribe => createMenuListener("menu:open-project", listener),
+  onMenuNewFile: (listener: () => void): Unsubscribe => createMenuListener("menu:new-file", listener),
+  onMenuSaveCurrentFile: (listener: () => void): Unsubscribe =>
+    createMenuListener("menu:save-current-file", listener),
+  onMenuZoomInText: (listener: () => void): Unsubscribe => createMenuListener("menu:zoom-in-text", listener),
+  onMenuZoomOutText: (listener: () => void): Unsubscribe =>
+    createMenuListener("menu:zoom-out-text", listener),
+  onMenuZoomResetText: (listener: () => void): Unsubscribe =>
+    createMenuListener("menu:zoom-reset-text", listener),
+  onMenuToggleSidebar: (listener: () => void): Unsubscribe =>
+    createMenuListener("menu:toggle-sidebar", listener),
   onFullscreenChanged: (listener: (isFullscreen: boolean) => void): Unsubscribe => {
     const channel = "window:fullscreen-changed";
     const wrappedListener = (_event: IpcRendererEvent, isFullscreen: boolean) => {
