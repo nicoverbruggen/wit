@@ -9,6 +9,16 @@ import {
   normalizeTheme,
   pathEquals
 } from "../shared/utils.js";
+import { formatRelativeElapsed, formatWritingTime, parseSnapshotTimestamp } from "./formatting.js";
+import {
+  buildSiblingPath,
+  getBaseName,
+  getDropDestinationLabel,
+  getParentFolderPath,
+  withOriginalFileExtension
+} from "./path-utils.js";
+import { currentFileWillBeDeleted, resolveNewFilePath, resolveNewFolderPath } from "./project-path-rules.js";
+import { buildProjectTree, type TreeNode } from "./tree-model.js";
 import { createCodeMirrorEditor } from "./codemirror-editor-adapter.js";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
@@ -106,20 +116,6 @@ const DEFAULT_SIDEBAR_WIDTH_PX = 270;
 const BUILT_IN_EDITOR_FONTS = ["Sourcerer", "Readerly", "iA Writer Mono", "iA Writer Duo", "iA Writer Quattro"] as const;
 const DEFAULT_EDITOR_FONT = "Readerly";
 
-type FolderNode = {
-  kind: "folder";
-  name: string;
-  relativePath: string;
-  children: TreeNode[];
-};
-
-type FileNode = {
-  kind: "file";
-  name: string;
-  relativePath: string;
-};
-
-type TreeNode = FolderNode | FileNode;
 type SelectedTreeKind = "file" | "folder";
 type SettingsTabKey = "writing" | "editor" | "autosave" | "about";
 
@@ -171,109 +167,8 @@ type TestWindowWithContextAction = Window & {
   __WIT_TEST_TREE_ACTION?: TreeContextAction;
 };
 
-function formatWritingTime(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-
-  return `${minutes}m`;
-}
-
 function primaryShortcutLabel(key: string): string {
   return window.witApi.getPlatform() === "darwin" ? `Cmd+${key}` : `Ctrl+${key}`;
-}
-
-function getBaseName(relativePath: string): string {
-  const normalized = normalizePathInput(relativePath);
-  const parts = normalized.split("/").filter((part) => part.length > 0);
-  return parts.at(-1) ?? normalized;
-}
-
-function getParentFolderPath(relativePath: string): string | null {
-  const normalized = normalizePathInput(relativePath);
-  const slashIndex = normalized.lastIndexOf("/");
-  if (slashIndex < 0) {
-    return null;
-  }
-
-  return normalized.slice(0, slashIndex);
-}
-
-function getDropDestinationLabel(relativeFolderPath: string): string {
-  if (relativeFolderPath.length > 0) {
-    return relativeFolderPath;
-  }
-
-  return "project root";
-}
-
-function withOriginalFileExtension(newName: string, originalPath: string): string {
-  const originalBaseName = getBaseName(originalPath);
-  const extensionIndex = originalBaseName.lastIndexOf(".");
-  const hasExtension = extensionIndex > 0 && extensionIndex < originalBaseName.length - 1;
-  const newNameHasExtension = /\.[^./\\]+$/.test(newName);
-
-  if (!hasExtension || newNameHasExtension) {
-    return newName;
-  }
-
-  return `${newName}${originalBaseName.slice(extensionIndex)}`;
-}
-
-function buildSiblingPath(relativePath: string, nextName: string): string {
-  const parentPath = getParentFolderPath(relativePath);
-  return parentPath ? `${parentPath}/${nextName}` : nextName;
-}
-
-function formatRelativeElapsed(milliseconds: number): string {
-  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
-
-  if (seconds < 10) {
-    return "just now";
-  }
-
-  if (seconds < 60) {
-    return `${seconds}s ago`;
-  }
-
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) {
-    return `${minutes}m ago`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours}h ago`;
-  }
-
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-function parseSnapshotTimestamp(snapshotName: string): number | null {
-  const matches = snapshotName.match(
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})(?:-(\d{3}))?Z$/
-  );
-
-  if (!matches) {
-    return null;
-  }
-
-  const [, year, month, day, hour, minute, second, millisecond] = matches;
-  const timestamp = Date.UTC(
-    Number.parseInt(year, 10),
-    Number.parseInt(month, 10) - 1,
-    Number.parseInt(day, 10),
-    Number.parseInt(hour, 10),
-    Number.parseInt(minute, 10),
-    Number.parseInt(second, 10),
-    Number.parseInt(millisecond ?? "0", 10)
-  );
-
-  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function setStatus(message: string, clearAfterMs?: number): void {
@@ -1019,119 +914,6 @@ function toIndentClass(depth: number): string {
   return `tree-indent-${Math.min(depth, MAX_TREE_INDENT)}`;
 }
 
-function compareTreeNodes(left: TreeNode, right: TreeNode): number {
-  if (left.kind !== right.kind) {
-    return left.kind === "folder" ? -1 : 1;
-  }
-
-  return left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
-}
-
-function insertPathIntoTree(root: FolderNode, filePath: string): void {
-  const parts = filePath.split("/").filter((part) => part.length > 0);
-  if (parts.length === 0) {
-    return;
-  }
-
-  let parent = root;
-  let accumulatedPath = "";
-
-  for (let index = 0; index < parts.length; index += 1) {
-    const part = parts[index];
-    accumulatedPath = accumulatedPath ? `${accumulatedPath}/${part}` : part;
-    const isLeaf = index === parts.length - 1;
-
-    if (isLeaf) {
-      parent.children.push({
-        kind: "file",
-        name: part,
-        relativePath: accumulatedPath
-      });
-      continue;
-    }
-
-    let folder = parent.children.find(
-      (child): child is FolderNode => child.kind === "folder" && child.relativePath === accumulatedPath
-    );
-
-    if (!folder) {
-      folder = {
-        kind: "folder",
-        name: part,
-        relativePath: accumulatedPath,
-        children: []
-      };
-      parent.children.push(folder);
-    }
-
-    parent = folder;
-  }
-}
-
-function insertFolderIntoTree(root: FolderNode, folderPath: string): void {
-  const parts = folderPath.split("/").filter((part) => part.length > 0);
-  if (parts.length === 0) {
-    return;
-  }
-
-  let parent = root;
-  let accumulatedPath = "";
-
-  for (const part of parts) {
-    accumulatedPath = accumulatedPath ? `${accumulatedPath}/${part}` : part;
-
-    let folder = parent.children.find(
-      (child): child is FolderNode => child.kind === "folder" && child.relativePath === accumulatedPath
-    );
-
-    if (!folder) {
-      folder = {
-        kind: "folder",
-        name: part,
-        relativePath: accumulatedPath,
-        children: []
-      };
-      parent.children.push(folder);
-    }
-
-    parent = folder;
-  }
-}
-
-function sortTree(nodes: TreeNode[]): TreeNode[] {
-  const sorted = [...nodes].sort(compareTreeNodes);
-
-  return sorted.map((node) => {
-    if (node.kind === "folder") {
-      return {
-        ...node,
-        children: sortTree(node.children)
-      };
-    }
-
-    return node;
-  });
-}
-
-function buildProjectTree(paths: string[], folders: string[]): TreeNode[] {
-  const root: FolderNode = {
-    kind: "folder",
-    name: "",
-    relativePath: "",
-    children: []
-  };
-
-  for (const folderPath of folders) {
-    insertFolderIntoTree(root, folderPath);
-  }
-
-  for (const filePath of paths) {
-    insertPathIntoTree(root, filePath);
-  }
-
-  return sortTree(root.children);
-}
-
 function renderTreeNodes(nodes: TreeNode[], depth: number): void {
   for (const node of nodes) {
     if (node.kind === "folder") {
@@ -1388,79 +1170,14 @@ function getSelectedFolderPath(): string | null {
   return null;
 }
 
-function resolveNewFilePath(rawInput: string): { relativePath: string | null; error: string | null } {
-  if (!project) {
-    return { relativePath: null, error: "Open a project first." };
-  }
-
-  let relativePath = normalizePathInput(rawInput);
-  if (!relativePath) {
-    return { relativePath: null, error: "File name cannot be empty." };
-  }
-
-  if (relativePath.endsWith("/")) {
-    return { relativePath: null, error: "File path cannot end with '/'." };
-  }
-
-  const selectedFolder = getSelectedFolderPath();
-  if (selectedFolder && !relativePath.includes("/")) {
-    relativePath = `${selectedFolder}/${relativePath}`;
-  }
-
-  if (!/\.(txt|md|markdown|text|wxt)$/i.test(relativePath)) {
-    const defaultExtension = normalizeDefaultFileExtension(project.settings.defaultFileExtension);
-    relativePath = `${relativePath}${defaultExtension}`;
-  }
-
-  const existingFile = project.files.find((filePath) => pathEquals(filePath, relativePath));
-  if (existingFile) {
-    return { relativePath: null, error: "A file with that path already exists." };
-  }
-
-  const existingFolder = project.folders.find((folderPath) => pathEquals(folderPath, relativePath));
-  if (existingFolder) {
-    return { relativePath: null, error: "A folder already exists at that path." };
-  }
-
-  return { relativePath, error: null };
-}
-
-function resolveNewFolderPath(rawInput: string): { relativePath: string | null; error: string | null } {
-  if (!project) {
-    return { relativePath: null, error: "Open a project first." };
-  }
-
-  let relativePath = normalizePathInput(rawInput);
-  if (!relativePath) {
-    return { relativePath: null, error: "Folder name cannot be empty." };
-  }
-
-  const selectedFolder = getSelectedFolderPath();
-  if (selectedFolder && !relativePath.includes("/")) {
-    relativePath = `${selectedFolder}/${relativePath}`;
-  }
-
-  const existingFolder = project.folders.find((folderPath) => pathEquals(folderPath, relativePath));
-  if (existingFolder) {
-    return { relativePath: null, error: "A folder with that path already exists." };
-  }
-
-  const existingFile = project.files.find((filePath) => pathEquals(filePath, relativePath));
-  if (existingFile) {
-    return { relativePath: null, error: "A file already exists at that path." };
-  }
-
-  return { relativePath, error: null };
-}
-
 function syncNewFileDialogValidation(): void {
-  const validation = resolveNewFilePath(newFilePathInput.value);
+  const validation = resolveNewFilePath(project, newFilePathInput.value, getSelectedFolderPath());
   newFileError.textContent = validation.error ?? "";
   newFileCreateButton.disabled = validation.relativePath === null;
 }
 
 function syncNewFolderDialogValidation(): void {
-  const validation = resolveNewFolderPath(newFolderPathInput.value);
+  const validation = resolveNewFolderPath(project, newFolderPathInput.value, getSelectedFolderPath());
   newFolderError.textContent = validation.error ?? "";
   newFolderCreateButton.disabled = validation.relativePath === null;
 }
@@ -1995,7 +1712,7 @@ async function createNewFile(): Promise<void> {
     return;
   }
 
-  const validation = resolveNewFilePath(proposedName);
+  const validation = resolveNewFilePath(project, proposedName, getSelectedFolderPath());
   if (!validation.relativePath) {
     setStatus(validation.error ?? "Could not create file.");
     return;
@@ -2024,7 +1741,7 @@ async function createNewFolder(): Promise<void> {
     return;
   }
 
-  const validation = resolveNewFolderPath(proposedPath);
+  const validation = resolveNewFolderPath(project, proposedPath, getSelectedFolderPath());
   if (!validation.relativePath) {
     setStatus(validation.error ?? "Could not create folder.");
     return;
@@ -2040,18 +1757,6 @@ async function createNewFolder(): Promise<void> {
   } catch {
     setStatus("Could not create folder. Check the path and try again.");
   }
-}
-
-function currentFileWillBeDeleted(relativePath: string, kind: SelectedTreeKind): boolean {
-  if (!currentFilePath) {
-    return false;
-  }
-
-  if (kind === "file") {
-    return pathEquals(currentFilePath, relativePath);
-  }
-
-  return pathEquals(currentFilePath, relativePath) || currentFilePath.startsWith(`${relativePath}/`);
 }
 
 function applyProjectMetadataAfterMutation(metadata: ProjectMetadata): void {
@@ -2085,7 +1790,7 @@ async function deleteEntryByPath(relativePath: string, kind: SelectedTreeKind): 
 
   try {
     const metadata = await window.witApi.deleteEntry({ relativePath, kind });
-    const deletingActiveFile = currentFileWillBeDeleted(relativePath, kind);
+    const deletingActiveFile = currentFileWillBeDeleted(currentFilePath, relativePath, kind);
     const deletingRememberedFile =
       project.lastOpenedFilePath !== null &&
       (kind === "file"

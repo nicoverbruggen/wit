@@ -259,7 +259,7 @@ function setupMenu(): void {
 }
 
 const projectSession = createProjectSessionService({
-  userDataPath: app.getPath("userData")
+  getUserDataPath: () => app.getPath("userData")
 });
 
 function setupIpcHandlers(): void {

@@ -17,31 +17,31 @@ import type { AppSettings, AutosaveTickResult, ProjectMetadata } from "../shared
 const LAST_PROJECT_STATE_FILE_NAME = "last-project.json";
 
 type ProjectSessionServiceOptions = {
-  userDataPath: string;
+  getUserDataPath: () => string;
 };
 
-function getLastProjectStatePath(userDataPath: string): string {
-  return path.join(userDataPath, LAST_PROJECT_STATE_FILE_NAME);
+function getLastProjectStatePath(getUserDataPath: () => string): string {
+  return path.join(getUserDataPath(), LAST_PROJECT_STATE_FILE_NAME);
 }
 
-async function saveLastProjectPath(userDataPath: string, projectPath: string): Promise<void> {
-  const statePath = getLastProjectStatePath(userDataPath);
+async function saveLastProjectPath(getUserDataPath: () => string, projectPath: string): Promise<void> {
+  const statePath = getLastProjectStatePath(getUserDataPath);
   const payload = { projectPath };
   await fs.mkdir(path.dirname(statePath), { recursive: true });
   await fs.writeFile(statePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
-async function clearLastProjectPath(userDataPath: string): Promise<void> {
+async function clearLastProjectPath(getUserDataPath: () => string): Promise<void> {
   try {
-    await fs.rm(getLastProjectStatePath(userDataPath), { force: true });
+    await fs.rm(getLastProjectStatePath(getUserDataPath), { force: true });
   } catch {
     // Ignore best-effort cleanup failures.
   }
 }
 
-async function loadLastProjectPath(userDataPath: string): Promise<string | null> {
+async function loadLastProjectPath(getUserDataPath: () => string): Promise<string | null> {
   try {
-    const raw = await fs.readFile(getLastProjectStatePath(userDataPath), "utf8");
+    const raw = await fs.readFile(getLastProjectStatePath(getUserDataPath), "utf8");
     const parsed = JSON.parse(raw) as { projectPath?: unknown };
 
     if (typeof parsed.projectPath === "string" && parsed.projectPath.trim().length > 0) {
@@ -87,7 +87,7 @@ export function createProjectSessionService(options: ProjectSessionServiceOption
   async function openProject(projectPath: string): Promise<ProjectMetadata> {
     await ensureProjectInitialized(projectPath);
     activeProjectPath = projectPath;
-    void saveLastProjectPath(options.userDataPath, projectPath).catch(() => {
+    void saveLastProjectPath(options.getUserDataPath, projectPath).catch(() => {
       // Non-blocking persistence; keep project opening even if write fails.
     });
     return getProjectMetadata(projectPath);
@@ -107,12 +107,12 @@ export function createProjectSessionService(options: ProjectSessionServiceOption
     }
 
     activeProjectPath = null;
-    await clearLastProjectPath(options.userDataPath);
+    await clearLastProjectPath(options.getUserDataPath);
     return null;
   }
 
   async function restoreLastProjectFromDisk(): Promise<void> {
-    const lastProjectPath = await loadLastProjectPath(options.userDataPath);
+    const lastProjectPath = await loadLastProjectPath(options.getUserDataPath);
     if (!lastProjectPath) {
       return;
     }
@@ -120,18 +120,18 @@ export function createProjectSessionService(options: ProjectSessionServiceOption
     try {
       const stats = await fs.stat(lastProjectPath);
       if (!stats.isDirectory()) {
-        await clearLastProjectPath(options.userDataPath);
+        await clearLastProjectPath(options.getUserDataPath);
         return;
       }
     } catch {
-      await clearLastProjectPath(options.userDataPath);
+      await clearLastProjectPath(options.getUserDataPath);
       return;
     }
 
     try {
       await openProject(lastProjectPath);
     } catch {
-      await clearLastProjectPath(options.userDataPath);
+      await clearLastProjectPath(options.getUserDataPath);
     }
   }
 
