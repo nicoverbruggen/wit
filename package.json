@@ -1,6 +1,6 @@
 {
   "name": "wit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Minimalist desktop writing app for plain text projects.",
   "main": "dist/main/main.js",
   "author": "Nico Verbruggen",

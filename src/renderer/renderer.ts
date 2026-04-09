@@ -1,4 +1,5 @@
 import type { AppSettings, ProjectMetadata } from "../shared/types";
+import { createTextareaEditor } from "./editor-adapter.js";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
 const openProjectWrap = document.querySelector(".open-project-wrap") as HTMLElement;
@@ -47,7 +48,8 @@ const renameEntryInput = document.getElementById("rename-entry-input") as HTMLIn
 const renameEntryCancelButton = document.getElementById("rename-entry-cancel-btn") as HTMLButtonElement;
 const renameEntryConfirmButton = document.getElementById("rename-entry-confirm-btn") as HTMLButtonElement;
 const renameEntryError = document.getElementById("rename-entry-error") as HTMLParagraphElement;
-const editor = document.getElementById("editor") as HTMLTextAreaElement;
+const editorElement = document.getElementById("editor") as HTMLTextAreaElement;
+const editor = createTextareaEditor(editorElement);
 const projectPathLabel = document.getElementById("project-path") as HTMLSpanElement;
 const activeFileLabel = document.getElementById("active-file-label") as HTMLSpanElement;
 const dirtyIndicator = document.getElementById("dirty-indicator") as HTMLSpanElement;
@@ -602,7 +604,7 @@ async function loadAboutInfo(): Promise<void> {
 }
 
 function setEditorWritable(enabled: boolean): void {
-  editor.disabled = !enabled;
+  editor.setDisabled(!enabled);
 }
 
 function normalizeLineHeightValue(value: number): number {
@@ -648,7 +650,7 @@ function refreshEditorLineHeight(): void {
   const effectiveLineHeight = normalizeLineHeightValue(
     currentEditorLineHeight + getParagraphSpacingLineHeightBoost(currentEditorParagraphSpacing)
   );
-  editor.style.lineHeight = String(effectiveLineHeight);
+  editor.setLineHeight(effectiveLineHeight);
 }
 
 function applyEditorLineHeight(lineHeight: number): void {
@@ -674,7 +676,7 @@ function applyEditorMaxWidth(editorWidth: number): void {
 }
 
 function applyEditorFont(fontFamily: string): void {
-  editor.style.fontFamily = `"${fontFamily}", "Palatino", "Times New Roman", serif`;
+  editor.setFontFamily(`"${fontFamily}", "Palatino", "Times New Roman", serif`);
 }
 
 function populateFontSelect(selectedFont: string): void {
@@ -757,7 +759,7 @@ function ensureEditorBaseFontSize(): void {
     return;
   }
 
-  const computedSize = Number.parseFloat(window.getComputedStyle(editor).fontSize);
+  const computedSize = editor.getComputedFontSize();
   editorBaseFontSizePx = Number.isFinite(computedSize) && computedSize > 0 ? computedSize : 20;
 }
 
@@ -775,7 +777,7 @@ function syncZoomControlWithState(): void {
 function applyEditorZoom(showStatus = true): void {
   ensureEditorBaseFontSize();
   const nextFontSize = Number((editorBaseFontSizePx * editorZoomFactor).toFixed(2));
-  editor.style.fontSize = `${nextFontSize}px`;
+  editor.setFontSize(nextFontSize);
   syncZoomControlWithState();
 
   if (showStatus) {
@@ -878,9 +880,9 @@ function resetActiveFile(): void {
   activeFileLabel.removeAttribute("title");
 
   suppressDirtyEvents = true;
-  editor.value = "";
+  editor.setValue("");
   suppressDirtyEvents = false;
-  editor.placeholder = DEFAULT_EDITOR_PLACEHOLDER;
+  editor.setPlaceholder(DEFAULT_EDITOR_PLACEHOLDER);
 
   setDirty(false);
   setEditorWritable(false);
@@ -1553,7 +1555,7 @@ function scheduleLiveWordCountRefresh(): void {
 
   cancelPendingLiveWordCount();
 
-  const contentSnapshot = editor.value;
+  const contentSnapshot = editor.getValue();
   const filePathSnapshot = currentFilePath;
   const requestToken = liveWordCountRequestToken;
 
@@ -1592,9 +1594,10 @@ async function persistCurrentFile(showStatus = true): Promise<boolean> {
 
   try {
     cancelPendingLiveWordCount();
-    await window.witApi.saveFile(currentFilePath, editor.value);
+    const content = editor.getValue();
+    await window.witApi.saveFile(currentFilePath, content);
     project.wordCount = await window.witApi.getWordCount();
-    currentFileWordCount = await window.witApi.countPreviewWords(editor.value);
+    currentFileWordCount = await window.witApi.countPreviewWords(content);
     setDirty(false);
     renderStatusFooter();
 
@@ -1614,7 +1617,7 @@ function saveCurrentFileSynchronously(): void {
     return;
   }
 
-  const saved = window.witApi.saveFileSync(currentFilePath, editor.value);
+  const saved = window.witApi.saveFileSync(currentFilePath, editor.getValue());
   if (saved) {
     setDirty(false);
   }
@@ -1635,7 +1638,7 @@ async function openFile(relativePath: string): Promise<void> {
     const content = await window.witApi.openFile(relativePath);
 
     suppressDirtyEvents = true;
-    editor.value = content;
+    editor.setValue(content);
     suppressDirtyEvents = false;
 
     currentFilePath = relativePath;
@@ -1644,7 +1647,7 @@ async function openFile(relativePath: string): Promise<void> {
     currentFileWordCount = await window.witApi.countPreviewWords(content);
     activeFileLabel.textContent = relativePath;
     activeFileLabel.title = relativePath;
-    editor.placeholder = "";
+    editor.setPlaceholder("");
     setDirty(false);
     setSidebarFaded(false);
     renderFileList();
@@ -2158,9 +2161,8 @@ async function persistSettings(update: Partial<AppSettings>): Promise<void> {
 }
 
 function insertSmartQuote(quoteCharacter: string): void {
-  const start = editor.selectionStart;
-  const end = editor.selectionEnd;
-  const value = editor.value;
+  const { start, end } = editor.getSelection();
+  const value = editor.getValue();
 
   const quotePair = quoteCharacter === "'" ? ["‘", "’"] : ["“", "”"];
 
@@ -2177,7 +2179,7 @@ function insertSmartQuote(quoteCharacter: string): void {
 
   // Use insertText to preserve the browser undo stack (Cmd/Ctrl+Z).
   suppressDirtyEvents = true;
-  document.execCommand("insertText", false, replacement);
+  editor.replaceSelection(replacement);
   suppressDirtyEvents = false;
 
   recordTypingActivity();
@@ -2510,7 +2512,7 @@ themeSelect.addEventListener("change", () => {
   void persistSettings({ theme: selectedTheme });
 });
 
-editor.addEventListener("input", () => {
+subscriptions.push(editor.onInput(() => {
   if (suppressDirtyEvents) {
     return;
   }
@@ -2519,15 +2521,15 @@ editor.addEventListener("input", () => {
   setDirty(true);
   scheduleLiveWordCountRefresh();
   setSidebarFaded(true);
-});
+}));
 
-editor.addEventListener("keydown", (event) => {
+subscriptions.push(editor.onKeydown((event) => {
   handleEditorKeydown(event);
-});
+}));
 
-editor.addEventListener("blur", () => {
+subscriptions.push(editor.onBlur(() => {
   setSidebarFaded(false);
-});
+}));
 
 sidebar.addEventListener("mouseenter", () => {
   setSidebarFaded(false);
