@@ -8,6 +8,7 @@ const WIT_DIR_NAME = ".wit";
 const CONFIG_FILE_NAME = "config.json";
 const STATS_FILE_NAME = "stats.json";
 const SNAPSHOT_DIR_NAME = "snapshots";
+const GITIGNORE_FILE_NAME = ".gitignore";
 const TEXT_FILE_EXTENSIONS = new Set([".txt", ".md", ".markdown", ".text"]);
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -56,6 +57,10 @@ function getStatsPath(projectPath: string): string {
   return path.join(getWitDir(projectPath), STATS_FILE_NAME);
 }
 
+function getGitignorePath(projectPath: string): string {
+  return path.join(projectPath, GITIGNORE_FILE_NAME);
+}
+
 function isTextFile(filePath: string): boolean {
   return TEXT_FILE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 }
@@ -87,6 +92,7 @@ export async function ensureProjectInitialized(projectPath: string): Promise<voi
 
   await ensureJsonFile(getConfigPath(projectPath), DEFAULT_SETTINGS);
   await ensureJsonFile(getStatsPath(projectPath), DEFAULT_STATS);
+  await ensureGitignoreFile(projectPath);
 }
 
 async function ensureJsonFile<T>(filePath: string, fallback: T): Promise<void> {
@@ -94,6 +100,25 @@ async function ensureJsonFile<T>(filePath: string, fallback: T): Promise<void> {
     await fs.access(filePath);
   } catch {
     await fs.writeFile(filePath, `${JSON.stringify(fallback, null, 2)}\n`, "utf8");
+  }
+}
+
+async function ensureGitignoreFile(projectPath: string): Promise<void> {
+  const gitignorePath = getGitignorePath(projectPath);
+
+  try {
+    await fs.access(gitignorePath);
+  } catch {
+    await fs.writeFile(gitignorePath, ".wit/snapshots/\n", "utf8");
+  }
+}
+
+async function isGitRepository(projectPath: string): Promise<boolean> {
+  try {
+    const stats = await fs.stat(path.join(projectPath, ".git"));
+    return stats.isDirectory() || stats.isFile();
+  } catch {
+    return false;
   }
 }
 
@@ -493,12 +518,13 @@ export async function addWritingSeconds(projectPath: string, seconds: number): P
 export async function getProjectMetadata(projectPath: string): Promise<ProjectMetadata> {
   await ensureProjectInitialized(projectPath);
 
-  const [files, folders, settings, wordCount, stats] = await Promise.all([
+  const [files, folders, settings, wordCount, stats, gitRepository] = await Promise.all([
     listProjectFiles(projectPath),
     listProjectFolders(projectPath),
     loadSettings(projectPath),
     calculateTotalWordCount(projectPath),
-    getProjectStats(projectPath)
+    getProjectStats(projectPath),
+    isGitRepository(projectPath)
   ]);
 
   return {
@@ -507,8 +533,13 @@ export async function getProjectMetadata(projectPath: string): Promise<ProjectMe
     folders,
     wordCount,
     totalWritingSeconds: stats.totalWritingSeconds,
+    isGitRepository: gitRepository,
     settings
   };
+}
+
+export async function getGitRepositoryStatus(projectPath: string): Promise<boolean> {
+  return isGitRepository(projectPath);
 }
 
 export function getSnapshotDirectory(projectPath: string): string {

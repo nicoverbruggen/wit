@@ -19,6 +19,7 @@ test("renderer markup contains core writing controls", async () => {
     "show-word-count-input",
     "smart-quotes-input",
     "git-snapshots-input",
+    "git-snapshots-notice",
     "autosave-interval-input",
     "line-height-input",
     "line-height-value",

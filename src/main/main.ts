@@ -17,6 +17,7 @@ import {
   ensureProjectInitialized,
   getProjectMetadata,
   getProjectStats,
+  getGitRepositoryStatus,
   getSnapshotDirectory,
   listProjectFiles,
   listProjectFolders,
@@ -86,6 +87,46 @@ function resetWindowZoomToDefault(browserWindow: BrowserWindow): void {
   browserWindow.webContents.setZoomFactor(1);
 }
 
+function buildEditableContextMenuTemplate(params: Electron.ContextMenuParams): MenuItemConstructorOptions[] {
+  const template: MenuItemConstructorOptions[] = [];
+
+  if (params.misspelledWord && params.dictionarySuggestions.length > 0) {
+    for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
+      template.push({
+        label: suggestion,
+        click: () => {
+          mainWindow?.webContents.replaceMisspelling(suggestion);
+        }
+      });
+    }
+
+    template.push({ type: "separator" });
+  }
+
+  template.push(
+    { role: "undo" },
+    { role: "redo" },
+    { type: "separator" },
+    { role: "cut" },
+    { role: "copy" },
+    { role: "paste" },
+    { role: "selectAll" }
+  );
+
+  return template;
+}
+
+function setupContextMenus(browserWindow: BrowserWindow): void {
+  browserWindow.webContents.on("context-menu", (_event, params) => {
+    if (!params.isEditable) {
+      return;
+    }
+
+    const menu = Menu.buildFromTemplate(buildEditableContextMenuTemplate(params));
+    menu.popup({ window: browserWindow });
+  });
+}
+
 function createMainWindow(): BrowserWindow {
   const sharedWindowOptions = {
     width: 1240,
@@ -127,6 +168,7 @@ function createMainWindow(): BrowserWindow {
   browserWindow.webContents.once("did-finish-load", () => {
     resetWindowZoomToDefault(browserWindow);
   });
+  setupContextMenus(browserWindow);
 
   return browserWindow;
 }
@@ -256,13 +298,17 @@ async function runAutosaveTick(activeSeconds: number): Promise<AutosaveTickResul
     await addWritingSeconds(projectPath, activeSeconds);
   }
 
-  const [settings, files] = await Promise.all([loadSettings(projectPath), listProjectFiles(projectPath)]);
+  const [settings, files, gitRepository] = await Promise.all([
+    loadSettings(projectPath),
+    listProjectFiles(projectPath),
+    getGitRepositoryStatus(projectPath)
+  ]);
 
   const snapshotCreatedAt = await createSnapshot({
     projectPath,
     snapshotDirectory: getSnapshotDirectory(projectPath),
     filePaths: files,
-    createGitCommit: settings.gitSnapshots
+    createGitCommit: settings.gitSnapshots && gitRepository
   });
 
   const [wordCount, stats] = await Promise.all([

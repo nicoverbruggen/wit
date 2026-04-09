@@ -31,12 +31,14 @@ test("project initialization and metadata defaults", async () => {
     assert.equal(fssync.existsSync(path.join(projectPath, ".wit", "config.json")), true);
     assert.equal(fssync.existsSync(path.join(projectPath, ".wit", "stats.json")), true);
     assert.equal(fssync.existsSync(path.join(projectPath, ".wit", "snapshots")), true);
+    assert.equal(fssync.existsSync(path.join(projectPath, ".gitignore")), true);
     assert.equal(
       fssync.existsSync(
         path.join(projectPath, ".wit", "snapshots", snapshotService.SNAPSHOT_VERSION_FILE_NAME)
       ),
       true
     );
+    assert.equal(await fs.readFile(path.join(projectPath, ".gitignore"), "utf8"), ".wit/snapshots/\n");
 
     const metadata = await projectService.getProjectMetadata(projectPath);
     assert.equal(metadata.projectPath, projectPath);
@@ -44,6 +46,7 @@ test("project initialization and metadata defaults", async () => {
     assert.deepEqual(metadata.folders, []);
     assert.equal(metadata.wordCount, 0);
     assert.equal(metadata.totalWritingSeconds, 0);
+    assert.equal(metadata.isGitRepository, false);
     assert.equal(metadata.settings.autosaveIntervalSec, 60);
     assert.equal(metadata.settings.showWordCount, true);
     assert.equal(metadata.settings.smartQuotes, true);
@@ -118,6 +121,19 @@ test("create/list/save/read files with word count and settings", async () => {
   }
 });
 
+test("project initialization preserves an existing .gitignore", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await fs.writeFile(path.join(projectPath, ".gitignore"), "node_modules/\n", "utf8");
+    await projectService.ensureProjectInitialized(projectPath);
+
+    assert.equal(await fs.readFile(path.join(projectPath, ".gitignore"), "utf8"), "node_modules/\n");
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 test("snapshot creation and git snapshot commit flow", async () => {
   const { root, projectPath } = await createTempProject();
 
@@ -169,6 +185,22 @@ test("snapshot creation and git snapshot commit flow", async () => {
 
     const witTracked = await execFileAsync("git", ["-C", projectPath, "ls-files", ".wit"]);
     assert.equal(witTracked.stdout.trim(), "");
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("project metadata reports git repository status", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    let metadata = await projectService.getProjectMetadata(projectPath);
+    assert.equal(metadata.isGitRepository, false);
+
+    await execFileAsync("git", ["init", "-q", projectPath]);
+    metadata = await projectService.getProjectMetadata(projectPath);
+    assert.equal(metadata.isGitRepository, true);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

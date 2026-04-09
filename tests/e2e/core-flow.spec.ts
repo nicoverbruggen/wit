@@ -668,6 +668,9 @@ test.describe("Wit core app flow", () => {
   test("settings persist across relaunch", async () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-settings-"));
     await fs.writeFile(path.join(projectPath, "settings.txt"), "one two", "utf8");
+    await execFileAsync("git", ["init", "-q", projectPath]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.name", "QA"]);
 
     const firstRun = await launchWithProject(projectPath);
     const lineHeightBefore = await firstRun.page.evaluate(() => {
@@ -751,6 +754,18 @@ test.describe("Wit core app flow", () => {
     expect(widthLayout.editorWidth).toBeGreaterThan(500);
     expect(widthLayout.centerDelta).toBeLessThan(2);
     await secondRun.app.close();
+  });
+
+  test("git snapshots setting is disabled with notice outside git repositories", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-no-git-"));
+    await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await ensureSettingsDialogOpen(page);
+    await expect(page.locator("#git-snapshots-input")).toBeDisabled();
+    await expect(page.locator("#git-snapshots-notice")).toBeVisible();
+    await expect(page.locator("#git-snapshots-notice")).toContainText("not a Git repository");
+    await app.close();
   });
 
   test("unsaved edits are persisted on app close", async () => {

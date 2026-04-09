@@ -138,45 +138,81 @@
           <h2>Writing Settings</h2>
           <button id="settings-close-btn" value="close" class="ghost-button">Close</button>
         </div>
-        <div class="settings-grid">
-          <label class="control-inline" title="Show total word count">
-            <input id="show-word-count-input" type="checkbox" checked />
-            Show word count
-          </label>
-          <label class="control-inline" title="Convert straight quotes into smart quotes while typing">
-            <input id="smart-quotes-input" type="checkbox" checked />
-            Smart quotes
-          </label>
-          <label class="control-inline" title="Create git commits during snapshots">
-            <input id="git-snapshots-input" type="checkbox" />
-            Git snapshots
-          </label>
-          <label class="control-inline interval-control" title="Autosave and snapshot interval in seconds">
-            Autosave interval (seconds)
-            <input id="autosave-interval-input" type="number" min="10" step="5" value="60" />
-          </label>
-          <label class="control-inline slider-control" title="Adjust editor line height for readability">
-            Editor line height
-            <div class="slider-row">
-              <input id="line-height-input" type="range" min="1.2" max="2.4" step="0.02" value="1.68" />
-              <span id="line-height-value">1.68</span>
+        <div class="settings-sections">
+          <section class="settings-section" aria-labelledby="settings-section-writing">
+            <div class="settings-section-header">
+              <h3 id="settings-section-writing">Writing</h3>
+              <p>Controls that affect what you see while drafting and how text is shaped as you type.</p>
             </div>
-          </label>
-          <label class="control-inline slider-control" title="Limit editor column width for readability">
-            Editor max width
-            <div class="slider-row">
-              <input id="editor-width-input" type="range" min="360" max="1200" step="10" value="750" />
-              <span id="editor-width-value">750px</span>
+            <div class="settings-grid">
+              <label class="setting-card setting-card--checkbox" title="Show total word count">
+                <span class="setting-card-toggle">
+                  <input id="show-word-count-input" type="checkbox" checked />
+                  <span class="setting-card-title">Show word count</span>
+                </span>
+                <span class="setting-card-description">Displays the running total project word count in the footer.</span>
+              </label>
+              <label class="setting-card setting-card--checkbox" title="Convert straight quotes into smart quotes while typing">
+                <span class="setting-card-toggle">
+                  <input id="smart-quotes-input" type="checkbox" checked />
+                  <span class="setting-card-title">Smart quotes</span>
+                </span>
+                <span class="setting-card-description">Turns straight quotation marks into curly quotes as you type in the editor.</span>
+              </label>
+              <label class="setting-card" title="Choose editor font">
+                <span class="setting-card-title">Editor font</span>
+                <span class="setting-card-description">Switch the reading texture of the editor without changing the project files.</span>
+                <select id="font-select">
+                  <option value="Sourcerer">Sourcerer</option>
+                  <option value="Readerly" selected>Readerly</option>
+                  <option value="iA Writer Mono">iA Writer Mono</option>
+                </select>
+              </label>
+              <label class="setting-card slider-control" title="Adjust editor line height for readability">
+                <span class="setting-card-title">Editor line height</span>
+                <span class="setting-card-description">Increase or tighten vertical spacing to match how you like long-form text to sit on the page.</span>
+                <div class="slider-row">
+                  <input id="line-height-input" type="range" min="1.2" max="2.4" step="0.02" value="1.68" />
+                  <span id="line-height-value">1.68</span>
+                </div>
+              </label>
+              <label class="setting-card slider-control" title="Limit editor column width for readability">
+                <span class="setting-card-title">Editor max width</span>
+                <span class="setting-card-description">Keeps the writing column comfortable to scan, even on large displays.</span>
+                <div class="slider-row">
+                  <input id="editor-width-input" type="range" min="360" max="1200" step="10" value="750" />
+                  <span id="editor-width-value">750px</span>
+                </div>
+              </label>
             </div>
-          </label>
-          <label class="control-inline" title="Choose editor font">
-            Editor font
-            <select id="font-select">
-              <option value="Sourcerer">Sourcerer</option>
-              <option value="Readerly" selected>Readerly</option>
-              <option value="iA Writer Mono">iA Writer Mono</option>
-            </select>
-          </label>
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-section-autosave">
+            <div class="settings-section-header">
+              <h3 id="settings-section-autosave">Autosave And Snapshots</h3>
+              <p>Automatic background protection for your text, including full compressed backups.</p>
+            </div>
+            <div class="settings-grid">
+              <label class="setting-card interval-control" title="Autosave and snapshot interval in seconds">
+                <span class="setting-card-title">Autosave interval</span>
+                <span class="setting-card-description">Every interval saves the active file and writes a full compressed snapshot of the project.</span>
+                <div class="inline-input-row">
+                  <input id="autosave-interval-input" type="number" min="10" step="5" value="60" />
+                  <span class="input-suffix">seconds</span>
+                </div>
+              </label>
+              <label class="setting-card setting-card--checkbox" title="Create git commits during snapshots">
+                <span class="setting-card-toggle">
+                  <input id="git-snapshots-input" type="checkbox" />
+                  <span class="setting-card-title">Git snapshots</span>
+                </span>
+                <span class="setting-card-description">When enabled, each automatic snapshot also creates a Git commit for the current project state.</span>
+              </label>
+              <p id="git-snapshots-notice" class="settings-notice" hidden>
+                Git snapshots are unavailable because this project is not a Git repository.
+              </p>
+            </div>
+          </section>
         </div>
       </form>
     </dialog>

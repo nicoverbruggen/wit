@@ -508,30 +508,18 @@ body.platform-linux .toolbar {
   padding-bottom: 11px;
 }
 
-.control-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-.interval-control {
-  gap: 6px;
-}
-
-.control-inline input[type="number"] {
+.setting-card input[type="number"] {
   width: 70px;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 3px 5px;
   font-size: 0.78rem;
+  background: white;
+  color: var(--text);
 }
 
 .slider-control {
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .slider-row {
@@ -790,6 +778,111 @@ body.platform-linux .toolbar {
   gap: 10px 14px;
 }
 
-.settings-grid .control-inline {
-  justify-content: flex-start;
+.settings-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-section-header h3 {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.settings-section-header p {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.setting-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfbfc;
+  color: var(--text);
+  min-width: 0;
+}
+
+.setting-card--checkbox {
+  cursor: pointer;
+}
+
+.setting-card-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.setting-card-title {
+  font-size: 0.79rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.setting-card-description {
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.inline-input-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.input-suffix {
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.settings-notice {
+  margin: -2px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  grid-column: 1 / -1;
+  padding: 0 2px;
+}
+
+.setting-card select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: white;
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.setting-card input:disabled,
+.setting-card select:disabled {
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .settings-dialog {
+    width: min(520px, calc(100vw - 24px));
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
 }

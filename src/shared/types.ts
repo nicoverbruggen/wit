@@ -15,6 +15,7 @@ export type ProjectMetadata = {
   folders: string[];
   wordCount: number;
   totalWritingSeconds: number;
+  isGitRepository: boolean;
   settings: AppSettings;
 };
 

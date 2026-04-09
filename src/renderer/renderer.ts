@@ -40,6 +40,7 @@ const snapshotLabel = document.getElementById("snapshot-label") as HTMLSpanEleme
 const showWordCountInput = document.getElementById("show-word-count-input") as HTMLInputElement;
 const smartQuotesInput = document.getElementById("smart-quotes-input") as HTMLInputElement;
 const gitSnapshotsInput = document.getElementById("git-snapshots-input") as HTMLInputElement;
+const gitSnapshotsNotice = document.getElementById("git-snapshots-notice") as HTMLParagraphElement;
 const autosaveIntervalInput = document.getElementById("autosave-interval-input") as HTMLInputElement;
 const lineHeightInput = document.getElementById("line-height-input") as HTMLInputElement;
 const lineHeightValue = document.getElementById("line-height-value") as HTMLSpanElement;
@@ -327,10 +328,12 @@ function setProjectControlsEnabled(enabled: boolean): void {
   newFolderButton.disabled = !enabled;
   showWordCountInput.disabled = !enabled;
   smartQuotesInput.disabled = !enabled;
-  gitSnapshotsInput.disabled = !enabled;
+  gitSnapshotsInput.disabled = !enabled || !project?.isGitRepository;
   autosaveIntervalInput.disabled = !enabled;
   lineHeightInput.disabled = !enabled;
   editorWidthInput.disabled = !enabled;
+  fontSelect.disabled = !enabled;
+  gitSnapshotsNotice.hidden = !enabled || Boolean(project?.isGitRepository);
 }
 
 function setSidebarFaded(nextFaded: boolean): void {
@@ -997,16 +1000,27 @@ function renderFileList(): void {
   renderTreeNodes(buildProjectTree(project.files, project.folders), 1);
 }
 
+function syncGitSnapshotsAvailability(): void {
+  const available = Boolean(project?.isGitRepository);
+  gitSnapshotsInput.disabled = !project || !available;
+  gitSnapshotsNotice.hidden = !project || available;
+
+  if (!available) {
+    gitSnapshotsInput.checked = false;
+  }
+}
+
 function syncSettingsInputs(settings: AppSettings): void {
   showWordCountInput.checked = settings.showWordCount;
   smartQuotesInput.checked = settings.smartQuotes;
-  gitSnapshotsInput.checked = settings.gitSnapshots;
+  gitSnapshotsInput.checked = settings.gitSnapshots && Boolean(project?.isGitRepository);
   autosaveIntervalInput.value = String(settings.autosaveIntervalSec);
   applyEditorLineHeight(settings.editorLineHeight);
   applyEditorMaxWidth(settings.editorMaxWidthPx);
   setEditorZoomFromPercent(settings.editorZoomPercent, false);
   fontSelect.value = settings.editorFontFamily ?? "Readerly";
   applyEditorFont(settings.editorFontFamily ?? "Readerly");
+  syncGitSnapshotsAvailability();
 }
 
 function applyProjectMetadata(metadata: ProjectMetadata): void {
