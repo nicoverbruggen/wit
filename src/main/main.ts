@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import {
   app,
   BrowserWindow,
+  type ContextMenuParams,
   dialog,
   ipcMain,
   Menu,
@@ -129,7 +130,7 @@ async function getAppInfo(): Promise<AppInfo> {
   }
 }
 
-function buildEditableContextMenuTemplate(params: Electron.ContextMenuParams): MenuItemConstructorOptions[] {
+function buildEditableContextMenuTemplate(params: ContextMenuParams): MenuItemConstructorOptions[] {
   const template: MenuItemConstructorOptions[] = [];
 
   if (params.misspelledWord && params.dictionarySuggestions.length > 0) {

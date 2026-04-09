@@ -71,7 +71,6 @@ const lineHeightValue = document.getElementById("line-height-value") as HTMLSpan
 const paragraphSpacingSelect = document.getElementById("paragraph-spacing-select") as HTMLSelectElement;
 const editorWidthInput = document.getElementById("editor-width-input") as HTMLInputElement;
 const editorWidthValue = document.getElementById("editor-width-value") as HTMLSpanElement;
-const settingsCloseButton = document.getElementById("settings-close-btn") as HTMLButtonElement;
 const textZoomSelect = document.getElementById("text-zoom-select") as HTMLSelectElement;
 const themeSelect = document.getElementById("theme-select") as HTMLSelectElement;
 const fontSelect = document.getElementById("font-select") as HTMLSelectElement;
@@ -109,13 +108,6 @@ type FileNode = {
 type TreeNode = FolderNode | FileNode;
 type SelectedTreeKind = "file" | "folder";
 type SettingsTabKey = "writing" | "editor" | "autosave" | "about";
-
-type AppInfo = {
-  version: string;
-  description: string;
-  author: string;
-  website: string;
-};
 
 type LocalFontData = {
   family: string;

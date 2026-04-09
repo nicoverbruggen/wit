@@ -10,6 +10,7 @@ import type {
   ShowTreeContextMenuPayload,
   TreeContextAction
 } from "../shared/types";
+import type { Platform } from "node:process";
 
 type Unsubscribe = () => void;
 type AppInfo = {
@@ -20,7 +21,7 @@ type AppInfo = {
 };
 
 type WitApi = {
-  getPlatform: () => NodeJS.Platform;
+  getPlatform: () => Platform;
   selectProject: () => Promise<ProjectMetadata | null>;
   getActiveProject: () => Promise<ProjectMetadata | null>;
   closeProject: () => Promise<null>;

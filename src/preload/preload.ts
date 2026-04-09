@@ -1,4 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { IpcRendererEvent } from "electron";
+import type { Platform } from "node:process";
 import type {
   AppSettings,
   AutosaveTickResult,
@@ -21,7 +23,7 @@ type AppInfo = {
 };
 
 const api = {
-  getPlatform: (): NodeJS.Platform => process.platform,
+  getPlatform: (): Platform => process.platform,
   selectProject: (): Promise<ProjectMetadata | null> => ipcRenderer.invoke("project:select"),
   getActiveProject: (): Promise<ProjectMetadata | null> => ipcRenderer.invoke("project:get-active"),
   closeProject: (): Promise<null> => ipcRenderer.invoke("project:close"),
@@ -122,7 +124,7 @@ const api = {
   },
   onFullscreenChanged: (listener: (isFullscreen: boolean) => void): Unsubscribe => {
     const channel = "window:fullscreen-changed";
-    const wrappedListener = (_event: Electron.IpcRendererEvent, isFullscreen: boolean) => {
+    const wrappedListener = (_event: IpcRendererEvent, isFullscreen: boolean) => {
       listener(isFullscreen);
     };
 
