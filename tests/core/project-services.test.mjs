@@ -49,6 +49,8 @@ test("project initialization and metadata defaults", async () => {
     assert.equal(metadata.latestSnapshotCreatedAt, null);
     assert.equal(metadata.isGitRepository, false);
     assert.deepEqual(metadata.gitRemotes, []);
+    assert.equal(metadata.lastOpenedFilePath, null);
+    assert.equal(metadata.hasStoredLastOpenedFilePath, false);
     assert.equal(metadata.settings.autosaveIntervalSec, 60);
     assert.equal(metadata.settings.theme, "light");
     assert.equal(metadata.settings.defaultFileExtension, ".txt");
@@ -138,6 +140,32 @@ test("create/list/save/read files with word count and settings", async () => {
       () => projectService.createProjectFile(projectPath, "invalid.bin", "x"),
       /Only plain text, Markdown, and Wit text files are supported/
     );
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("last opened file path is stored independently from project settings", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await projectService.createProjectFile(projectPath, "chapter-01.txt", "One two three");
+
+    const firstSavedPath = await projectService.saveLastOpenedFilePath(projectPath, "chapter-01.txt");
+    assert.equal(firstSavedPath, "chapter-01.txt");
+
+    let metadata = await projectService.getProjectMetadata(projectPath);
+    assert.equal(metadata.lastOpenedFilePath, "chapter-01.txt");
+    assert.equal(metadata.hasStoredLastOpenedFilePath, true);
+
+    const clearedPath = await projectService.saveLastOpenedFilePath(projectPath, null);
+    assert.equal(clearedPath, null);
+
+    metadata = await projectService.getProjectMetadata(projectPath);
+    assert.equal(metadata.lastOpenedFilePath, null);
+    assert.equal(metadata.hasStoredLastOpenedFilePath, true);
+    assert.equal(metadata.settings.editorFontFamily, "iA Writer Mono");
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

@@ -39,6 +39,7 @@ type WitApi = {
   moveFile: (payload: MoveFilePayload) => Promise<{ nextFilePath: string; metadata: ProjectMetadata }>;
   showTreeContextMenu: (payload: ShowTreeContextMenuPayload) => Promise<TreeContextAction | null>;
   updateSettings: (settings: AppSettings) => Promise<AppSettings>;
+  setLastOpenedFilePath: (relativePath: string | null) => Promise<string | null>;
   autosaveTick: (activeSeconds: number) => Promise<AutosaveTickResult>;
   getAppVersion: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;

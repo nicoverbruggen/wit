@@ -25,6 +25,8 @@ export type ProjectMetadata = {
   isGitRepository: boolean;
   gitRemotes: string[];
   settings: AppSettings;
+  lastOpenedFilePath: string | null;
+  hasStoredLastOpenedFilePath: boolean;
 };
 
 export type AutosaveTickResult = {
@@ -58,11 +60,12 @@ export type RenameEntryPayload = {
   nextRelativePath: string;
 };
 
-export type TreeContextAction = "new-file" | "new-folder" | "rename" | "delete" | "close-project";
+export type TreeContextAction = "new-file" | "new-folder" | "rename" | "delete" | "close-project" | "close-file";
 
 export type ShowTreeContextMenuPayload = {
   relativePath: string;
   kind: "file" | "folder" | "project";
+  isCurrentFile?: boolean;
   x: number;
   y: number;
   testAction?: TreeContextAction;

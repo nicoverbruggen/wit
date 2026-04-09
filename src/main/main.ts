@@ -26,6 +26,7 @@ import {
   moveProjectFile,
   renameProjectEntry,
   readProjectFile,
+  saveLastOpenedFilePath,
   saveProjectFile,
   saveProjectFileSync,
   saveSettings
@@ -573,6 +574,17 @@ function setupIpcHandlers(): void {
                 }
               ]
           : [
+              ...(payload.isCurrentFile
+                ? [
+                    {
+                      label: "Close",
+                      click: () => {
+                        resolveOnce("close-file");
+                      }
+                    },
+                    { type: "separator" as const }
+                  ]
+                : []),
               {
                 label: "Rename",
                 click: () => {
@@ -604,6 +616,10 @@ function setupIpcHandlers(): void {
   ipcMain.handle("project:update-settings", async (_event, settings: AppSettings) => {
     const saved = await saveSettings(requireActiveProjectPath(), settings);
     return saved;
+  });
+
+  ipcMain.handle("project:set-last-opened-file-path", async (_event, relativePath: string | null) => {
+    return saveLastOpenedFilePath(requireActiveProjectPath(), relativePath);
   });
 
   ipcMain.handle("project:autosave-tick", async (_event, activeSeconds: number) => {

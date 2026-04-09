@@ -20,8 +20,17 @@ type ProjectStats = {
   totalWritingSeconds: number;
 };
 
+type ProjectConfig = {
+  lastOpenedFilePath?: string | null;
+  settings: AppSettings;
+};
+
 const DEFAULT_STATS: ProjectStats = {
   totalWritingSeconds: 0
+};
+
+const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
+  settings: DEFAULT_SETTINGS
 };
 
 function toProjectRelativePath(root: string, absolutePath: string): string {
@@ -109,7 +118,7 @@ export async function ensureProjectInitialized(projectPath: string): Promise<voi
     "utf8"
   );
 
-  await ensureJsonFile(getConfigPath(projectPath), DEFAULT_SETTINGS);
+  await ensureJsonFile(getConfigPath(projectPath), DEFAULT_PROJECT_CONFIG);
   await ensureJsonFile(getStatsPath(projectPath), DEFAULT_STATS);
   await ensureGitignoreFile(projectPath);
 }
@@ -470,53 +479,57 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
   await ensureProjectInitialized(projectPath);
 
   const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
-  const parsed = JSON.parse(raw) as Partial<AppSettings>;
+  const parsed = JSON.parse(raw) as Partial<AppSettings> & {
+    settings?: Partial<AppSettings>;
+    lastOpenedFilePath?: unknown;
+  };
+  const rawSettings = parsed.settings && typeof parsed.settings === "object" ? parsed.settings : parsed;
 
   return {
     autosaveIntervalSec:
-      typeof parsed.autosaveIntervalSec === "number" && parsed.autosaveIntervalSec > 0
-        ? Math.round(parsed.autosaveIntervalSec)
+      typeof rawSettings.autosaveIntervalSec === "number" && rawSettings.autosaveIntervalSec > 0
+        ? Math.round(rawSettings.autosaveIntervalSec)
         : DEFAULT_SETTINGS.autosaveIntervalSec,
-    theme: normalizeTheme(parsed.theme),
-    defaultFileExtension: normalizeDefaultFileExtension(parsed.defaultFileExtension),
+    theme: normalizeTheme(rawSettings.theme),
+    defaultFileExtension: normalizeDefaultFileExtension(rawSettings.defaultFileExtension),
     showWordCount:
-      typeof parsed.showWordCount === "boolean"
-        ? parsed.showWordCount
+      typeof rawSettings.showWordCount === "boolean"
+        ? rawSettings.showWordCount
         : DEFAULT_SETTINGS.showWordCount,
     showWritingTime:
-      typeof parsed.showWritingTime === "boolean"
-        ? parsed.showWritingTime
+      typeof rawSettings.showWritingTime === "boolean"
+        ? rawSettings.showWritingTime
         : DEFAULT_SETTINGS.showWritingTime,
     showCurrentFileBar:
-      typeof parsed.showCurrentFileBar === "boolean"
-        ? parsed.showCurrentFileBar
+      typeof rawSettings.showCurrentFileBar === "boolean"
+        ? rawSettings.showCurrentFileBar
         : DEFAULT_SETTINGS.showCurrentFileBar,
     smartQuotes:
-      typeof parsed.smartQuotes === "boolean" ? parsed.smartQuotes : DEFAULT_SETTINGS.smartQuotes,
+      typeof rawSettings.smartQuotes === "boolean" ? rawSettings.smartQuotes : DEFAULT_SETTINGS.smartQuotes,
     gitSnapshots:
-      typeof parsed.gitSnapshots === "boolean"
-        ? parsed.gitSnapshots
+      typeof rawSettings.gitSnapshots === "boolean"
+        ? rawSettings.gitSnapshots
         : DEFAULT_SETTINGS.gitSnapshots,
     gitPushRemote:
-      typeof parsed.gitPushRemote === "string" && parsed.gitPushRemote.trim().length > 0
-        ? parsed.gitPushRemote.trim()
+      typeof rawSettings.gitPushRemote === "string" && rawSettings.gitPushRemote.trim().length > 0
+        ? rawSettings.gitPushRemote.trim()
         : DEFAULT_SETTINGS.gitPushRemote,
     editorLineHeight:
-      typeof parsed.editorLineHeight === "number" && Number.isFinite(parsed.editorLineHeight)
-        ? normalizeEditorLineHeight(parsed.editorLineHeight)
+      typeof rawSettings.editorLineHeight === "number" && Number.isFinite(rawSettings.editorLineHeight)
+        ? normalizeEditorLineHeight(rawSettings.editorLineHeight)
         : DEFAULT_SETTINGS.editorLineHeight,
-    editorParagraphSpacing: normalizeEditorParagraphSpacing(parsed.editorParagraphSpacing),
+    editorParagraphSpacing: normalizeEditorParagraphSpacing(rawSettings.editorParagraphSpacing),
     editorMaxWidthPx:
-      typeof parsed.editorMaxWidthPx === "number" && Number.isFinite(parsed.editorMaxWidthPx)
-        ? normalizeEditorMaxWidth(parsed.editorMaxWidthPx)
+      typeof rawSettings.editorMaxWidthPx === "number" && Number.isFinite(rawSettings.editorMaxWidthPx)
+        ? normalizeEditorMaxWidth(rawSettings.editorMaxWidthPx)
         : DEFAULT_SETTINGS.editorMaxWidthPx,
     editorZoomPercent:
-      typeof parsed.editorZoomPercent === "number" && Number.isFinite(parsed.editorZoomPercent)
-        ? normalizeEditorZoomPercent(parsed.editorZoomPercent)
+      typeof rawSettings.editorZoomPercent === "number" && Number.isFinite(rawSettings.editorZoomPercent)
+        ? normalizeEditorZoomPercent(rawSettings.editorZoomPercent)
         : DEFAULT_SETTINGS.editorZoomPercent,
     editorFontFamily:
-      typeof parsed.editorFontFamily === "string" && parsed.editorFontFamily.length > 0
-        ? parsed.editorFontFamily
+      typeof rawSettings.editorFontFamily === "string" && rawSettings.editorFontFamily.length > 0
+        ? rawSettings.editorFontFamily
         : DEFAULT_SETTINGS.editorFontFamily
   };
 }
@@ -545,9 +558,64 @@ export async function saveSettings(projectPath: string, settings: AppSettings): 
   };
 
   await ensureProjectInitialized(projectPath);
-  await fs.writeFile(getConfigPath(projectPath), `${JSON.stringify(normalizedSettings, null, 2)}\n`, "utf8");
+  const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
+  const parsed = JSON.parse(raw) as { lastOpenedFilePath?: unknown };
+  await fs.writeFile(
+    getConfigPath(projectPath),
+    `${JSON.stringify(
+      {
+        lastOpenedFilePath:
+          typeof parsed.lastOpenedFilePath === "string" && parsed.lastOpenedFilePath.trim().length > 0
+            ? parsed.lastOpenedFilePath.trim()
+            : null,
+        settings: normalizedSettings
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
 
   return normalizedSettings;
+}
+
+export async function getLastOpenedFilePath(projectPath: string): Promise<string | null> {
+  await ensureProjectInitialized(projectPath);
+  const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
+  const parsed = JSON.parse(raw) as { lastOpenedFilePath?: unknown };
+
+  return typeof parsed.lastOpenedFilePath === "string" && parsed.lastOpenedFilePath.trim().length > 0
+    ? parsed.lastOpenedFilePath.trim()
+    : null;
+}
+
+async function hasStoredLastOpenedFilePath(projectPath: string): Promise<boolean> {
+  await ensureProjectInitialized(projectPath);
+  const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
+  const parsed = JSON.parse(raw) as { lastOpenedFilePath?: unknown };
+  return Object.prototype.hasOwnProperty.call(parsed, "lastOpenedFilePath");
+}
+
+export async function saveLastOpenedFilePath(projectPath: string, relativePath: string | null): Promise<string | null> {
+  await ensureProjectInitialized(projectPath);
+  const settings = await loadSettings(projectPath);
+  const normalizedRelativePath =
+    typeof relativePath === "string" && relativePath.trim().length > 0 ? relativePath.trim() : null;
+
+  await fs.writeFile(
+    getConfigPath(projectPath),
+    `${JSON.stringify(
+      {
+        lastOpenedFilePath: normalizedRelativePath,
+        settings
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
+
+  return normalizedRelativePath;
 }
 
 export async function calculateTotalWordCount(projectPath: string): Promise<number> {
@@ -584,11 +652,13 @@ export async function addWritingSeconds(projectPath: string, seconds: number): P
 export async function getProjectMetadata(projectPath: string): Promise<ProjectMetadata> {
   await ensureProjectInitialized(projectPath);
 
-  const [files, folders, settings, wordCount, stats, gitRepository, gitRemotes, latestSnapshotCreatedAt] =
+  const [files, folders, settings, lastOpenedFilePath, hasStoredPath, wordCount, stats, gitRepository, gitRemotes, latestSnapshotCreatedAt] =
     await Promise.all([
     listProjectFiles(projectPath),
     listProjectFolders(projectPath),
     loadSettings(projectPath),
+    getLastOpenedFilePath(projectPath),
+    hasStoredLastOpenedFilePath(projectPath),
     calculateTotalWordCount(projectPath),
     getProjectStats(projectPath),
     isGitRepository(projectPath),
@@ -605,7 +675,9 @@ export async function getProjectMetadata(projectPath: string): Promise<ProjectMe
     latestSnapshotCreatedAt,
     isGitRepository: gitRepository,
     gitRemotes,
-    settings
+    settings,
+    lastOpenedFilePath,
+    hasStoredLastOpenedFilePath: hasStoredPath
   };
 }
 

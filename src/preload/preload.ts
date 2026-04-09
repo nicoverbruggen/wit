@@ -55,6 +55,8 @@ const api = {
     ipcRenderer.invoke("project:show-tree-context-menu", payload),
   updateSettings: (settings: AppSettings): Promise<AppSettings> =>
     ipcRenderer.invoke("project:update-settings", settings),
+  setLastOpenedFilePath: (relativePath: string | null): Promise<string | null> =>
+    ipcRenderer.invoke("project:set-last-opened-file-path", relativePath),
   autosaveTick: (activeSeconds: number): Promise<AutosaveTickResult> =>
     ipcRenderer.invoke("project:autosave-tick", activeSeconds),
   getAppVersion: (): Promise<string> => ipcRenderer.invoke("app:version"),

@@ -390,7 +390,8 @@ progress {
 }
 
 .files-heading {
-  margin-top: 5px;
+  margin-top: 2px;
+  margin-bottom: 2px;
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--muted);
@@ -485,7 +486,7 @@ progress {
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   flex: 1;
   min-height: 0;
 }
@@ -584,13 +585,13 @@ progress {
   align-items: center;
   gap: 8px;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 5px;
   background: transparent;
   color: var(--text);
   font: inherit;
   font-size: 0.79rem;
   line-height: 1.35;
-  padding: 4px 8px;
+  padding: 5px 6px;
   appearance: none;
   text-align: left;
   cursor: pointer;
@@ -616,24 +617,42 @@ progress {
 }
 
 .tree-indent-1 {
-  padding-left: 20px;
+  padding-left: 16px;
+  position: relative;
 }
 
 .tree-indent-2 {
-  padding-left: 32px;
+  padding-left: 26px;
+  position: relative;
 }
 
 .tree-indent-3 {
-  padding-left: 44px;
+  padding-left: 36px;
+  position: relative;
 }
 
 .tree-indent-4 {
-  padding-left: 56px;
+  padding-left: 46px;
+  position: relative;
+}
+
+.tree-indent-1::before,
+.tree-indent-2::before,
+.tree-indent-3::before,
+.tree-indent-4::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: color-mix(in srgb, var(--line) 62%, transparent);
+  border-radius: 1px;
 }
 
 .tree-item:hover {
-  background: #e7e7eb;
-  border-color: #d9d9de;
+  background: color-mix(in srgb, var(--accent) 6%, #ebebef);
+  border-color: color-mix(in srgb, var(--accent) 8%, #d9d9de);
 }
 
 .file-button {
@@ -643,8 +662,8 @@ progress {
 }
 
 .file-button.active {
-  background: #dbe9ff;
-  border-color: #b8d0ff;
+  background: color-mix(in srgb, var(--accent) 10%, white);
+  border-color: color-mix(in srgb, var(--accent) 18%, white);
 }
 
 .folder-button {
@@ -652,30 +671,29 @@ progress {
 }
 
 .folder-button.active {
-  background: #dbe9ff;
-  border-color: #b8d0ff;
+  background: color-mix(in srgb, var(--accent) 10%, white);
+  border-color: color-mix(in srgb, var(--accent) 18%, white);
 }
 
 .tree-root-item {
-  grid-template-columns: 16px minmax(0, 1fr) auto;
+  grid-template-columns: 16px minmax(0, 1fr);
   font-weight: 700;
-  margin-bottom: 2px;
+  margin-bottom: 6px;
+  padding: 7px 8px;
+  background: color-mix(in srgb, white 62%, var(--bg-soft));
+  border: 1px solid color-mix(in srgb, var(--line) 72%, white);
+  border-radius: 6px;
   color: var(--text);
 }
 
-.tree-root-suffix {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px 7px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--line) 86%, #d0d7e4);
-  background: color-mix(in srgb, var(--bg-soft) 42%, white);
-  font-size: 0.64rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
+.tree-root-item:hover {
+  background: color-mix(in srgb, white 48%, var(--bg-soft));
+  border-color: color-mix(in srgb, var(--line) 88%, #c8d0de);
+}
+
+.tree-root-item.active {
+  background: color-mix(in srgb, var(--accent) 10%, white);
+  border-color: color-mix(in srgb, var(--accent) 18%, white);
 }
 
 .folder-button.drop-target {
@@ -715,8 +733,15 @@ progress {
   font-size: 16px;
   font-variation-settings: "FILL" 0, "wght" 500, "GRAD" 0, "opsz" 20;
   opacity: 0.88;
-  color: #687384;
   flex-shrink: 0;
+}
+
+.folder-icon {
+  color: #9a7b4f;
+}
+
+.file-icon {
+  color: #687384;
 }
 
 .empty-state {
@@ -733,6 +758,23 @@ progress {
   align-items: center;
   justify-content: center;
   padding: 28px 24px;
+  background:
+    radial-gradient(circle at 50% 18%, rgb(15 98 254 / 6%), transparent 32%),
+    linear-gradient(180deg, rgb(255 255 255 / 72%), rgb(248 249 251 / 20%));
+}
+
+.empty-state-mark {
+  position: absolute;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: "Readerly", "Palatino", "Times New Roman", serif;
+  font-size: clamp(7rem, 15vw, 9.5rem);
+  line-height: 1;
+  color: rgb(31 35 40 / 4%);
+  letter-spacing: -0.06em;
+  pointer-events: none;
+  user-select: none;
 }
 
 .empty-state-card {
@@ -742,13 +784,11 @@ progress {
   align-items: center;
   gap: 14px;
   text-align: center;
-  padding: 30px 32px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 97%), rgb(248 249 251 / 97%)),
-    radial-gradient(circle at top, rgb(15 98 254 / 10%), transparent 50%);
-  box-shadow: 0 20px 45px rgb(31 35 40 / 8%);
+  padding: 22px 24px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .empty-state-eyebrow {
@@ -762,15 +802,19 @@ progress {
 
 .empty-state-title {
   margin: 0;
-  font-size: clamp(1.6rem, 2.4vw, 2.1rem);
-  line-height: 1.08;
+  max-width: 14ch;
+  font-family: "Readerly", "Palatino", "Times New Roman", serif;
+  font-style: italic;
+  font-size: clamp(2rem, 3.4vw, 3rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
 }
 
 .empty-state-description {
   margin: 0;
   max-width: 48ch;
-  font-size: 0.96rem;
-  line-height: 1.6;
+  font-size: 1rem;
+  line-height: 1.65;
   color: var(--muted);
 }
 
@@ -779,22 +823,23 @@ progress {
   flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
+  margin-top: 4px;
 }
 
 .empty-state-shortcuts {
   width: 100%;
-  max-width: 500px;
+  max-width: 340px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
+  gap: 8px;
+  margin-top: 18px;
 }
 
 .empty-state-shortcuts-label {
   margin: 0;
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -803,8 +848,8 @@ progress {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
@@ -812,29 +857,56 @@ progress {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: white;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
   text-align: left;
 }
 
 .empty-state-shortcut-label {
-  font-size: 0.8rem;
-  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 450;
+  letter-spacing: 0.01em;
+  color: #6c737f;
 }
 
 .empty-state-shortcut-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.empty-state-shortcut-keycap {
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: var(--muted);
-  padding: 3px 8px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #f7f8fa;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #707784;
+  min-width: 24px;
+  padding: 1px 6px;
+  border: 1px solid rgb(214 214 219 / 96%);
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgb(247 247 249 / 98%), rgb(237 237 240 / 98%));
   white-space: nowrap;
+  box-shadow:
+    inset 0 -1px 0 rgb(31 35 40 / 4%),
+    0 1px 0 rgb(255 255 255 / 70%);
+  text-align: center;
+}
+
+.empty-state-shortcut-plus {
+  font-size: 0.66rem;
+  color: #959ba5;
+}
+
+.empty-state-shortcut-slash {
+  font-size: 0.68rem;
+  color: #959ba5;
+  margin: 0 2px;
 }
 
 .editor-pane {
@@ -1170,6 +1242,10 @@ body.platform-linux .toolbar {
   gap: 10px;
   min-width: 0;
   flex-shrink: 0;
+}
+
+.status-bar.status-bar--empty {
+  display: none;
 }
 
 .status-icon-button {
@@ -1702,15 +1778,24 @@ body[data-theme="dark"] .folder-button.active {
   border-color: rgb(88 166 255 / 38%);
 }
 
-body[data-theme="dark"] .tree-root-suffix {
-  background: #0d1117;
-  border-color: #30363d;
-  color: #8b949e;
-}
-
 body[data-theme="dark"] .tree-item:hover {
   background: #21262d;
   border-color: #30363d;
+}
+
+body[data-theme="dark"] .tree-root-item {
+  background: rgb(255 255 255 / 4%);
+  border-color: #30363d;
+}
+
+body[data-theme="dark"] .tree-root-item:hover {
+  background: rgb(255 255 255 / 7%);
+  border-color: #3d444d;
+}
+
+body[data-theme="dark"] .tree-root-item.active {
+  background: rgb(56 139 253 / 14%);
+  border-color: rgb(88 166 255 / 28%);
 }
 
 body[data-theme="dark"] .folder-button.drop-target {
@@ -1718,7 +1803,6 @@ body[data-theme="dark"] .folder-button.drop-target {
   border-color: rgb(63 185 80 / 42%);
 }
 
-body[data-theme="dark"] .folder-icon,
 body[data-theme="dark"] .file-icon,
 body[data-theme="dark"] .tree-disclosure,
 body[data-theme="dark"] .open-project-icon,
@@ -1728,20 +1812,39 @@ body[data-theme="dark"] .settings-cog-icon {
   color: #8b949e;
 }
 
+body[data-theme="dark"] .folder-icon {
+  color: #c9a96e;
+}
+
 body[data-theme="dark"] .tree-item {
   color: var(--text);
 }
 
+body[data-theme="dark"] .tree-indent-1::before,
+body[data-theme="dark"] .tree-indent-2::before,
+body[data-theme="dark"] .tree-indent-3::before,
+body[data-theme="dark"] .tree-indent-4::before {
+  background: rgb(255 255 255 / 8%);
+}
+
 body[data-theme="dark"] .empty-state-card {
-  background: #161b22;
-  border-color: #30363d;
   box-shadow: none;
 }
 
-body[data-theme="dark"] .empty-state-shortcut-key {
-  background: #0d1117;
-  border-color: #30363d;
-  color: var(--muted);
+body[data-theme="dark"] .empty-state-screen {
+  background:
+    radial-gradient(circle at 50% 18%, rgb(88 166 255 / 9%), transparent 34%),
+    linear-gradient(180deg, rgb(13 17 23 / 72%), rgb(13 17 23 / 24%));
+}
+
+body[data-theme="dark"] .empty-state-mark {
+  color: rgb(201 209 217 / 5%);
+}
+
+body[data-theme="dark"] .empty-state-shortcut-keycap {
+  background: linear-gradient(180deg, rgb(31 36 44 / 96%), rgb(19 22 28 / 96%));
+  border-color: #39414b;
+  color: #a7b0bc;
 }
 
 body[data-theme="dark"] #editor {
@@ -1820,7 +1923,7 @@ body[data-theme="dark"] .about-detail-row {
   }
 
   .empty-state-card {
-    padding: 22px 18px;
+    padding: 18px 10px 6px;
   }
 
   .empty-state-shortcuts-list {

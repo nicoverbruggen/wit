@@ -23,12 +23,14 @@ const sidebarResizer = document.getElementById("sidebar-resizer") as HTMLDivElem
 const sidebar = document.querySelector(".sidebar") as HTMLElement;
 const editorWrap = document.querySelector(".editor-wrap") as HTMLElement;
 const editorHeader = document.querySelector(".editor-header") as HTMLElement;
+const statusBar = document.querySelector(".status-bar") as HTMLElement;
 const emptyStateScreen = document.getElementById("empty-state-screen") as HTMLDivElement;
 const emptyStateEyebrow = document.getElementById("empty-state-eyebrow") as HTMLParagraphElement;
 const emptyStateTitle = document.getElementById("empty-state-title") as HTMLHeadingElement;
 const emptyStateDescription = document.getElementById("empty-state-description") as HTMLParagraphElement;
 const emptyStatePrimaryButton = document.getElementById("empty-state-primary-btn") as HTMLButtonElement;
 const emptyStateSecondaryButton = document.getElementById("empty-state-secondary-btn") as HTMLButtonElement;
+const emptyStateShortcutsLabel = document.querySelector(".empty-state-shortcuts-label") as HTMLParagraphElement;
 const emptyStateShortcutsList = document.getElementById("empty-state-shortcuts-list") as HTMLUListElement;
 const sidebarProjectTitle = document.getElementById("sidebar-project-title") as HTMLHeadingElement;
 const fileList = document.getElementById("file-list") as HTMLUListElement;
@@ -373,6 +375,22 @@ function setDirty(nextDirty: boolean): void {
   dirty = nextDirty;
   dirtyIndicator.hidden = !nextDirty;
   syncActiveFileMarkerState();
+}
+
+async function persistLastOpenedFilePath(relativePath: string | null): Promise<void> {
+  if (!project) {
+    return;
+  }
+
+  try {
+    const savedPath = await window.witApi.setLastOpenedFilePath(relativePath);
+    if (project) {
+      project.lastOpenedFilePath = savedPath;
+      project.hasStoredLastOpenedFilePath = true;
+    }
+  } catch {
+    setStatus("Could not update last opened file.");
+  }
 }
 
 function refreshEditorLayout(): void {
@@ -868,6 +886,21 @@ function resetActiveFile(): void {
   renderFileList();
 }
 
+async function closeCurrentFile(): Promise<void> {
+  if (!currentFilePath) {
+    return;
+  }
+
+  const saved = await persistCurrentFile(false);
+  if (!saved) {
+    return;
+  }
+
+  await persistLastOpenedFilePath(null);
+  resetActiveFile();
+  setStatus("Closed current file.", 1200);
+}
+
 function clearProjectState(showStatusMessage = false): void {
   project = null;
   stopSidebarResize();
@@ -894,15 +927,65 @@ function clearProjectState(showStatusMessage = false): void {
 function renderEmptyStateShortcutRows(shortcuts: Array<{ label: string; key: string }>): void {
   emptyStateShortcutsList.innerHTML = "";
 
+  const parseShortcutAlternatives = (shortcut: string): string[][] =>
+    shortcut.split(" / ").map((alternative) => {
+      const tokens: string[] = [];
+      let currentToken = "";
+
+      for (const character of alternative) {
+        if (character === "+") {
+          if (currentToken.trim().length > 0) {
+            tokens.push(currentToken.trim());
+            currentToken = "";
+          } else {
+            tokens.push("+");
+          }
+
+          continue;
+        }
+
+        currentToken += character;
+      }
+
+      if (currentToken.trim().length > 0) {
+        tokens.push(currentToken.trim());
+      }
+
+      return tokens;
+    });
+
   for (const shortcut of shortcuts) {
     const item = document.createElement("li");
     const label = document.createElement("span");
     const key = document.createElement("span");
+    const alternatives = parseShortcutAlternatives(shortcut.key);
 
     label.className = "empty-state-shortcut-label";
     label.textContent = shortcut.label;
     key.className = "empty-state-shortcut-key";
-    key.textContent = shortcut.key;
+
+    alternatives.forEach((parts, alternativeIndex) => {
+      parts.forEach((part, index) => {
+        const keycap = document.createElement("span");
+        keycap.className = "empty-state-shortcut-keycap";
+        keycap.textContent = part;
+        key.appendChild(keycap);
+
+        if (index < parts.length - 1) {
+          const separator = document.createElement("span");
+          separator.className = "empty-state-shortcut-plus";
+          separator.textContent = "+";
+          key.appendChild(separator);
+        }
+      });
+
+      if (alternativeIndex < alternatives.length - 1) {
+        const separator = document.createElement("span");
+        separator.className = "empty-state-shortcut-slash";
+        separator.textContent = "/";
+        key.appendChild(separator);
+      }
+    });
 
     item.append(label, key);
     emptyStateShortcutsList.appendChild(item);
@@ -919,26 +1002,36 @@ function renderEmptyEditorState(): void {
   }
 
   if (!project) {
+    emptyStateScreen.dataset.mode = "no-project";
+    emptyStateEyebrow.hidden = false;
+    emptyStateTitle.hidden = false;
+    emptyStateDescription.hidden = false;
     emptyStateEyebrow.textContent = "Wit";
-    emptyStateTitle.textContent = "Open a writing project";
+    emptyStateTitle.textContent = "Start by opening a project folder";
     emptyStateDescription.textContent =
-      "Choose a project folder to start writing, autosaving, and creating full text snapshots.";
+      "Use a command below to open a folder, browse commands, or jump straight into a writing workspace.";
     emptyStatePrimaryButton.textContent = "Open Project";
+    emptyStatePrimaryButton.hidden = false;
     emptyStateSecondaryButton.hidden = true;
+    emptyStateShortcutsLabel.hidden = false;
     renderEmptyStateShortcutRows([
       { label: "Open project", key: primaryShortcutLabel("O") },
-      { label: "Toggle sidebar", key: primaryShortcutLabel("B") },
-      { label: "Fullscreen", key: "Toolbar" },
-      { label: "Open settings", key: "Project only" }
+      { label: "Toggle fullscreen", key: "F11" }
     ]);
     return;
   }
 
+  emptyStateScreen.dataset.mode = "project";
+  emptyStateEyebrow.hidden = false;
+  emptyStateTitle.hidden = false;
+  emptyStateDescription.hidden = false;
+  emptyStateShortcutsLabel.hidden = false;
   emptyStateEyebrow.textContent = getProjectDisplayTitle(project.projectPath);
-  emptyStateTitle.textContent = "Choose a file or start a new one";
+  emptyStateTitle.textContent = "Write something wonderful";
   emptyStateDescription.textContent =
     "Select a document in the sidebar, or create a new file or folder to begin drafting in this project.";
   emptyStatePrimaryButton.textContent = "New File";
+  emptyStatePrimaryButton.hidden = false;
   emptyStateSecondaryButton.hidden = false;
   emptyStateSecondaryButton.textContent = "New Folder";
   renderEmptyStateShortcutRows([
@@ -1219,7 +1312,6 @@ function renderRootTreeItem(): void {
   const button = document.createElement("button");
   const icon = document.createElement("span");
   const label = document.createElement("span");
-  const projectSuffix = document.createElement("span");
   const selectedClass = selectedTreeKind === "folder" && selectedTreePath === "" ? "active" : "";
 
   button.type = "button";
@@ -1232,10 +1324,8 @@ function renderRootTreeItem(): void {
   icon.setAttribute("aria-hidden", "true");
   label.className = "tree-label";
   label.textContent = getProjectDisplayTitle(project.projectPath);
-  projectSuffix.className = "tree-root-suffix";
-  projectSuffix.textContent = "PROJECT";
 
-  button.append(icon, label, projectSuffix);
+  button.append(icon, label);
   button.addEventListener("click", () => {
     const closingCurrentFile =
       selectedTreePath === "" && selectedTreeKind === "folder" && currentFilePath !== null;
@@ -1246,8 +1336,7 @@ function renderRootTreeItem(): void {
     setSidebarFaded(false);
 
     if (closingCurrentFile) {
-      resetActiveFile();
-      setStatus("Closed current file.", 1200);
+      void closeCurrentFile();
       return;
     }
 
@@ -1394,6 +1483,20 @@ function syncNewFolderDialogValidation(): void {
 }
 
 function renderStatusFooter(): void {
+  if (!project) {
+    statusBar.classList.add("status-bar--empty");
+    statusMessage.textContent = "";
+    wordCountLabel.hidden = true;
+    writingTimeLabel.hidden = true;
+    snapshotLabel.hidden = true;
+    return;
+  }
+
+  statusBar.classList.remove("status-bar--empty");
+  wordCountLabel.hidden = false;
+  writingTimeLabel.hidden = false;
+  snapshotLabel.hidden = false;
+
   const totalWords = project?.wordCount ?? 0;
   const totalWritingSeconds = project?.totalWritingSeconds ?? 0;
 
@@ -1631,6 +1734,7 @@ async function openFile(relativePath: string): Promise<void> {
     renderFileList();
     setEditorWritable(true);
     renderEmptyEditorState();
+    await persistLastOpenedFilePath(relativePath);
     editor.focus();
     setStatus(`Opened ${relativePath}`, 1200);
   } catch {
@@ -1696,11 +1800,21 @@ async function openProjectPicker(): Promise<void> {
 
   applyProjectMetadata(selectedProject);
 
-  if (selectedProject.files.length > 0) {
+  const preferredFile =
+    selectedProject.lastOpenedFilePath && selectedProject.files.includes(selectedProject.lastOpenedFilePath)
+      ? selectedProject.lastOpenedFilePath
+      : null;
+
+  if (preferredFile) {
+    await openFile(preferredFile);
+  } else if (!selectedProject.hasStoredLastOpenedFilePath && selectedProject.files.length > 0) {
     await openFile(selectedProject.files[0]);
   } else {
     resetActiveFile();
-    setStatus("Project opened. Create your first file.", 2000);
+
+    if (selectedProject.files.length === 0) {
+      setStatus("Project opened. Create your first file.", 2000);
+    }
   }
 }
 
@@ -1965,13 +2079,21 @@ async function deleteEntryByPath(relativePath: string, kind: SelectedTreeKind): 
   try {
     const metadata = await window.witApi.deleteEntry({ relativePath, kind });
     const deletingActiveFile = currentFileWillBeDeleted(relativePath, kind);
+    const deletingRememberedFile =
+      project.lastOpenedFilePath !== null &&
+      (kind === "file"
+        ? pathEquals(project.lastOpenedFilePath, relativePath)
+        : pathEquals(project.lastOpenedFilePath, relativePath) || project.lastOpenedFilePath.startsWith(`${relativePath}/`));
 
     selectedTreePath = null;
     selectedTreeKind = null;
 
     if (deletingActiveFile) {
+      await persistLastOpenedFilePath(null);
       resetActiveFile();
       setSidebarFaded(false);
+    } else if (deletingRememberedFile) {
+      await persistLastOpenedFilePath(null);
     }
 
     applyProjectMetadataAfterMutation(metadata);
@@ -2020,6 +2142,7 @@ async function renameEntryByPath(relativePath: string, kind: SelectedTreeKind): 
   try {
     const result = await window.witApi.renameEntry({ relativePath, kind, nextRelativePath });
     const previousCurrentFilePath = currentFilePath;
+    const previousLastOpenedFilePath = project.lastOpenedFilePath;
     const renamedPath = result.nextRelativePath;
 
     if (previousCurrentFilePath) {
@@ -2036,6 +2159,20 @@ async function renameEntryByPath(relativePath: string, kind: SelectedTreeKind): 
     if (currentFilePath) {
       activeFileLabel.textContent = currentFilePath;
       activeFileLabel.title = currentFilePath;
+    }
+
+    if (previousLastOpenedFilePath) {
+      if (kind === "file" && pathEquals(previousLastOpenedFilePath, relativePath)) {
+        await persistLastOpenedFilePath(renamedPath);
+      }
+
+      if (
+        kind === "folder" &&
+        (pathEquals(previousLastOpenedFilePath, relativePath) || previousLastOpenedFilePath.startsWith(`${relativePath}/`))
+      ) {
+        const suffix = previousLastOpenedFilePath.slice(relativePath.length).replace(/^\/+/, "");
+        await persistLastOpenedFilePath(suffix.length > 0 ? `${renamedPath}/${suffix}` : renamedPath);
+      }
     }
 
     selectedTreePath = renamedPath;
@@ -2091,6 +2228,7 @@ async function moveFileToFolder(fromRelativePath: string, toFolderRelativePath: 
       fromRelativePath: normalizedFrom,
       toFolderRelativePath: normalizedToFolder
     });
+    const previousLastOpenedFilePath = project.lastOpenedFilePath;
 
     selectedTreePath = result.nextFilePath;
     selectedTreeKind = "file";
@@ -2099,6 +2237,10 @@ async function moveFileToFolder(fromRelativePath: string, toFolderRelativePath: 
       currentFilePath = result.nextFilePath;
       activeFileLabel.textContent = result.nextFilePath;
       activeFileLabel.title = result.nextFilePath;
+    }
+
+    if (previousLastOpenedFilePath && pathEquals(previousLastOpenedFilePath, normalizedFrom)) {
+      await persistLastOpenedFilePath(result.nextFilePath);
     }
 
     applyProjectMetadataAfterMutation(result.metadata);
@@ -2219,7 +2361,14 @@ async function initialize(): Promise<void> {
   if (activeProject) {
     applyProjectMetadata(activeProject);
 
-    if (activeProject.files.length > 0) {
+    const preferredFile =
+      activeProject.lastOpenedFilePath && activeProject.files.includes(activeProject.lastOpenedFilePath)
+        ? activeProject.lastOpenedFilePath
+        : null;
+
+    if (preferredFile) {
+      await openFile(preferredFile);
+    } else if (!activeProject.hasStoredLastOpenedFilePath && activeProject.files.length > 0) {
       await openFile(activeProject.files[0]);
     }
   }
@@ -2595,6 +2744,7 @@ fileList.addEventListener("contextmenu", (event) => {
       const action = await window.witApi.showTreeContextMenu({
         relativePath,
         kind,
+        isCurrentFile: kind === "file" && currentFilePath !== null && pathEquals(currentFilePath, relativePath),
         x: event.clientX,
         y: event.clientY,
         testAction
@@ -2612,6 +2762,11 @@ fileList.addEventListener("contextmenu", (event) => {
 
       if (action === "delete") {
         await deleteEntryByPath(relativePath, kind);
+        return;
+      }
+
+      if (action === "close-file") {
+        await closeCurrentFile();
         return;
       }
 
