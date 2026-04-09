@@ -50,15 +50,16 @@ test("project initialization and metadata defaults", async () => {
     assert.equal(metadata.isGitRepository, false);
     assert.deepEqual(metadata.gitRemotes, []);
     assert.equal(metadata.settings.autosaveIntervalSec, 60);
-    assert.equal(metadata.settings.showWordCount, true);
-    assert.equal(metadata.settings.showWritingTime, true);
-    assert.equal(metadata.settings.showCurrentFileBar, true);
+    assert.equal(metadata.settings.showWordCount, false);
+    assert.equal(metadata.settings.showWritingTime, false);
+    assert.equal(metadata.settings.showCurrentFileBar, false);
     assert.equal(metadata.settings.smartQuotes, true);
     assert.equal(metadata.settings.gitSnapshots, false);
     assert.equal(metadata.settings.gitPushRemote, null);
     assert.equal(metadata.settings.editorLineHeight, 1.68);
     assert.equal(metadata.settings.editorMaxWidthPx, 750);
     assert.equal(metadata.settings.editorZoomPercent, 100);
+    assert.equal(metadata.settings.editorFontFamily, "iA Writer Mono");
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
