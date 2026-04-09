@@ -541,7 +541,7 @@ export async function saveSettings(projectPath: string, settings: AppSettings): 
       ? settings.gitPushRemote
       : null;
   const normalizedSettings: AppSettings = {
-    autosaveIntervalSec: Math.max(10, Math.round(settings.autosaveIntervalSec)),
+    autosaveIntervalSec: Math.max(5, Math.round(settings.autosaveIntervalSec)),
     theme: normalizeTheme(settings.theme),
     defaultFileExtension: normalizeDefaultFileExtension(settings.defaultFileExtension),
     showWordCount: Boolean(settings.showWordCount),

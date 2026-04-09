@@ -108,7 +108,7 @@ test("create/list/save/read files with word count and settings", async () => {
       editorFontFamily: ""
     });
 
-    assert.equal(savedSettings.autosaveIntervalSec, 10);
+    assert.equal(savedSettings.autosaveIntervalSec, 5);
     assert.equal(savedSettings.theme, "dark");
     assert.equal(savedSettings.defaultFileExtension, ".wxt");
     assert.equal(savedSettings.showWordCount, false);

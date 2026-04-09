@@ -367,7 +367,8 @@ async function runAutosaveTick(activeSeconds: number): Promise<AutosaveTickResul
     filePaths: files,
     createGitCommit: settings.gitSnapshots && gitRepository,
     pushGitCommit: settings.gitSnapshots && settings.gitPushRemote !== null && gitRepository,
-    gitPushRemote: settings.gitPushRemote
+    gitPushRemote: settings.gitPushRemote,
+    commitMessage: "automatic snapshot"
   });
 
   const [wordCount, stats] = await Promise.all([
@@ -380,6 +381,28 @@ async function runAutosaveTick(activeSeconds: number): Promise<AutosaveTickResul
     totalWritingSeconds: stats.totalWritingSeconds,
     snapshotCreatedAt
   };
+}
+
+async function runExitSnapshot(projectPath: string): Promise<void> {
+  try {
+    const [settings, files, gitRepository] = await Promise.all([
+      loadSettings(projectPath),
+      listProjectFiles(projectPath),
+      getGitRepositoryStatus(projectPath)
+    ]);
+
+    await createSnapshot({
+      projectPath,
+      snapshotDirectory: getSnapshotDirectory(projectPath),
+      filePaths: files,
+      createGitCommit: settings.gitSnapshots && gitRepository,
+      pushGitCommit: settings.gitSnapshots && settings.gitPushRemote !== null && gitRepository,
+      gitPushRemote: settings.gitPushRemote,
+      commitMessage: "exit snapshot"
+    });
+  } catch (error) {
+    console.warn("Exit snapshot failed.", error);
+  }
 }
 
 function setupIpcHandlers(): void {
@@ -410,9 +433,21 @@ function setupIpcHandlers(): void {
   });
 
   ipcMain.handle("project:close", async () => {
+    if (activeProjectPath) {
+      await runExitSnapshot(activeProjectPath);
+    }
+
     activeProjectPath = null;
     await clearLastProjectPath();
     return null;
+  });
+
+  ipcMain.handle("project:exit-snapshot", async () => {
+    if (!activeProjectPath) {
+      return;
+    }
+
+    await runExitSnapshot(activeProjectPath);
   });
 
   ipcMain.handle("window:toggle-fullscreen", () => {
@@ -641,6 +676,21 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       mainWindow = createMainWindow();
     }
+  });
+});
+
+let exitSnapshotDone = false;
+
+app.on("before-quit", (event) => {
+  if (exitSnapshotDone || !activeProjectPath) {
+    return;
+  }
+
+  event.preventDefault();
+  const projectPath = activeProjectPath;
+  runExitSnapshot(projectPath).finally(() => {
+    exitSnapshotDone = true;
+    app.quit();
   });
 });
 

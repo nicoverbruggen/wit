@@ -680,6 +680,10 @@ progress {
   border-color: color-mix(in srgb, var(--accent) 18%, white);
 }
 
+.tree-root-file {
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+}
+
 .tree-root-item {
   grid-template-columns: 16px minmax(0, 1fr);
   font-weight: 700;

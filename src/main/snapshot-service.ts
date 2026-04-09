@@ -2,10 +2,11 @@ import path from "node:path";
 import { promises as fs } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { gzip } from "node:zlib";
+import { gzip, gunzip } from "node:zlib";
 
 const execFileAsync = promisify(execFile);
 const gzipAsync = promisify(gzip);
+const gunzipAsync = promisify(gunzip);
 const MAX_SNAPSHOTS_TO_KEEP = 120;
 const SNAPSHOT_FILE_EXTENSION = ".json.gz";
 export const SNAPSHOT_VERSION_FILE_NAME = "version.json";
@@ -115,9 +116,38 @@ async function pruneSnapshots(snapshotDirectory: string): Promise<void> {
   );
 }
 
+async function isPathGitignored(projectPath: string, relativePath: string): Promise<boolean> {
+  try {
+    await execFileAsync("git", ["-C", projectPath, "check-ignore", "-q", relativePath]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getCommittableWitMetaFiles(projectPath: string): Promise<string[]> {
+  const metaFiles = [".wit/config.json", ".wit/stats.json"];
+  const results: string[] = [];
+
+  for (const file of metaFiles) {
+    const fullPath = path.join(projectPath, file);
+    try {
+      await fs.access(fullPath);
+    } catch {
+      continue;
+    }
+
+    if (!(await isPathGitignored(projectPath, file))) {
+      results.push(file);
+    }
+  }
+
+  return results;
+}
+
 async function commitSnapshotToGit(
   projectPath: string,
-  snapshotTimestamp: string,
+  commitMessage: string,
   filePaths: string[]
 ): Promise<boolean> {
   const gitDirectoryPath = path.join(projectPath, ".git");
@@ -135,15 +165,23 @@ async function commitSnapshotToGit(
     const deletedWritingFiles = await getDeletedTrackedWritingFiles(projectPath);
     const stagedWritingPaths = [...new Set([...filePaths, ...deletedWritingFiles])];
 
-    if (stagedWritingPaths.length > 0) {
-      await execFileAsync("git", ["-C", projectPath, "add", "-A", "--", ...stagedWritingPaths]);
+    if (stagedWritingPaths.length === 0) {
+      return false;
     }
+
+    await execFileAsync("git", ["-C", projectPath, "add", "-A", "--", ...stagedWritingPaths]);
+
+    const witMetaFiles = await getCommittableWitMetaFiles(projectPath);
+    if (witMetaFiles.length > 0) {
+      await execFileAsync("git", ["-C", projectPath, "add", "--", ...witMetaFiles]);
+    }
+
     await execFileAsync("git", [
       "-C",
       projectPath,
       "commit",
       "-m",
-      `wit snapshot ${snapshotTimestamp}`,
+      commitMessage,
       "--quiet"
     ]);
     return true;
@@ -221,6 +259,41 @@ export async function getLatestSnapshotName(snapshotDirectory: string): Promise<
   }
 }
 
+async function getLatestSnapshotFilePaths(snapshotDirectory: string): Promise<string[] | null> {
+  try {
+    const entries = await fs.readdir(snapshotDirectory, { withFileTypes: true });
+    const names = entries
+      .filter((entry) => parseSnapshotTimestamp(entry.name) !== null)
+      .map((entry) => entry.name)
+      .sort();
+
+    if (names.length === 0) {
+      return null;
+    }
+
+    const latestPath = path.join(snapshotDirectory, names[names.length - 1]);
+    const compressed = await fs.readFile(latestPath);
+    const payload: SnapshotPayload = JSON.parse((await gunzipAsync(compressed)).toString("utf8"));
+    return Object.keys(payload.files).sort();
+  } catch {
+    return null;
+  }
+}
+
+async function hasFileListChanged(snapshotDirectory: string, currentFilePaths: string[]): Promise<boolean> {
+  const previousPaths = await getLatestSnapshotFilePaths(snapshotDirectory);
+  if (previousPaths === null) {
+    return false;
+  }
+
+  const sorted = [...currentFilePaths].sort();
+  if (sorted.length !== previousPaths.length) {
+    return true;
+  }
+
+  return sorted.some((p, i) => p !== previousPaths[i]);
+}
+
 async function anyFileModifiedSince(projectPath: string, filePaths: string[], since: Date): Promise<boolean> {
   for (const relativePath of filePaths) {
     try {
@@ -244,11 +317,16 @@ export async function createSnapshot(options: {
   createGitCommit: boolean;
   pushGitCommit: boolean;
   gitPushRemote: string | null;
+  commitMessage?: string;
 }): Promise<string> {
   await ensureSnapshotDirectory(options.snapshotDirectory);
 
   const lastSnapshotDate = await getLatestSnapshotTimestamp(options.snapshotDirectory);
-  if (lastSnapshotDate && !(await anyFileModifiedSince(options.projectPath, options.filePaths, lastSnapshotDate))) {
+  if (
+    lastSnapshotDate &&
+    !(await anyFileModifiedSince(options.projectPath, options.filePaths, lastSnapshotDate)) &&
+    !(await hasFileListChanged(options.snapshotDirectory, options.filePaths))
+  ) {
     return timestampForFilename(lastSnapshotDate);
   }
 
@@ -260,7 +338,8 @@ export async function createSnapshot(options: {
   await pruneSnapshots(options.snapshotDirectory);
 
   if (options.createGitCommit) {
-    const committed = await commitSnapshotToGit(options.projectPath, snapshotTimestamp, options.filePaths);
+    const message = options.commitMessage ?? `automatic snapshot`;
+    const committed = await commitSnapshotToGit(options.projectPath, message, options.filePaths);
     if (committed && options.pushGitCommit && options.gitPushRemote) {
       await pushSnapshotToGitRemote(options.projectPath, options.gitPushRemote);
     }

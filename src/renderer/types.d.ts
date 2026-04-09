@@ -25,6 +25,7 @@ type WitApi = {
   selectProject: () => Promise<ProjectMetadata | null>;
   getActiveProject: () => Promise<ProjectMetadata | null>;
   closeProject: () => Promise<null>;
+  exitSnapshot: () => Promise<void>;
   toggleFullscreen: () => Promise<boolean>;
   openProjectPath: (projectPath: string) => Promise<ProjectMetadata>;
   openFile: (relativePath: string) => Promise<string>;

@@ -1254,7 +1254,8 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
     const selectedClass =
       selectedTreeKind === "file" && selectedTreePath === node.relativePath ? "active" : "";
     const currentFileClass = isCurrentFile ? "current-file" : "";
-    button.className = `tree-item file-button ${toIndentClass(depth)} ${selectedClass} ${currentFileClass}`;
+    const rootFileClass = depth === 0 ? "tree-root-file" : "";
+    button.className = `tree-item file-button ${toIndentClass(depth)} ${selectedClass} ${currentFileClass} ${rootFileClass}`;
     button.dataset.relativePath = node.relativePath;
     button.dataset.itemKind = "file";
     button.draggable = true;
@@ -1271,7 +1272,11 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
     marker.dataset.dirty = String(isCurrentFile && dirty);
     marker.setAttribute("aria-hidden", "true");
 
-    button.append(disclosurePlaceholder, icon, label, marker);
+    if (depth === 0) {
+      button.append(icon, label, marker);
+    } else {
+      button.append(disclosurePlaceholder, icon, label, marker);
+    }
     button.addEventListener("click", () => {
       selectedTreePath = node.relativePath;
       selectedTreeKind = "file";
@@ -2572,7 +2577,7 @@ gitPushRemoteSelect.addEventListener("change", () => {
 
 autosaveIntervalInput.addEventListener("change", () => {
   const parsed = Number.parseInt(autosaveIntervalInput.value, 10);
-  const safeValue = Number.isFinite(parsed) ? Math.max(10, parsed) : 60;
+  const safeValue = Number.isFinite(parsed) ? Math.max(5, parsed) : 60;
   void persistSettings({ autosaveIntervalSec: safeValue });
 });
 

@@ -141,6 +141,18 @@ async function setSelectValueWithoutMovingFocus(page: Page, selector: string, va
   }, { selector, value });
 }
 
+async function setRangeValueWithoutMovingFocus(page: Page, selector: string, value: string): Promise<void> {
+  await page.evaluate(({ selector: targetSelector, value: targetValue }) => {
+    const element = document.querySelector(targetSelector);
+    if (!(element instanceof HTMLInputElement)) {
+      throw new Error(`Range input ${targetSelector} is missing.`);
+    }
+
+    element.value = targetValue;
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  }, { selector, value });
+}
+
 test.describe("Wit core app flow", () => {
   test.beforeEach(async () => {
     await clearLastProjectState();
@@ -872,7 +884,8 @@ test.describe("Wit core app flow", () => {
     });
 
     await openSettingsTab(page, "editor");
-    await page.selectOption("#text-zoom-select", "150");
+    await page.fill("#text-zoom-input", "150");
+    await page.dispatchEvent("#text-zoom-input", "input");
 
     const sizesAfterZoomIn = await page.evaluate(() => {
       const editor = document.querySelector("#editor .cm-content");
@@ -890,7 +903,8 @@ test.describe("Wit core app flow", () => {
     expect(sizesAfterZoomIn.editor).toBeGreaterThan(sizesBefore.editor);
     expect(sizesAfterZoomIn.writingTime).toBeCloseTo(sizesBefore.writingTime, 3);
 
-    await page.selectOption("#text-zoom-select", "100");
+    await page.fill("#text-zoom-input", "100");
+    await page.dispatchEvent("#text-zoom-input", "input");
     const editorSizeAfterReset = await getEditorTypography(page);
     expect(editorSizeAfterReset.fontSize).toBeCloseTo(sizesBefore.editor, 3);
     await closeSettingsDialog(page);
@@ -978,7 +992,7 @@ test.describe("Wit core app flow", () => {
 
     const modifier = process.platform === "darwin" ? "Meta" : "Control";
     await page.keyboard.press(`${modifier}+A`);
-    await setSelectValueWithoutMovingFocus(page, "#text-zoom-select", "150");
+    await setRangeValueWithoutMovingFocus(page, "#text-zoom-input", "150");
     await setSelectValueWithoutMovingFocus(page, "#font-select", "iA Writer Duo");
     await page.keyboard.type("replacement text");
 
@@ -1250,7 +1264,7 @@ test.describe("Wit core app flow", () => {
       .toBeGreaterThan(commitsWhenDisabled);
     const finalCommitCount = await gitCommitCount(projectPath);
     expect(finalCommitCount).toBeGreaterThan(1);
-    expect(await latestCommitMessage(projectPath)).toContain("wit snapshot");
+    expect(await latestCommitMessage(projectPath)).toContain("automatic snapshot");
     await app.close();
   });
 
