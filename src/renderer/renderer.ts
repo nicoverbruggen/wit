@@ -73,7 +73,8 @@ const lineHeightValue = document.getElementById("line-height-value") as HTMLSpan
 const paragraphSpacingSelect = document.getElementById("paragraph-spacing-select") as HTMLSelectElement;
 const editorWidthInput = document.getElementById("editor-width-input") as HTMLInputElement;
 const editorWidthValue = document.getElementById("editor-width-value") as HTMLSpanElement;
-const textZoomSelect = document.getElementById("text-zoom-select") as HTMLSelectElement;
+const textZoomInput = document.getElementById("text-zoom-input") as HTMLInputElement;
+const textZoomValue = document.getElementById("text-zoom-value") as HTMLSpanElement;
 const themeSelect = document.getElementById("theme-select") as HTMLSelectElement;
 const fontSelect = document.getElementById("font-select") as HTMLSelectElement;
 const aboutVersion = document.getElementById("about-version") as HTMLSpanElement;
@@ -759,15 +760,10 @@ function ensureEditorBaseFontSize(): void {
   editorBaseFontSizePx = Number.isFinite(computedSize) && computedSize > 0 ? computedSize : 20;
 }
 
-function findClosestZoomPreset(targetPercent: number): number {
-  return EDITOR_ZOOM_PRESETS.reduce((closest, current) =>
-    Math.abs(current - targetPercent) < Math.abs(closest - targetPercent) ? current : closest
-  );
-}
-
 function syncZoomControlWithState(): void {
   const currentPercent = Math.round(editorZoomFactor * 100);
-  textZoomSelect.value = String(findClosestZoomPreset(currentPercent));
+  textZoomInput.value = String(currentPercent);
+  textZoomValue.textContent = `${currentPercent}%`;
 }
 
 function applyEditorZoom(showStatus = true): void {
@@ -1257,7 +1253,8 @@ function renderTreeNodes(nodes: TreeNode[], depth: number): void {
     button.type = "button";
     const selectedClass =
       selectedTreeKind === "file" && selectedTreePath === node.relativePath ? "active" : "";
-    button.className = `tree-item file-button ${toIndentClass(depth)} ${selectedClass}`;
+    const currentFileClass = isCurrentFile ? "current-file" : "";
+    button.className = `tree-item file-button ${toIndentClass(depth)} ${selectedClass} ${currentFileClass}`;
     button.dataset.relativePath = node.relativePath;
     button.dataset.itemKind = "file";
     button.draggable = true;
@@ -2629,8 +2626,8 @@ editorWidthInput.addEventListener("change", () => {
   void persistSettings({ editorMaxWidthPx: normalized });
 });
 
-textZoomSelect.addEventListener("change", () => {
-  const selectedPercent = Number.parseInt(textZoomSelect.value, 10);
+textZoomInput.addEventListener("input", () => {
+  const selectedPercent = Number.parseInt(textZoomInput.value, 10);
   if (!Number.isFinite(selectedPercent)) {
     return;
   }
