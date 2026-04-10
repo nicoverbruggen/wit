@@ -131,28 +131,7 @@ export function createRendererComposition(options: {
     formatRelativeElapsed: (value: number) => string;
     formatWritingTime: (totalWritingSeconds: number) => string;
   };
-}): {
-  appShellUiController: ReturnType<typeof createAppShellUiController>;
-  projectPersistenceController: ReturnType<typeof createProjectPersistenceController>;
-  editorDirtyStateController: ReturnType<typeof createEditorDirtyStateController>;
-  liveWordCountTracker: ReturnType<typeof createLiveWordCountTracker>;
-  typingActivityTracker: ReturnType<typeof createTypingActivityTracker>;
-  snapshotLabelController: ReturnType<typeof createSnapshotLabelController>;
-  autosaveController: ReturnType<typeof createAutosaveController>;
-  sidebarController: ReturnType<typeof createSidebarController>;
-  sidebarUiController: ReturnType<typeof createSidebarUiController>;
-  editorPresentationController: ReturnType<typeof createEditorPresentationController>;
-  settingsDialogController: ReturnType<typeof createSettingsDialogController>;
-  projectTreeStateController: ReturnType<typeof createProjectTreeStateController>;
-  entryDialogController: ReturnType<typeof createEntryDialogController>;
-  projectEntryActionsController: ReturnType<typeof createProjectEntryActionsController>;
-  projectUiController: ReturnType<typeof createProjectUiController>;
-  projectStateApplicationController: ReturnType<typeof createProjectStateApplicationController>;
-  projectLifecycleController: ReturnType<typeof createProjectLifecycleController>;
-  emptyEditorStateController: ReturnType<typeof createEmptyEditorStateController>;
-  editorInteractionsController: ReturnType<typeof createEditorInteractionsController>;
-  fileSessionController: ReturnType<typeof createFileSessionController>;
-} {
+}): RendererComposition {
   let projectEntryActionsController!: ReturnType<typeof createProjectEntryActionsController>;
   let fileSessionController!: ReturnType<typeof createFileSessionController>;
 
@@ -569,3 +548,26 @@ export function createRendererComposition(options: {
     fileSessionController
   };
 }
+
+export type RendererComposition = {
+  appShellUiController: ReturnType<typeof createAppShellUiController>;
+  projectPersistenceController: ReturnType<typeof createProjectPersistenceController>;
+  editorDirtyStateController: ReturnType<typeof createEditorDirtyStateController>;
+  liveWordCountTracker: ReturnType<typeof createLiveWordCountTracker>;
+  typingActivityTracker: ReturnType<typeof createTypingActivityTracker>;
+  snapshotLabelController: ReturnType<typeof createSnapshotLabelController>;
+  autosaveController: ReturnType<typeof createAutosaveController>;
+  sidebarController: ReturnType<typeof createSidebarController>;
+  sidebarUiController: ReturnType<typeof createSidebarUiController>;
+  editorPresentationController: ReturnType<typeof createEditorPresentationController>;
+  settingsDialogController: ReturnType<typeof createSettingsDialogController>;
+  projectTreeStateController: ReturnType<typeof createProjectTreeStateController>;
+  entryDialogController: ReturnType<typeof createEntryDialogController>;
+  projectEntryActionsController: ReturnType<typeof createProjectEntryActionsController>;
+  projectUiController: ReturnType<typeof createProjectUiController>;
+  projectStateApplicationController: ReturnType<typeof createProjectStateApplicationController>;
+  projectLifecycleController: ReturnType<typeof createProjectLifecycleController>;
+  emptyEditorStateController: ReturnType<typeof createEmptyEditorStateController>;
+  editorInteractionsController: ReturnType<typeof createEditorInteractionsController>;
+  fileSessionController: ReturnType<typeof createFileSessionController>;
+};
