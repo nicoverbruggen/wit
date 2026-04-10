@@ -4,18 +4,9 @@ import {
   normalizeEditorMaxWidth,
   normalizeEditorParagraphSpacing,
   normalizeEditorZoomPercent,
-  normalizePathInput,
   pathEquals
 } from "../shared/utils.js";
 import { formatRelativeElapsed, formatWritingTime, parseSnapshotTimestamp } from "./formatting.js";
-import {
-  buildSiblingPath,
-  getBaseName,
-  getDropDestinationLabel,
-  getParentFolderPath,
-  withOriginalFileExtension
-} from "./path-utils.js";
-import { currentFileWillBeDeleted, resolveNewFilePath, resolveNewFolderPath } from "./project-path-rules.js";
 import { createCodeMirrorEditor } from "./codemirror-editor-adapter.js";
 import {
   renderEmptyStateShortcutRows as renderShortcutRows,
@@ -32,10 +23,10 @@ import {
   type ProjectTreeSelectionKind
 } from "./features/project-tree/project-tree-view.js";
 import {
-  bindProjectTreeContextMenuController,
   createProjectTreeRenderCallbacks
 } from "./features/project-tree/project-tree-controller.js";
 import { createEntryDialogController } from "./features/project-tree/entry-dialog-controller.js";
+import { createProjectEntryActionsController } from "./features/project-tree/project-entry-actions-controller.js";
 import { createLiveWordCountTracker } from "./features/editor/live-word-count.js";
 import { computeSmartQuoteReplacement, isSmartQuoteCharacter } from "./features/editor/smart-quotes.js";
 import {
@@ -48,6 +39,8 @@ import { createAutosaveController } from "./features/autosave/autosave-controlle
 import { createSnapshotLabelController } from "./features/autosave/snapshot-label-controller.js";
 import { createSidebarController } from "./features/sidebar/sidebar-controller.js";
 import { createSettingsDialogController } from "./features/settings/settings-dialog-controller.js";
+import { initializeApp } from "./features/app/app-initializer.js";
+import { bindAppEventBindings } from "./features/app/app-event-bindings.js";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
 const openProjectWrap = document.querySelector(".open-project-wrap") as HTMLElement;
@@ -253,6 +246,38 @@ const entryDialogController = createEntryDialogController({
   renameEntryCancelButton,
   renameEntryConfirmButton,
   renameEntryError
+});
+const projectEntryActionsController = createProjectEntryActionsController({
+  getProject: () => project,
+  getCurrentFilePath: () => currentFilePath,
+  setCurrentFilePath: setCurrentFilePathState,
+  getDirty: () => dirty,
+  setSelectedTree: (relativePath, kind) => {
+    selectedTreePath = relativePath;
+    selectedTreeKind = kind;
+  },
+  getSelectedFolderPath,
+  closeTreeContextMenu,
+  askForNewFilePath: () => entryDialogController.askForNewFilePath(),
+  askForNewFolderPath: () => entryDialogController.askForNewFolderPath(),
+  askForRenameValue: (kind, currentName) => entryDialogController.askForRenameValue(kind, currentName),
+  openFile,
+  persistCurrentFile,
+  persistLastOpenedFilePath,
+  resetActiveFile,
+  setSidebarFaded,
+  setActiveFileLabel: (label) => {
+    activeFileLabel.textContent = label;
+    activeFileLabel.title = label;
+  },
+  renderFileList,
+  renderStatusFooter,
+  setStatus,
+  newFile: (payload) => window.witApi.newFile(payload),
+  newFolder: (payload) => window.witApi.newFolder(payload),
+  deleteEntry: (payload) => window.witApi.deleteEntry(payload),
+  renameEntry: (payload) => window.witApi.renameEntry(payload),
+  moveFile: (payload) => window.witApi.moveFile(payload)
 });
 
 function setProjectState(nextProject: ProjectMetadata | null): void {
@@ -828,7 +853,8 @@ const projectTreeRenderCallbacks = createProjectTreeRenderCallbacks({
     saveCollapsedFolders,
     closeCurrentFile,
     openFile,
-    moveFileToFolder
+    moveFileToFolder: (sourcePath, toFolderRelativePath) =>
+      projectEntryActionsController.moveFileToFolder(sourcePath, toFolderRelativePath)
   }
 });
 
@@ -1120,266 +1146,6 @@ async function closeCurrentProject(): Promise<void> {
   }
 }
 
-async function createNewFile(): Promise<void> {
-  if (!project) {
-    return;
-  }
-
-  const proposedName = await entryDialogController.askForNewFilePath();
-  if (!proposedName) {
-    return;
-  }
-
-  const validation = resolveNewFilePath(project, proposedName, getSelectedFolderPath());
-  if (!validation.relativePath) {
-    setStatus(validation.error ?? "Could not create file.");
-    return;
-  }
-
-  const relativePath = validation.relativePath;
-
-  try {
-    const files = await window.witApi.newFile({ relativePath });
-    project.files = files;
-    renderFileList();
-    await openFile(relativePath);
-    setStatus(`Created ${relativePath}`, 2000);
-  } catch {
-    setStatus("Could not create file. Check the path and try again.");
-  }
-}
-
-async function createNewFolder(): Promise<void> {
-  if (!project) {
-    return;
-  }
-
-  const proposedPath = await entryDialogController.askForNewFolderPath();
-  if (!proposedPath) {
-    return;
-  }
-
-  const validation = resolveNewFolderPath(project, proposedPath, getSelectedFolderPath());
-  if (!validation.relativePath) {
-    setStatus(validation.error ?? "Could not create folder.");
-    return;
-  }
-
-  const relativePath = validation.relativePath;
-
-  try {
-    const folders = await window.witApi.newFolder({ relativePath });
-    project.folders = folders;
-    renderFileList();
-    setStatus(`Created folder ${relativePath}`, 2000);
-  } catch {
-    setStatus("Could not create folder. Check the path and try again.");
-  }
-}
-
-function applyProjectMetadataAfterMutation(metadata: ProjectMetadata): void {
-  if (!project) {
-    return;
-  }
-
-  project.files = metadata.files;
-  project.folders = metadata.folders;
-  project.wordCount = metadata.wordCount;
-  project.totalWritingSeconds = metadata.totalWritingSeconds;
-  project.settings = metadata.settings;
-  renderStatusFooter();
-  renderFileList();
-}
-
-async function deleteEntryByPath(relativePath: string, kind: SelectedTreeKind): Promise<void> {
-  if (!project) {
-    return;
-  }
-
-  closeTreeContextMenu();
-  const label = kind === "folder" ? "folder" : "file";
-
-  const confirmed = window.confirm(
-    `Delete ${label} "${relativePath}"?\n\nThis action cannot be undone.`
-  );
-  if (!confirmed) {
-    return;
-  }
-
-  try {
-    const metadata = await window.witApi.deleteEntry({ relativePath, kind });
-    const deletingActiveFile = currentFileWillBeDeleted(currentFilePath, relativePath, kind);
-    const deletingRememberedFile =
-      project.lastOpenedFilePath !== null &&
-      (kind === "file"
-        ? pathEquals(project.lastOpenedFilePath, relativePath)
-        : pathEquals(project.lastOpenedFilePath, relativePath) || project.lastOpenedFilePath.startsWith(`${relativePath}/`));
-
-    selectedTreePath = null;
-    selectedTreeKind = null;
-
-    if (deletingActiveFile) {
-      await persistLastOpenedFilePath(null);
-      resetActiveFile();
-      setSidebarFaded(false);
-    } else if (deletingRememberedFile) {
-      await persistLastOpenedFilePath(null);
-    }
-
-    applyProjectMetadataAfterMutation(metadata);
-    setStatus(`Deleted ${label} ${relativePath}`, 2000);
-  } catch {
-    setStatus("Could not delete selected item.");
-  }
-}
-
-async function renameEntryByPath(relativePath: string, kind: SelectedTreeKind): Promise<void> {
-  if (!project) {
-    return;
-  }
-
-  closeTreeContextMenu();
-
-  const currentName = getBaseName(relativePath);
-  const proposedName = await entryDialogController.askForRenameValue(kind, currentName);
-  if (proposedName === null) {
-    return;
-  }
-
-  const trimmedName = proposedName.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
-  if (!trimmedName || trimmedName.includes("/")) {
-    setStatus("Name must be a single file or folder name.");
-    return;
-  }
-
-  const normalizedName =
-    kind === "file" ? withOriginalFileExtension(trimmedName, relativePath) : trimmedName;
-  const nextRelativePath = buildSiblingPath(relativePath, normalizedName);
-
-  if (pathEquals(nextRelativePath, relativePath)) {
-    setStatus("Name is unchanged.", 1200);
-    return;
-  }
-
-  if (kind === "file" && dirty && currentFilePath && pathEquals(currentFilePath, relativePath)) {
-    const saved = await persistCurrentFile(false);
-    if (!saved) {
-      setStatus("Save failed. Could not rename file.");
-      return;
-    }
-  }
-
-  try {
-    const result = await window.witApi.renameEntry({ relativePath, kind, nextRelativePath });
-    const previousCurrentFilePath = currentFilePath;
-    const previousLastOpenedFilePath = project.lastOpenedFilePath;
-    const renamedPath = result.nextRelativePath;
-
-    if (previousCurrentFilePath) {
-      if (kind === "file" && pathEquals(previousCurrentFilePath, relativePath)) {
-        setCurrentFilePathState(renamedPath);
-      }
-
-      if (kind === "folder" && (pathEquals(previousCurrentFilePath, relativePath) || previousCurrentFilePath.startsWith(`${relativePath}/`))) {
-        const suffix = previousCurrentFilePath.slice(relativePath.length).replace(/^\/+/, "");
-        setCurrentFilePathState(suffix.length > 0 ? `${renamedPath}/${suffix}` : renamedPath);
-      }
-    }
-
-    if (currentFilePath) {
-      activeFileLabel.textContent = currentFilePath;
-      activeFileLabel.title = currentFilePath;
-    }
-
-    if (previousLastOpenedFilePath) {
-      if (kind === "file" && pathEquals(previousLastOpenedFilePath, relativePath)) {
-        await persistLastOpenedFilePath(renamedPath);
-      }
-
-      if (
-        kind === "folder" &&
-        (pathEquals(previousLastOpenedFilePath, relativePath) || previousLastOpenedFilePath.startsWith(`${relativePath}/`))
-      ) {
-        const suffix = previousLastOpenedFilePath.slice(relativePath.length).replace(/^\/+/, "");
-        await persistLastOpenedFilePath(suffix.length > 0 ? `${renamedPath}/${suffix}` : renamedPath);
-      }
-    }
-
-    selectedTreePath = renamedPath;
-    selectedTreeKind = kind;
-
-    applyProjectMetadataAfterMutation(result.metadata);
-    setStatus(`Renamed to ${normalizedName}`, 1700);
-  } catch {
-    setStatus("Could not rename item. Check for duplicate names.");
-  }
-}
-
-async function moveFileToFolder(fromRelativePath: string, toFolderRelativePath: string): Promise<void> {
-  if (!project) {
-    return;
-  }
-
-  closeTreeContextMenu();
-
-  const normalizedFrom = normalizePathInput(fromRelativePath);
-  const normalizedToFolder = normalizePathInput(toFolderRelativePath);
-  if (!normalizedFrom) {
-    return;
-  }
-
-  const sourceParentPath = getParentFolderPath(normalizedFrom);
-  if (
-    (sourceParentPath && pathEquals(sourceParentPath, normalizedToFolder)) ||
-    (!sourceParentPath && normalizedToFolder.length === 0)
-  ) {
-    setStatus("File is already in that folder.", 1200);
-    return;
-  }
-
-  const fileName = getBaseName(normalizedFrom);
-  const nextRelativePath =
-    normalizedToFolder.length > 0 ? `${normalizedToFolder}/${fileName}` : fileName;
-  if (pathEquals(normalizedFrom, nextRelativePath)) {
-    setStatus("File is already in that folder.", 1200);
-    return;
-  }
-
-  if (dirty && currentFilePath && pathEquals(currentFilePath, normalizedFrom)) {
-    const saved = await persistCurrentFile(false);
-    if (!saved) {
-      setStatus("Save failed. Could not move file.");
-      return;
-    }
-  }
-
-  try {
-    const result = await window.witApi.moveFile({
-      fromRelativePath: normalizedFrom,
-      toFolderRelativePath: normalizedToFolder
-    });
-    const previousLastOpenedFilePath = project.lastOpenedFilePath;
-
-    selectedTreePath = result.nextFilePath;
-    selectedTreeKind = "file";
-
-    if (currentFilePath && pathEquals(currentFilePath, normalizedFrom)) {
-      setCurrentFilePathState(result.nextFilePath);
-      activeFileLabel.textContent = result.nextFilePath;
-      activeFileLabel.title = result.nextFilePath;
-    }
-
-    if (previousLastOpenedFilePath && pathEquals(previousLastOpenedFilePath, normalizedFrom)) {
-      await persistLastOpenedFilePath(result.nextFilePath);
-    }
-
-    applyProjectMetadataAfterMutation(result.metadata);
-    setStatus(`Moved ${fileName} to ${getDropDestinationLabel(normalizedToFolder)}`, 1700);
-  } catch {
-    setStatus("Could not move file. Check destination and file conflicts.");
-  }
-}
-
 async function persistSettings(update: Partial<AppSettings>): Promise<void> {
   settingsPersistQueue = settingsPersistQueue
     .then(async () => {
@@ -1455,293 +1221,123 @@ function handleEditorKeydown(event: KeyboardEvent): void {
   }
 }
 
-async function initialize(): Promise<void> {
-  document.body.dataset.appReady = "false";
-  const platform = window.witApi.getPlatform();
-  document.body.classList.add(`platform-${platform}`);
-  void loadAboutInfo();
-
-  loadSidebarWidthPreference();
-  setProjectControlsEnabled(false);
-  settingsDialogController.setActiveTab("writing");
-  syncSidebarToggleButton();
-  syncFullscreenToggleButton(false);
-  setSidebarVisibility(false, false);
-  setSidebarFaded(false);
-  setEditorWritable(false);
-  populateFontSelect(DEFAULT_EDITOR_FONT);
-  applyTheme("light");
-  applyEditorLineHeight(Number.parseFloat(lineHeightInput.value));
-  applyEditorParagraphSpacing(normalizeEditorParagraphSpacing(paragraphSpacingSelect.value));
-  applyEditorMaxWidth(Number.parseInt(editorWidthInput.value, 10));
-  applyEditorZoom(false);
-  applyEditorFont(DEFAULT_EDITOR_FONT);
-  renderSnapshotLabel();
-  restartSnapshotLabelTimer();
-  renderFileList();
-  renderStatusFooter();
-  renderEmptyEditorState();
-
-  const activeProject = await window.witApi.getActiveProject();
-  if (activeProject) {
-    applyProjectMetadata(activeProject);
-
-    const preferredFile =
-      activeProject.lastOpenedFilePath && activeProject.files.includes(activeProject.lastOpenedFilePath)
-        ? activeProject.lastOpenedFilePath
-        : null;
-
-    if (preferredFile) {
-      await openFile(preferredFile);
-    } else if (!activeProject.hasStoredLastOpenedFilePath && activeProject.files.length > 0) {
-      await openFile(activeProject.files[0]);
-    }
-  }
-
-  subscriptions.push(
-    window.witApi.onMenuOpenProject(() => {
-      void openProjectPicker();
-    })
-  );
-
-  subscriptions.push(
-    window.witApi.onMenuNewFile(() => {
-      void createNewFile();
-    })
-  );
-
-  subscriptions.push(
-    window.witApi.onMenuSaveCurrentFile(() => {
-      void persistCurrentFile(true);
-    })
-  );
-
-  subscriptions.push(
-    window.witApi.onMenuZoomInText(() => {
-      stepEditorZoom(1);
-    })
-  );
-
-  subscriptions.push(
-    window.witApi.onMenuZoomOutText(() => {
-      stepEditorZoom(-1);
-    })
-  );
-
-  subscriptions.push(
-    window.witApi.onMenuZoomResetText(() => {
-      resetEditorZoom();
-    })
-  );
-
-  subscriptions.push(
-    window.witApi.onMenuToggleSidebar(() => {
-      toggleSidebarVisibility();
-    })
-  );
-
-  subscriptions.push(
-    window.witApi.onFullscreenChanged((isFullscreen) => {
-      syncFullscreenToggleButton(isFullscreen);
-    })
-  );
-
-  document.body.dataset.appReady = "true";
-
-  // Font discovery can be slow; populate extra system fonts after initial UI is ready.
-  void (async () => {
-    await loadSystemFonts();
-    const selectedFont = fontSelect.value || project?.settings.editorFontFamily || DEFAULT_EDITOR_FONT;
-    populateFontSelect(selectedFont);
-    applyEditorFont(fontSelect.value);
-  })();
-}
-
-openProjectButton.addEventListener("click", () => {
-  closeTreeContextMenu();
-  void openProjectPicker();
-});
-
-emptyStatePrimaryButton.addEventListener("click", () => {
-  closeTreeContextMenu();
-
-  if (!project) {
-    void openProjectPicker();
-    return;
-  }
-
-  void createNewFile();
-});
-
-emptyStateSecondaryButton.addEventListener("click", () => {
-  closeTreeContextMenu();
-
-  if (!project) {
-    return;
-  }
-
-  void createNewFolder();
-});
-
-newFileButton.addEventListener("click", () => {
-  closeTreeContextMenu();
-  void createNewFile();
-});
-
-newFolderButton.addEventListener("click", () => {
-  closeTreeContextMenu();
-  void createNewFolder();
-});
-
-toggleSidebarButton.addEventListener("click", () => {
-  closeTreeContextMenu();
-  toggleSidebarVisibility();
-});
-
-sidebarResizer.addEventListener("mousedown", (event) => {
-  if (event.button !== 0) {
-    return;
-  }
-
-  event.preventDefault();
-  closeTreeContextMenu();
-  beginSidebarResize(event.clientX);
-});
-
-sidebarResizer.addEventListener("keydown", (event) => {
-  if (!project || !sidebarController.isVisible()) {
-    return;
-  }
-
-  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
-    return;
-  }
-
-  event.preventDefault();
-  closeTreeContextMenu();
-  const delta = event.key === "ArrowLeft" ? -20 : 20;
-  sidebarController.adjustWidth(delta);
-});
-
-fullscreenToggleButton.addEventListener("click", () => {
-  closeTreeContextMenu();
-  void (async () => {
-    try {
-      const isFullscreen = await window.witApi.toggleFullscreen();
-      syncFullscreenToggleButton(isFullscreen);
-    } catch {
-      setStatus("Could not toggle fullscreen.");
-    }
-  })();
-});
-
-subscriptions.push(editor.onInput(() => {
-  if (suppressDirtyEvents) {
-    return;
-  }
-
-  recordTypingActivity();
-  setDirty(true);
-  scheduleLiveWordCountRefresh();
-  setSidebarFaded(true);
-}));
-
-subscriptions.push(editor.onKeydown((event) => {
-  handleEditorKeydown(event);
-}));
-
-subscriptions.push(editor.onBlur(() => {
-  setSidebarFaded(false);
-}));
-
-sidebar.addEventListener("mouseenter", () => {
-  setSidebarFaded(false);
-});
-
-sidebar.addEventListener("focusin", () => {
-  setSidebarFaded(false);
-});
-
-subscriptions.push(
-  bindProjectTreeContextMenuController({
-    listElement: fileList,
-    state: {
-      getSelectedTreePath: () => selectedTreePath,
-      setSelectedTreePath: (value) => {
-        selectedTreePath = value;
-      },
-      getSelectedTreeKind: () => selectedTreeKind,
-      setSelectedTreeKind: (value) => {
-        selectedTreeKind = value;
-      },
-      getCurrentFilePath: () => currentFilePath,
-      getDragSourceFilePath: () => dragSourceFilePath,
-      setDragSourceFilePath: (value) => {
-        dragSourceFilePath = value;
-      }
+bindAppEventBindings({
+  openProjectButton,
+  emptyStatePrimaryButton,
+  emptyStateSecondaryButton,
+  newFileButton,
+  newFolderButton,
+  toggleSidebarButton,
+  sidebarResizer,
+  fullscreenToggleButton,
+  sidebar,
+  fileList,
+  editor,
+  getProject: () => project,
+  getSuppressDirtyEvents: () => suppressDirtyEvents,
+  projectTreeState: {
+    getSelectedTreePath: () => selectedTreePath,
+    setSelectedTreePath: (value) => {
+      selectedTreePath = value;
     },
-    consumeTestTreeContextAction,
-    showTreeContextMenu: (payload) => window.witApi.showTreeContextMenu(payload),
-    createNewFile,
-    createNewFolder,
-    closeCurrentProject,
-    deleteEntryByPath,
-    closeCurrentFile,
-    renameEntryByPath,
-    closeTreeContextMenu,
-    renderFileList,
-    setSidebarFaded,
-    setStatus
-  })
-);
-
-document.addEventListener("keydown", (event) => {
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
-    event.preventDefault();
-    closeTreeContextMenu();
-    void persistCurrentFile(true);
-  }
+    getSelectedTreeKind: () => selectedTreeKind,
+    setSelectedTreeKind: (value) => {
+      selectedTreeKind = value;
+    },
+    getCurrentFilePath: () => currentFilePath,
+    getDragSourceFilePath: () => dragSourceFilePath,
+    setDragSourceFilePath: (value) => {
+      dragSourceFilePath = value;
+    }
+  },
+  closeTreeContextMenu,
+  openProjectPicker,
+  createNewFile: () => projectEntryActionsController.createNewFile(),
+  createNewFolder: () => projectEntryActionsController.createNewFolder(),
+  toggleSidebarVisibility,
+  beginSidebarResize,
+  isSidebarVisible: () => sidebarController.isVisible(),
+  adjustSidebarWidth: (delta) => sidebarController.adjustWidth(delta),
+  toggleFullscreen: () => window.witApi.toggleFullscreen(),
+  syncFullscreenToggleButton,
+  recordTypingActivity,
+  setDirty,
+  scheduleLiveWordCountRefresh,
+  setSidebarFaded,
+  handleEditorKeydown,
+  addSubscription: (unsubscribe) => {
+    subscriptions.push(unsubscribe);
+  },
+  consumeTestTreeContextAction,
+  showTreeContextMenu: (payload) => window.witApi.showTreeContextMenu(payload),
+  closeCurrentProject,
+  deleteEntryByPath: (relativePath, kind) => projectEntryActionsController.deleteEntryByPath(relativePath, kind),
+  closeCurrentFile,
+  renameEntryByPath: (relativePath, kind) => projectEntryActionsController.renameEntryByPath(relativePath, kind),
+  renderFileList,
+  persistCurrentFile,
+  cancelPendingLiveWordCount,
+  saveCurrentFileSynchronously,
+  stopSidebarResize,
+  clearEditorWidthGuides,
+  stopAutosaveController: () => autosaveController.stop(),
+  stopSnapshotLabelController: () => snapshotLabelController.stop(),
+  destroySettingsDialogController: () => settingsDialogController.destroy(),
+  destroyEntryDialogController: () => entryDialogController.destroy(),
+  cleanupSubscriptions: () => {
+    for (const unsubscribe of subscriptions) {
+      unsubscribe();
+    }
+  },
+  setDragSourceFilePath: (value) => {
+    dragSourceFilePath = value;
+  },
+  setStatus
 });
 
-document.addEventListener("dragend", () => {
-  dragSourceFilePath = null;
-  fileList.querySelectorAll(".drop-target").forEach((element) => {
-    element.classList.remove("drop-target");
-  });
+void initializeApp({
+  body: document.body,
+  witApi: window.witApi,
+  defaultEditorFont: DEFAULT_EDITOR_FONT,
+  lineHeightInput,
+  paragraphSpacingSelect,
+  editorWidthInput,
+  fontSelect,
+  getProject: () => project,
+  loadAboutInfo,
+  loadSidebarWidthPreference,
+  setProjectControlsEnabled,
+  setSettingsTab: (tab) => settingsDialogController.setActiveTab(tab),
+  syncSidebarToggleButton,
+  syncFullscreenToggleButton,
+  setSidebarVisibility,
+  setSidebarFaded,
+  setEditorWritable,
+  populateFontSelect,
+  applyTheme,
+  applyEditorLineHeight,
+  normalizeEditorParagraphSpacing,
+  applyEditorParagraphSpacing,
+  applyEditorMaxWidth,
+  applyEditorZoom,
+  applyEditorFont,
+  renderSnapshotLabel,
+  restartSnapshotLabelTimer,
+  renderFileList,
+  renderStatusFooter,
+  renderEmptyEditorState,
+  applyProjectMetadata,
+  openFile,
+  resetActiveFile,
+  setStatus,
+  addSubscription: (unsubscribe) => {
+    subscriptions.push(unsubscribe);
+  },
+  openProjectPicker,
+  createNewFile: () => projectEntryActionsController.createNewFile(),
+  persistCurrentFile,
+  stepEditorZoom,
+  resetEditorZoom,
+  toggleSidebarVisibility,
+  loadSystemFonts
 });
-
-document.addEventListener("drop", () => {
-  dragSourceFilePath = null;
-});
-
-window.addEventListener("beforeunload", () => {
-  cancelPendingLiveWordCount();
-  saveCurrentFileSynchronously();
-  stopSidebarResize();
-  clearEditorWidthGuides();
-  closeTreeContextMenu();
-  autosaveController.stop();
-  snapshotLabelController.stop();
-  settingsDialogController.destroy();
-  entryDialogController.destroy();
-
-  for (const unsubscribe of subscriptions) {
-    unsubscribe();
-  }
-
-  editor.destroy();
-});
-
-window.addEventListener("error", () => {
-  closeTreeContextMenu();
-  setStatus("A UI error occurred. Check logs.");
-});
-
-window.addEventListener("unhandledrejection", (event) => {
-  console.error("Unhandled renderer rejection:", event.reason);
-  closeTreeContextMenu();
-  setStatus("An unexpected async error occurred.");
-  event.preventDefault();
-});
-
-void initialize();
