@@ -54,7 +54,17 @@ import {
   renderProjectTreeList,
   type ProjectTreeSelectionKind
 } from "./features/project-tree/project-tree-view.js";
-import { bindProjectTreeContextMenu } from "./features/project-tree/project-tree-context-menu.js";
+import {
+  bindProjectTreeContextMenuController,
+  createProjectTreeRenderCallbacks
+} from "./features/project-tree/project-tree-controller.js";
+import { createLiveWordCountTracker } from "./features/editor/live-word-count.js";
+import { computeSmartQuoteReplacement, isSmartQuoteCharacter } from "./features/editor/smart-quotes.js";
+import {
+  openFileInEditorSession,
+  persistCurrentFileInSession,
+  saveCurrentFileSynchronouslyInSession
+} from "./features/editor/editor-session.js";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
 const openProjectWrap = document.querySelector(".open-project-wrap") as HTMLElement;
@@ -171,8 +181,6 @@ let suppressDirtyEvents = false;
 let editorBaseFontSizePx = 0;
 let editorZoomFactor = 1;
 let isWindowFullscreen = false;
-let liveWordCountTimer: number | null = null;
-let liveWordCountRequestToken = 0;
 let snapshotCreatedAtMs: number | null = null;
 let snapshotLabelTimer: number | null = null;
 let editorWidthGuideTimer: number | null = null;
@@ -192,6 +200,7 @@ const subscriptions: Array<() => void> = [];
 type TestWindowWithContextAction = Window & {
   __WIT_TEST_TREE_ACTION?: TreeContextAction;
 };
+const liveWordCountTracker = createLiveWordCountTracker(LIVE_WORD_COUNT_DEBOUNCE_MS);
 
 const appStore = createRendererStore<RendererAppState, RendererAppAction>({
   initialState: createInitialRendererAppState({
@@ -930,6 +939,34 @@ function renderEditorHeaderVisibility(): void {
   editorHeader.hidden = Boolean(project && !project.settings.showCurrentFileBar);
 }
 
+const projectTreeRenderCallbacks = createProjectTreeRenderCallbacks({
+  state: {
+    getSelectedTreePath: () => selectedTreePath,
+    setSelectedTreePath: (value) => {
+      selectedTreePath = value;
+    },
+    getSelectedTreeKind: () => selectedTreeKind,
+    setSelectedTreeKind: (value) => {
+      selectedTreeKind = value;
+    },
+    getCurrentFilePath: () => currentFilePath,
+    getDragSourceFilePath: () => dragSourceFilePath,
+    setDragSourceFilePath: (value) => {
+      dragSourceFilePath = value;
+    }
+  },
+  collapsedFolderPaths,
+  actions: {
+    closeTreeContextMenu,
+    setSidebarFaded,
+    renderFileList,
+    saveCollapsedFolders,
+    closeCurrentFile,
+    openFile,
+    moveFileToFolder
+  }
+});
+
 function renderFileList(): void {
   renderProjectTreeList({
     listElement: fileList,
@@ -942,45 +979,7 @@ function renderFileList(): void {
     maxTreeIndent: MAX_TREE_INDENT,
     getProjectDisplayTitle,
     getDragSourceFilePath: () => dragSourceFilePath,
-    callbacks: {
-      onBeforeInteraction: closeTreeContextMenu,
-      onProjectRootClick: (closingCurrentFile) => {
-        selectedTreePath = "";
-        selectedTreeKind = "folder";
-        setSidebarFaded(false);
-
-        if (closingCurrentFile) {
-          void closeCurrentFile();
-          return;
-        }
-
-        renderFileList();
-      },
-      onFolderClick: (relativePath, isCollapsed) => {
-        if (selectedTreePath === relativePath && selectedTreeKind === "folder" && !isCollapsed) {
-          collapsedFolderPaths.add(relativePath);
-        } else {
-          collapsedFolderPaths.delete(relativePath);
-        }
-
-        selectedTreePath = relativePath;
-        selectedTreeKind = "folder";
-        saveCollapsedFolders();
-        setSidebarFaded(false);
-        renderFileList();
-      },
-      onFileClick: (relativePath) => {
-        selectedTreePath = relativePath;
-        selectedTreeKind = "file";
-        void openFile(relativePath);
-      },
-      onMoveFileToFolder: (sourcePath, toFolderRelativePath) => {
-        void moveFileToFolder(sourcePath, toFolderRelativePath);
-      },
-      onDragSourceChange: (sourcePath) => {
-        dragSourceFilePath = sourcePath;
-      }
-    }
+    callbacks: projectTreeRenderCallbacks
   });
 }
 
@@ -1062,12 +1061,7 @@ function applyProjectMetadata(metadata: ProjectMetadata): void {
 }
 
 function cancelPendingLiveWordCount(): void {
-  liveWordCountRequestToken += 1;
-
-  if (liveWordCountTimer) {
-    window.clearTimeout(liveWordCountTimer);
-    liveWordCountTimer = null;
-  }
+  liveWordCountTracker.cancelPending();
 }
 
 function scheduleLiveWordCountRefresh(): void {
@@ -1075,22 +1069,14 @@ function scheduleLiveWordCountRefresh(): void {
     return;
   }
 
-  cancelPendingLiveWordCount();
-
   const contentSnapshot = editor.getValue();
   const filePathSnapshot = currentFilePath;
-  const requestToken = liveWordCountRequestToken;
-
-  liveWordCountTimer = window.setTimeout(async () => {
-    liveWordCountTimer = null;
-
-    try {
-      const nextWordCount = await window.witApi.countPreviewWords(contentSnapshot);
-
-      if (requestToken !== liveWordCountRequestToken) {
-        return;
-      }
-
+  liveWordCountTracker.schedule({
+    contentSnapshot,
+    filePathSnapshot,
+    countPreviewWords: (text) => window.witApi.countPreviewWords(text),
+    shouldApply: (snapshotPath) => Boolean(project && currentFilePath === snapshotPath),
+    onApply: (nextWordCount) => {
       if (!project || currentFilePath !== filePathSnapshot) {
         return;
       }
@@ -1103,84 +1089,89 @@ function scheduleLiveWordCountRefresh(): void {
       project.wordCount = Math.max(0, project.wordCount + delta);
       currentFileWordCount = nextWordCount;
       renderStatusFooter();
-    } catch {
-      // Keep typing responsive if preview count fails temporarily.
     }
-  }, LIVE_WORD_COUNT_DEBOUNCE_MS);
+  });
 }
 
 async function persistCurrentFile(showStatus = true): Promise<boolean> {
-  if (!project || !currentFilePath || !dirty) {
-    return true;
-  }
+  return persistCurrentFileInSession({
+    project,
+    currentFilePath,
+    dirty,
+    showStatus,
+    editorValue: editor.getValue(),
+    cancelPendingLiveWordCount,
+    saveFile: (relativePath, content) => window.witApi.saveFile(relativePath, content),
+    getWordCount: () => window.witApi.getWordCount(),
+    countPreviewWords: (text) => window.witApi.countPreviewWords(text),
+    setProjectWordCount: (wordCount) => {
+      if (!project) {
+        return;
+      }
 
-  try {
-    cancelPendingLiveWordCount();
-    const content = editor.getValue();
-    await window.witApi.saveFile(currentFilePath, content);
-    project.wordCount = await window.witApi.getWordCount();
-    currentFileWordCount = await window.witApi.countPreviewWords(content);
-    setDirty(false);
-    renderStatusFooter();
-
-    if (showStatus) {
-      setStatus(`Saved ${currentFilePath}`, 1500);
-    }
-
-    return true;
-  } catch {
-    setStatus("Save failed. Try again.");
-    return false;
-  }
+      project.wordCount = wordCount;
+    },
+    setCurrentFileWordCount: (wordCount) => {
+      currentFileWordCount = wordCount;
+    },
+    setDirty,
+    renderStatusFooter,
+    setStatus
+  });
 }
 
 function saveCurrentFileSynchronously(): void {
-  if (!project || !currentFilePath || !dirty) {
-    return;
-  }
-
-  const saved = window.witApi.saveFileSync(currentFilePath, editor.getValue());
-  if (saved) {
-    setDirty(false);
-  }
+  saveCurrentFileSynchronouslyInSession({
+    project,
+    currentFilePath,
+    dirty,
+    editorValue: editor.getValue(),
+    saveFileSync: (relativePath, content) => window.witApi.saveFileSync(relativePath, content),
+    setDirty
+  });
 }
 
 async function openFile(relativePath: string): Promise<void> {
-  if (!project) {
-    return;
-  }
-
-  const saved = await persistCurrentFile(false);
-  if (!saved) {
-    return;
-  }
-
-  try {
-    cancelPendingLiveWordCount();
-    const content = await window.witApi.openFile(relativePath);
-
-    suppressDirtyEvents = true;
-    editor.setValue(content);
-    suppressDirtyEvents = false;
-
-    setCurrentFilePathState(relativePath);
-    selectedTreePath = relativePath;
-    selectedTreeKind = "file";
-    currentFileWordCount = await window.witApi.countPreviewWords(content);
-    activeFileLabel.textContent = relativePath;
-    activeFileLabel.title = relativePath;
-    editor.setPlaceholder("");
-    setDirty(false);
-    setSidebarFaded(false);
-    renderFileList();
-    setEditorWritable(true);
-    renderEmptyEditorState();
-    await persistLastOpenedFilePath(relativePath);
-    editor.focus();
-    setStatus(`Opened ${relativePath}`, 1200);
-  } catch {
-    setStatus("Could not open selected file.");
-  }
+  await openFileInEditorSession({
+    relativePath,
+    project,
+    persistCurrentFile,
+    cancelPendingLiveWordCount,
+    openFile: (nextPath) => window.witApi.openFile(nextPath),
+    countPreviewWords: (text) => window.witApi.countPreviewWords(text),
+    setEditorValueSilently: (content) => {
+      suppressDirtyEvents = true;
+      editor.setValue(content);
+      suppressDirtyEvents = false;
+    },
+    setCurrentFilePath: (nextPath) => {
+      setCurrentFilePathState(nextPath);
+    },
+    setSelectedTreeToFile: (nextPath) => {
+      selectedTreePath = nextPath;
+      selectedTreeKind = "file";
+    },
+    setCurrentFileWordCount: (wordCount) => {
+      currentFileWordCount = wordCount;
+    },
+    setActiveFileLabel: (nextPath) => {
+      activeFileLabel.textContent = nextPath;
+      activeFileLabel.title = nextPath;
+    },
+    setEditorPlaceholder: (value) => {
+      editor.setPlaceholder(value);
+    },
+    setDirty,
+    setSidebarFaded,
+    renderFileList,
+    setEditorWritable,
+    renderEmptyEditorState,
+    persistLastOpenedFilePath,
+    focusEditor: () => {
+      editor.focus();
+    },
+    setStatus
+  });
 }
 
 function isUserTyping(): boolean {
@@ -1735,19 +1726,15 @@ async function persistSettings(update: Partial<AppSettings>): Promise<void> {
 function insertSmartQuote(quoteCharacter: string): void {
   const { start, end } = editor.getSelection();
   const value = editor.getValue();
-
-  const quotePair = quoteCharacter === "'" ? ["‘", "’"] : ["“", "”"];
-
-  let replacement: string;
-
-  if (start !== end) {
-    const selected = value.slice(start, end);
-    replacement = `${quotePair[0]}${selected}${quotePair[1]}`;
-  } else {
-    const previousCharacter = start > 0 ? value[start - 1] : "";
-    const shouldUseOpeningQuote = start === 0 || /[\s([{<-]/.test(previousCharacter);
-    replacement = shouldUseOpeningQuote ? quotePair[0] : quotePair[1];
+  if (!isSmartQuoteCharacter(quoteCharacter)) {
+    return;
   }
+  const replacement = computeSmartQuoteReplacement({
+    text: value,
+    start,
+    end,
+    quoteCharacter
+  });
 
   // Use insertText to preserve the browser undo stack (Cmd/Ctrl+Z).
   suppressDirtyEvents = true;
@@ -1775,7 +1762,7 @@ function handleEditorKeydown(event: KeyboardEvent): void {
     return;
   }
 
-  if (event.key === "'" || event.key === '"') {
+  if (isSmartQuoteCharacter(event.key)) {
     event.preventDefault();
     insertSmartQuote(event.key);
   }
@@ -2137,92 +2124,35 @@ sidebar.addEventListener("focusin", () => {
 });
 
 subscriptions.push(
-  bindProjectTreeContextMenu({
+  bindProjectTreeContextMenuController({
     listElement: fileList,
-    onInvalidTarget: () => {
-      closeTreeContextMenu();
+    state: {
+      getSelectedTreePath: () => selectedTreePath,
+      setSelectedTreePath: (value) => {
+        selectedTreePath = value;
+      },
+      getSelectedTreeKind: () => selectedTreeKind,
+      setSelectedTreeKind: (value) => {
+        selectedTreeKind = value;
+      },
+      getCurrentFilePath: () => currentFilePath,
+      getDragSourceFilePath: () => dragSourceFilePath,
+      setDragSourceFilePath: (value) => {
+        dragSourceFilePath = value;
+      }
     },
-    onProjectTarget: ({ relativePath, x, y }) => {
-      selectedTreePath = "";
-      selectedTreeKind = "folder";
-      renderFileList();
-      setSidebarFaded(false);
-
-      const testAction = consumeTestTreeContextAction();
-      void (async () => {
-        try {
-          const action = await window.witApi.showTreeContextMenu({
-            relativePath,
-            kind: "project",
-            x,
-            y,
-            testAction
-          });
-
-          if (action === "new-file") {
-            await createNewFile();
-            return;
-          }
-
-          if (action === "new-folder") {
-            await createNewFolder();
-            return;
-          }
-
-          if (action === "close-project") {
-            await closeCurrentProject();
-          }
-        } catch {
-          setStatus("Could not open project actions menu.");
-        }
-      })();
-    },
-    onNodeTarget: ({ relativePath, kind, x, y }) => {
-      selectedTreePath = relativePath;
-      selectedTreeKind = kind;
-      renderFileList();
-      setSidebarFaded(false);
-
-      const testAction = consumeTestTreeContextAction();
-      void (async () => {
-        try {
-          const action = await window.witApi.showTreeContextMenu({
-            relativePath,
-            kind,
-            isCurrentFile: kind === "file" && currentFilePath !== null && pathEquals(currentFilePath, relativePath),
-            x,
-            y,
-            testAction
-          });
-
-          if (action === "new-file") {
-            await createNewFile();
-            return;
-          }
-
-          if (action === "new-folder") {
-            await createNewFolder();
-            return;
-          }
-
-          if (action === "delete") {
-            await deleteEntryByPath(relativePath, kind);
-            return;
-          }
-
-          if (action === "close-file") {
-            await closeCurrentFile();
-            return;
-          }
-
-          if (action === "rename") {
-            await renameEntryByPath(relativePath, kind);
-          }
-        } catch {
-          setStatus("Could not open file actions menu.");
-        }
-      })();
-    }
+    consumeTestTreeContextAction,
+    showTreeContextMenu: (payload) => window.witApi.showTreeContextMenu(payload),
+    createNewFile,
+    createNewFolder,
+    closeCurrentProject,
+    deleteEntryByPath,
+    closeCurrentFile,
+    renameEntryByPath,
+    closeTreeContextMenu,
+    renderFileList,
+    setSidebarFaded,
+    setStatus
   })
 );
 
