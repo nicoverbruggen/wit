@@ -1,48 +1,29 @@
 import type { AppSettings, ProjectMetadata, TreeContextAction } from "../shared/types";
-import {
-  normalizeEditorLineHeight,
-  normalizeEditorMaxWidth,
-  normalizeEditorParagraphSpacing,
-  normalizeEditorZoomPercent,
-  pathEquals
-} from "../shared/utils.js";
+import { normalizeEditorParagraphSpacing } from "../shared/utils.js";
 import { formatRelativeElapsed, formatWritingTime, parseSnapshotTimestamp } from "./formatting.js";
 import { createCodeMirrorEditor } from "./codemirror-editor-adapter.js";
-import {
-  renderEmptyStateShortcutRows as renderShortcutRows,
-  formatPrimaryShortcut,
-  type EmptyStateShortcut
-} from "./empty-state-shortcuts.js";
-import {
-  buildEditorFontStack,
-  loadSystemFontFamilies,
-  populateFontSelect as populateFontOptions
-} from "./font-utils.js";
-import {
-  renderProjectTreeList,
-  type ProjectTreeSelectionKind
-} from "./features/project-tree/project-tree-view.js";
-import {
-  createProjectTreeRenderCallbacks
-} from "./features/project-tree/project-tree-controller.js";
+import { formatPrimaryShortcut } from "./empty-state-shortcuts.js";
+import { createProjectTreeStateController } from "./features/project-tree/project-tree-state-controller.js";
 import { createEntryDialogController } from "./features/project-tree/entry-dialog-controller.js";
 import { createProjectEntryActionsController } from "./features/project-tree/project-entry-actions-controller.js";
 import { createLiveWordCountTracker } from "./features/editor/live-word-count.js";
 import { createEditorInteractionsController } from "./features/editor/editor-interactions-controller.js";
-import {
-  openFileInEditorSession,
-  persistCurrentFileInSession,
-  saveCurrentFileSynchronouslyInSession
-} from "./features/editor/editor-session.js";
+import { createEditorPresentationController } from "./features/editor/editor-presentation-controller.js";
+import { createEditorDirtyStateController } from "./features/editor/editor-dirty-state-controller.js";
+import { createFileSessionController } from "./features/editor/file-session-controller.js";
 import { createTypingActivityTracker } from "./features/editor/typing-activity.js";
 import { createAutosaveController } from "./features/autosave/autosave-controller.js";
 import { createSnapshotLabelController } from "./features/autosave/snapshot-label-controller.js";
 import { createSidebarController } from "./features/sidebar/sidebar-controller.js";
+import { createSidebarUiController } from "./features/sidebar/sidebar-ui-controller.js";
+import { createAppShellUiController } from "./features/app/app-shell-ui-controller.js";
 import { createSettingsDialogController } from "./features/settings/settings-dialog-controller.js";
 import { initializeApp } from "./features/app/app-initializer.js";
 import { bindAppEventBindings } from "./features/app/app-event-bindings.js";
 import { createProjectUiController } from "./features/project/project-ui-controller.js";
 import { createProjectLifecycleController } from "./features/project/project-lifecycle-controller.js";
+import { createProjectPersistenceController } from "./features/project/project-persistence-controller.js";
+import { createEmptyEditorStateController } from "./features/project/empty-editor-state-controller.js";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
 const openProjectWrap = document.querySelector(".open-project-wrap") as HTMLElement;
@@ -139,33 +120,61 @@ const DEFAULT_SIDEBAR_WIDTH_PX = 270;
 const BUILT_IN_EDITOR_FONTS = ["Sourcerer", "Readerly", "iA Writer Mono", "iA Writer Duo", "iA Writer Quattro"] as const;
 const DEFAULT_EDITOR_FONT = "Readerly";
 
-type SelectedTreeKind = ProjectTreeSelectionKind;
-
 let project: ProjectMetadata | null = null;
 let currentFilePath: string | null = null;
-let currentFileWordCount = 0;
-let dirty = false;
 const TYPING_IDLE_THRESHOLD_MS = 5_000;
 const AUTOSAVE_LENIENCY_THRESHOLD_SEC = 60;
 const AUTOSAVE_LENIENCY_MAX_MS = 5_000;
 const AUTOSAVE_LENIENCY_POLL_MS = 500;
-let statusResetTimer: number | null = null;
 let suppressDirtyEvents = false;
-let editorBaseFontSizePx = 0;
-let editorZoomFactor = 1;
 let isWindowFullscreen = false;
-let editorWidthGuideTimer: number | null = null;
-let settingsPersistQueue: Promise<void> = Promise.resolve();
-let dragSourceFilePath: string | null = null;
-const collapsedFolderPaths = new Set<string>();
-let selectedTreePath: string | null = null;
-let selectedTreeKind: SelectedTreeKind | null = null;
-let systemFontFamilies: string[] = [];
 
 const subscriptions: Array<() => void> = [];
 type TestWindowWithContextAction = Window & {
   __WIT_TEST_TREE_ACTION?: TreeContextAction;
 };
+const appShellUiController = createAppShellUiController({
+  projectActions,
+  openProjectWrap,
+  settingsToggleButton,
+  newFileButton,
+  newFolderButton,
+  showWordCountInput,
+  showWritingTimeInput,
+  showCurrentFileBarInput,
+  smartQuotesInput,
+  gitSnapshotsInput,
+  gitPushRemoteSelect,
+  gitSnapshotsNotice,
+  autosaveIntervalInput,
+  snapshotMaxSizeInput,
+  lineHeightInput,
+  editorWidthInput,
+  themeSelect,
+  fontSelect,
+  statusMessage,
+  defaultStatusMessage: DEFAULT_STATUS_MESSAGE,
+  aboutVersion,
+  aboutDescription,
+  aboutAuthor,
+  aboutWebsite,
+  getProject: () => project,
+  getAppInfo: () => window.witApi.getAppInfo()
+});
+const projectPersistenceController = createProjectPersistenceController({
+  getProject: () => project,
+  setLastOpenedFilePath: (relativePath) => window.witApi.setLastOpenedFilePath(relativePath),
+  updateSettings: (nextSettings) => window.witApi.updateSettings(nextSettings),
+  syncSettingsInputs,
+  renderStatusFooter,
+  restartAutosaveTimer,
+  setStatus
+});
+const editorDirtyStateController = createEditorDirtyStateController({
+  dirtyIndicator,
+  fileList,
+  getCurrentFilePath: () => currentFilePath
+});
 const liveWordCountTracker = createLiveWordCountTracker(LIVE_WORD_COUNT_DEBOUNCE_MS);
 const typingActivityTracker = createTypingActivityTracker(TYPING_IDLE_THRESHOLD_MS);
 const snapshotLabelController = createSnapshotLabelController({
@@ -187,6 +196,38 @@ const sidebarController = createSidebarController({
   maxWidthPx: MAX_SIDEBAR_WIDTH_PX,
   defaultWidthPx: DEFAULT_SIDEBAR_WIDTH_PX,
   widthStorageKey: SIDEBAR_WIDTH_STORAGE_KEY
+});
+const sidebarUiController = createSidebarUiController({
+  sidebarController,
+  fullscreenToggleButton,
+  getProject: () => project,
+  getCurrentFilePath: () => currentFilePath,
+  getIsWindowFullscreen: () => isWindowFullscreen,
+  setIsWindowFullscreen: (nextValue) => {
+    isWindowFullscreen = nextValue;
+  },
+  setStatus,
+  applyEditorZoom
+});
+const editorPresentationController = createEditorPresentationController({
+  editor,
+  editorWrap,
+  lineHeightInput,
+  lineHeightValue,
+  paragraphSpacingSelect,
+  editorWidthInput,
+  editorWidthValue,
+  textZoomInput,
+  textZoomValue,
+  fontSelect,
+  body: document.body,
+  builtInEditorFonts: BUILT_IN_EDITOR_FONTS,
+  defaultEditorFont: DEFAULT_EDITOR_FONT,
+  zoomPresets: EDITOR_ZOOM_PRESETS,
+  setStatus,
+  persistZoomPercent: (percent) => {
+    void persistSettings({ editorZoomPercent: percent });
+  }
 });
 const settingsDialogController = createSettingsDialogController({
   dialog: settingsDialog,
@@ -228,9 +269,24 @@ const settingsDialogController = createSettingsDialogController({
   setStatus,
   initialTab: "writing"
 });
+let projectEntryActionsController: ReturnType<typeof createProjectEntryActionsController>;
+const projectTreeStateController = createProjectTreeStateController({
+  fileList,
+  maxTreeIndent: MAX_TREE_INDENT,
+  getProject: () => project,
+  getCurrentFilePath: () => currentFilePath,
+  getDirty: () => editorDirtyStateController.getDirty(),
+  getProjectDisplayTitle,
+  closeTreeContextMenu,
+  setSidebarFaded,
+  closeCurrentFile,
+  openFile,
+  moveFileToFolder: (sourcePath, toFolderRelativePath) =>
+    projectEntryActionsController.moveFileToFolder(sourcePath, toFolderRelativePath)
+});
 const entryDialogController = createEntryDialogController({
   getProject: () => project,
-  getSelectedFolderPath,
+  getSelectedFolderPath: () => projectTreeStateController.getSelectedFolderPath(),
   setStatus,
   newFileDialog,
   newFilePathInput,
@@ -249,16 +305,13 @@ const entryDialogController = createEntryDialogController({
   renameEntryConfirmButton,
   renameEntryError
 });
-const projectEntryActionsController = createProjectEntryActionsController({
+projectEntryActionsController = createProjectEntryActionsController({
   getProject: () => project,
   getCurrentFilePath: () => currentFilePath,
   setCurrentFilePath: setCurrentFilePathState,
-  getDirty: () => dirty,
-  setSelectedTree: (relativePath, kind) => {
-    selectedTreePath = relativePath;
-    selectedTreeKind = kind;
-  },
-  getSelectedFolderPath,
+  getDirty: () => editorDirtyStateController.getDirty(),
+  setSelectedTree: projectTreeStateController.setSelectedTree,
+  getSelectedFolderPath: projectTreeStateController.getSelectedFolderPath,
   closeTreeContextMenu,
   askForNewFilePath: () => entryDialogController.askForNewFilePath(),
   askForNewFolderPath: () => entryDialogController.askForNewFolderPath(),
@@ -272,7 +325,7 @@ const projectEntryActionsController = createProjectEntryActionsController({
     activeFileLabel.textContent = label;
     activeFileLabel.title = label;
   },
-  renderFileList,
+  renderFileList: () => projectTreeStateController.renderFileList(),
   renderStatusFooter,
   setStatus,
   newFile: (payload) => window.witApi.newFile(payload),
@@ -319,7 +372,7 @@ const projectLifecycleController = createProjectLifecycleController({
   resetActiveFile,
   setProjectState,
   stopSidebarResize,
-  resetTreeState,
+  resetTreeState: () => projectTreeStateController.resetTreeState(),
   updateSnapshotLabel: (nextTimestamp) => snapshotLabelController.update(nextTimestamp),
   syncProjectPathLabels,
   setProjectControlsEnabled,
@@ -330,7 +383,7 @@ const projectLifecycleController = createProjectLifecycleController({
   },
   applyTheme,
   renderStatusFooter,
-  renderFileList,
+  renderFileList: () => projectTreeStateController.renderFileList(),
   restartAutosaveTimer,
   renderEmptyEditorState,
   closeTreeContextMenu,
@@ -339,6 +392,21 @@ const projectLifecycleController = createProjectLifecycleController({
   applyProjectMetadata,
   openFile,
   setStatus
+});
+const emptyEditorStateController = createEmptyEditorStateController({
+  editorWrap,
+  emptyStateScreen,
+  emptyStateEyebrow,
+  emptyStateTitle,
+  emptyStateDescription,
+  emptyStatePrimaryButton,
+  emptyStateSecondaryButton,
+  emptyStateShortcutsLabel,
+  emptyStateShortcutsList,
+  getProject: () => project,
+  getCurrentFilePath: () => currentFilePath,
+  getProjectDisplayTitle,
+  primaryShortcutLabel
 });
 const editorInteractionsController = createEditorInteractionsController({
   getSuppressDirtyEvents: () => suppressDirtyEvents,
@@ -360,6 +428,47 @@ const editorInteractionsController = createEditorInteractionsController({
   },
   setSidebarFaded
 });
+const fileSessionController = createFileSessionController({
+  liveWordCountTracker,
+  getProject: () => project,
+  getCurrentFilePath: () => currentFilePath,
+  getDirty: () => editorDirtyStateController.getDirty(),
+  getEditorValue: () => editor.getValue(),
+  setEditorValueSilently: (content) => {
+    suppressDirtyEvents = true;
+    editor.setValue(content);
+    suppressDirtyEvents = false;
+  },
+  setCurrentFilePath: setCurrentFilePathState,
+  setSelectedTreeToFile: projectTreeStateController.setSelectedTreeToFile,
+  setActiveFileLabel: (nextPath) => {
+    activeFileLabel.textContent = nextPath;
+    activeFileLabel.title = nextPath;
+  },
+  setEditorPlaceholder: (value) => {
+    editor.setPlaceholder(value);
+  },
+  setDirty,
+  setSidebarFaded,
+  renderFileList: () => projectTreeStateController.renderFileList(),
+  setEditorWritable,
+  renderEmptyEditorState,
+  persistLastOpenedFilePath,
+  focusEditor: () => {
+    editor.focus();
+  },
+  setStatus,
+  countPreviewWords: (text) => window.witApi.countPreviewWords(text),
+  getWordCount: () => window.witApi.getWordCount(),
+  saveFile: (relativePath, content) => window.witApi.saveFile(relativePath, content),
+  saveFileSync: (relativePath, content) => window.witApi.saveFileSync(relativePath, content),
+  openFileApi: (nextPath) => window.witApi.openFile(nextPath),
+  autosaveTick: (activeSeconds) => window.witApi.autosaveTick(activeSeconds),
+  consumeActiveTypingSeconds,
+  parseSnapshotTimestamp: (value) => (value ? parseSnapshotTimestamp(value) : null),
+  updateSnapshotLabel: (nextTimestamp) => snapshotLabelController.update(nextTimestamp),
+  renderStatusFooter
+});
 
 function setProjectState(nextProject: ProjectMetadata | null): void {
   project = nextProject;
@@ -369,28 +478,12 @@ function setCurrentFilePathState(nextFilePath: string | null): void {
   currentFilePath = nextFilePath;
 }
 
-function setDirtyState(nextDirty: boolean): void {
-  dirty = nextDirty;
-}
-
 function primaryShortcutLabel(key: string): string {
   return formatPrimaryShortcut(key, window.witApi.getPlatform());
 }
 
 function setStatus(message: string, clearAfterMs?: number): void {
-  statusMessage.textContent = message;
-
-  if (statusResetTimer) {
-    window.clearTimeout(statusResetTimer);
-    statusResetTimer = null;
-  }
-
-  if (clearAfterMs) {
-    statusResetTimer = window.setTimeout(() => {
-      statusMessage.textContent = DEFAULT_STATUS_MESSAGE;
-      statusResetTimer = null;
-    }, clearAfterMs);
-  }
+  appShellUiController.setStatus(message, clearAfterMs);
 }
 
 function renderSnapshotLabel(): void {
@@ -402,26 +495,11 @@ function restartSnapshotLabelTimer(): void {
 }
 
 function showEditorWidthGuides(): void {
-  editorWrap.classList.add("show-width-guides");
-
-  if (editorWidthGuideTimer) {
-    window.clearTimeout(editorWidthGuideTimer);
-    editorWidthGuideTimer = null;
-  }
-
-  editorWidthGuideTimer = window.setTimeout(() => {
-    editorWrap.classList.remove("show-width-guides");
-    editorWidthGuideTimer = null;
-  }, 900);
+  editorPresentationController.showEditorWidthGuides();
 }
 
 function clearEditorWidthGuides(): void {
-  if (editorWidthGuideTimer) {
-    window.clearTimeout(editorWidthGuideTimer);
-    editorWidthGuideTimer = null;
-  }
-
-  editorWrap.classList.remove("show-width-guides");
+  editorPresentationController.clearEditorWidthGuides();
 }
 
 function closeTreeContextMenu(): void {
@@ -440,25 +518,11 @@ function consumeActiveTypingSeconds(): number {
 }
 
 function setDirty(nextDirty: boolean): void {
-  setDirtyState(nextDirty);
-  dirtyIndicator.hidden = !nextDirty;
-  syncActiveFileMarkerState();
+  editorDirtyStateController.setDirty(nextDirty);
 }
 
 async function persistLastOpenedFilePath(relativePath: string | null): Promise<void> {
-  if (!project) {
-    return;
-  }
-
-  try {
-    const savedPath = await window.witApi.setLastOpenedFilePath(relativePath);
-    if (project) {
-      project.lastOpenedFilePath = savedPath;
-      project.hasStoredLastOpenedFilePath = true;
-    }
-  } catch {
-    setStatus("Could not update last opened file.");
-  }
+  await projectPersistenceController.persistLastOpenedFilePath(relativePath);
 }
 
 function refreshEditorLayout(): void {
@@ -467,212 +531,92 @@ function refreshEditorLayout(): void {
   });
 }
 
-function syncActiveFileMarkerState(): void {
-  const markers = fileList.querySelectorAll(".file-button .active-file-marker");
-
-  markers.forEach((element) => {
-    const marker = element as HTMLElement;
-    const fileButton = marker.closest(".file-button") as HTMLElement | null;
-    const relativePath = fileButton?.dataset.relativePath;
-    const isCurrentFile = Boolean(relativePath && currentFilePath && pathEquals(relativePath, currentFilePath));
-    marker.hidden = !isCurrentFile;
-    marker.dataset.dirty = String(isCurrentFile && dirty);
-  });
-}
-
 function setProjectControlsEnabled(enabled: boolean): void {
-  projectActions.classList.toggle("project-open", enabled);
-  openProjectWrap.classList.toggle("project-open", enabled);
-  settingsToggleButton.hidden = !enabled;
-  newFileButton.disabled = !enabled;
-  newFolderButton.disabled = !enabled;
-  showWordCountInput.disabled = !enabled;
-  showWritingTimeInput.disabled = !enabled;
-  showCurrentFileBarInput.disabled = !enabled;
-  smartQuotesInput.disabled = !enabled;
-  gitSnapshotsInput.disabled = !enabled || !project?.isGitRepository;
-  gitPushRemoteSelect.disabled = true;
-  autosaveIntervalInput.disabled = !enabled;
-  snapshotMaxSizeInput.disabled = !enabled;
-  lineHeightInput.disabled = !enabled;
-  editorWidthInput.disabled = !enabled;
-  themeSelect.disabled = !enabled;
-  fontSelect.disabled = !enabled;
-  gitSnapshotsNotice.hidden = !enabled || Boolean(project?.isGitRepository);
+  appShellUiController.setProjectControlsEnabled(enabled);
 }
 
 function setSidebarFaded(nextFaded: boolean): void {
-  const shouldFade = Boolean(sidebarController.isVisible() && project && currentFilePath && nextFaded);
-  sidebarController.setFaded(shouldFade);
+  sidebarUiController.setSidebarFaded(nextFaded);
 }
 
 function loadSidebarWidthPreference(): void {
-  sidebarController.loadWidthPreference();
+  sidebarUiController.loadSidebarWidthPreference();
 }
 
 function syncSidebarToggleButton(): void {
-  sidebarController.syncToggleButton(Boolean(project));
+  sidebarUiController.syncSidebarToggleButton();
 }
 
 function syncFullscreenToggleButton(isFullscreen: boolean): void {
-  const wasFullscreen = isWindowFullscreen;
-  isWindowFullscreen = isFullscreen;
-  const nextActionLabel = isFullscreen ? "Exit fullscreen" : "Enter fullscreen";
-  fullscreenToggleButton.title = nextActionLabel;
-  fullscreenToggleButton.setAttribute("aria-label", nextActionLabel);
-  fullscreenToggleButton.setAttribute("aria-pressed", String(isFullscreen));
-
-  if (isFullscreen && !wasFullscreen) {
-    sidebarController.setVisibleBeforeFullscreen(sidebarController.isVisible());
-    setSidebarVisibility(false, false);
-  } else if (!isFullscreen && wasFullscreen) {
-    setSidebarVisibility(sidebarController.getVisibleBeforeFullscreen(), false);
-  }
-
-  applyEditorZoom(false);
+  sidebarUiController.syncFullscreenToggleButton(isFullscreen);
 }
 
 function setSidebarVisibility(nextVisible: boolean, showStatus = true): void {
-  sidebarController.setVisibility(nextVisible, {
-    showStatus,
-    setStatus,
-    projectAvailable: Boolean(project)
-  });
+  sidebarUiController.setSidebarVisibility(nextVisible, showStatus);
 }
 
 function toggleSidebarVisibility(): void {
-  sidebarController.toggleVisibility(Boolean(project), {
-    setStatus
-  });
+  sidebarUiController.toggleSidebarVisibility();
 }
 
 function stopSidebarResize(): void {
-  sidebarController.stopResize();
+  sidebarUiController.stopSidebarResize();
 }
 
 function beginSidebarResize(pointerClientX: number): void {
-  sidebarController.beginResize(pointerClientX, Boolean(project));
+  sidebarUiController.beginSidebarResize(pointerClientX);
 }
 
 async function loadAboutInfo(): Promise<void> {
-  try {
-    const info = await window.witApi.getAppInfo();
-    aboutVersion.textContent = info.version;
-    aboutDescription.textContent = info.description;
-    aboutAuthor.textContent = info.author;
-    aboutWebsite.textContent = info.website || "Not specified";
-    aboutWebsite.href = info.website || "#";
-    aboutWebsite.hidden = info.website.length === 0;
-  } catch {
-    aboutVersion.textContent = "--";
-    aboutDescription.textContent = "Minimalist desktop writing app for plain text projects.";
-    aboutAuthor.textContent = "Nico Verbruggen";
-    aboutWebsite.textContent = "https://nicoverbruggen.be";
-    aboutWebsite.href = "https://nicoverbruggen.be";
-    aboutWebsite.hidden = false;
-  }
+  await appShellUiController.loadAboutInfo();
 }
 
 function setEditorWritable(enabled: boolean): void {
-  editor.setDisabled(!enabled);
+  editorPresentationController.setEditorWritable(enabled);
 }
 
 function applyEditorLineHeight(lineHeight: number): void {
-  const normalized = normalizeEditorLineHeight(lineHeight);
-  editor.setLineHeight(normalized);
-  lineHeightValue.textContent = normalized.toFixed(2);
-  lineHeightInput.value = normalized.toFixed(2);
+  editorPresentationController.applyEditorLineHeight(lineHeight);
 }
 
 function applyEditorParagraphSpacing(spacing: AppSettings["editorParagraphSpacing"]): void {
-  paragraphSpacingSelect.value = spacing;
-  editor.setParagraphSpacing(spacing);
+  editorPresentationController.applyEditorParagraphSpacing(spacing);
 }
 
 function applyEditorMaxWidth(editorWidth: number): void {
-  const normalized = normalizeEditorMaxWidth(editorWidth);
-  const widthValue = `${normalized}px`;
-  editorWrap.style.setProperty("--editor-max-width", widthValue);
-  editorWidthValue.textContent = widthValue;
-  editorWidthInput.value = String(normalized);
+  editorPresentationController.applyEditorMaxWidth(editorWidth);
 }
 
 function applyEditorFont(fontFamily: string): void {
-  const fontStack = buildEditorFontStack(fontFamily);
-  editor.setFontFamily(fontStack);
-  fontSelect.style.fontFamily = fontStack;
+  editorPresentationController.applyEditorFont(fontFamily);
 }
 
 function populateFontSelect(selectedFont: string): void {
-  const resolvedFont = populateFontOptions({
-    select: fontSelect,
-    builtInFonts: BUILT_IN_EDITOR_FONTS,
-    systemFontFamilies,
-    selectedFont,
-    defaultFont: DEFAULT_EDITOR_FONT
-  });
-  fontSelect.style.fontFamily = buildEditorFontStack(resolvedFont);
+  editorPresentationController.populateFontSelect(selectedFont);
 }
 
 async function loadSystemFonts(): Promise<void> {
-  systemFontFamilies = await loadSystemFontFamilies(window, BUILT_IN_EDITOR_FONTS);
+  await editorPresentationController.loadSystemFonts();
 }
 
 function applyTheme(theme: AppSettings["theme"]): void {
-  document.body.dataset.theme = theme;
-}
-
-function ensureEditorBaseFontSize(): void {
-  if (editorBaseFontSizePx > 0) {
-    return;
-  }
-
-  const computedSize = editor.getComputedFontSize();
-  editorBaseFontSizePx = Number.isFinite(computedSize) && computedSize > 0 ? computedSize : 20;
-}
-
-function syncZoomControlWithState(): void {
-  const currentPercent = Math.round(editorZoomFactor * 100);
-  textZoomInput.value = String(currentPercent);
-  textZoomValue.textContent = `${currentPercent}%`;
+  editorPresentationController.applyTheme(theme);
 }
 
 function applyEditorZoom(showStatus = true): void {
-  ensureEditorBaseFontSize();
-  const nextFontSize = Number((editorBaseFontSizePx * editorZoomFactor).toFixed(2));
-  editor.setFontSize(nextFontSize);
-  syncZoomControlWithState();
-
-  if (showStatus) {
-    setStatus(`Text zoom ${Math.round(editorZoomFactor * 100)}%`, 1200);
-  }
+  editorPresentationController.applyEditorZoom(showStatus);
 }
 
 function setEditorZoomFromPercent(percent: number, showStatus = true): void {
-  const bounded = normalizeEditorZoomPercent(percent);
-  editorZoomFactor = bounded / 100;
-  applyEditorZoom(showStatus);
-
-  if (showStatus) {
-    void persistSettings({ editorZoomPercent: bounded });
-  }
+  editorPresentationController.setEditorZoomFromPercent(percent, showStatus);
 }
 
 function stepEditorZoom(direction: 1 | -1): void {
-  const currentPercent = Math.round(editorZoomFactor * 100);
-
-  if (direction > 0) {
-    const next = EDITOR_ZOOM_PRESETS.find((preset) => preset > currentPercent) ?? 250;
-    setEditorZoomFromPercent(next);
-    return;
-  }
-
-  const previous = [...EDITOR_ZOOM_PRESETS].reverse().find((preset) => preset < currentPercent) ?? 50;
-  setEditorZoomFromPercent(previous);
+  editorPresentationController.stepEditorZoom(direction);
 }
 
 function resetEditorZoom(): void {
-  setEditorZoomFromPercent(100);
+  editorPresentationController.resetEditorZoom();
 }
 
 function getProjectDisplayTitle(projectPath: string): string {
@@ -681,64 +625,9 @@ function getProjectDisplayTitle(projectPath: string): string {
   return segments.at(-1) ?? projectPath;
 }
 
-function collapsedFoldersStorageKey(): string | null {
-  if (!project) {
-    return null;
-  }
-
-  return `wit:collapsed:${project.projectPath}`;
-}
-
-function saveCollapsedFolders(): void {
-  const key = collapsedFoldersStorageKey();
-  if (!key) {
-    return;
-  }
-
-  try {
-    if (collapsedFolderPaths.size === 0) {
-      localStorage.removeItem(key);
-    } else {
-      localStorage.setItem(key, JSON.stringify([...collapsedFolderPaths]));
-    }
-  } catch {
-    // localStorage may be unavailable; ignore silently.
-  }
-}
-
-function restoreCollapsedFolders(): void {
-  collapsedFolderPaths.clear();
-  const key = collapsedFoldersStorageKey();
-  if (!key) {
-    return;
-  }
-
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) {
-      const parsed = JSON.parse(raw) as unknown;
-      if (Array.isArray(parsed)) {
-        for (const item of parsed) {
-          if (typeof item === "string") {
-            collapsedFolderPaths.add(item);
-          }
-        }
-      }
-    }
-  } catch {
-    // Ignore malformed data.
-  }
-}
-
-function resetTreeState(): void {
-  collapsedFolderPaths.clear();
-  selectedTreePath = null;
-  selectedTreeKind = null;
-}
-
 function resetActiveFile(): void {
   setCurrentFilePathState(null);
-  currentFileWordCount = 0;
+  fileSessionController.resetCurrentFileWordCount();
   activeFileLabel.textContent = "No file selected";
   activeFileLabel.removeAttribute("title");
 
@@ -757,119 +646,20 @@ async function closeCurrentFile(): Promise<void> {
   await projectLifecycleController.closeCurrentFile();
 }
 
-function renderEmptyStateShortcutRows(shortcuts: EmptyStateShortcut[]): void {
-  renderShortcutRows(emptyStateShortcutsList, shortcuts);
-}
-
 function renderEmptyEditorState(): void {
-  const showEmptyState = !project || !currentFilePath;
-  editorWrap.classList.toggle("show-empty-state", showEmptyState);
-  emptyStateScreen.hidden = !showEmptyState;
-
-  if (!showEmptyState) {
-    return;
-  }
-
-  if (!project) {
-    emptyStateScreen.dataset.mode = "no-project";
-    emptyStateEyebrow.hidden = false;
-    emptyStateTitle.hidden = false;
-    emptyStateDescription.hidden = false;
-    emptyStateEyebrow.textContent = "Wit";
-    emptyStateTitle.textContent = "Start by opening a project folder";
-    emptyStateDescription.textContent =
-      "Use a command below to open a folder, browse commands, or jump straight into a writing workspace.";
-    emptyStatePrimaryButton.textContent = "Open Project";
-    emptyStatePrimaryButton.hidden = false;
-    emptyStateSecondaryButton.hidden = true;
-    emptyStateShortcutsLabel.hidden = false;
-    renderEmptyStateShortcutRows([
-      { label: "Open project", key: primaryShortcutLabel("O") },
-      { label: "Toggle fullscreen", key: "F11" }
-    ]);
-    return;
-  }
-
-  emptyStateScreen.dataset.mode = "project";
-  emptyStateEyebrow.hidden = false;
-  emptyStateTitle.hidden = false;
-  emptyStateDescription.hidden = false;
-  emptyStateShortcutsLabel.hidden = false;
-  emptyStateEyebrow.textContent = getProjectDisplayTitle(project.projectPath);
-  emptyStateTitle.textContent = "Write something wonderful";
-  emptyStateDescription.textContent =
-    "Select a document in the sidebar, or create a new file or folder to begin drafting in this project.";
-  emptyStatePrimaryButton.textContent = "New File";
-  emptyStatePrimaryButton.hidden = false;
-  emptyStateSecondaryButton.hidden = false;
-  emptyStateSecondaryButton.textContent = "New Folder";
-  renderEmptyStateShortcutRows([
-    { label: "New file", key: primaryShortcutLabel("N") },
-    { label: "Save file", key: primaryShortcutLabel("S") },
-    { label: "Toggle sidebar", key: primaryShortcutLabel("B") },
-    { label: "Text zoom", key: `${primaryShortcutLabel("+")} / ${primaryShortcutLabel("-")}` }
-  ]);
+  emptyEditorStateController.renderEmptyEditorState();
 }
 
 function syncProjectPathLabels(projectPath: string): void {
   projectUiController.syncProjectPathLabels(projectPath, project);
 }
 
-function getSelectedFolderPath(): string | null {
-  if (selectedTreeKind === "folder" && selectedTreePath !== null) {
-    return selectedTreePath;
-  }
-
-  return null;
-}
-
 function renderStatusFooter(): void {
   projectUiController.renderStatusFooter(project);
 }
 
-const projectTreeRenderCallbacks = createProjectTreeRenderCallbacks({
-  state: {
-    getSelectedTreePath: () => selectedTreePath,
-    setSelectedTreePath: (value) => {
-      selectedTreePath = value;
-    },
-    getSelectedTreeKind: () => selectedTreeKind,
-    setSelectedTreeKind: (value) => {
-      selectedTreeKind = value;
-    },
-    getCurrentFilePath: () => currentFilePath,
-    getDragSourceFilePath: () => dragSourceFilePath,
-    setDragSourceFilePath: (value) => {
-      dragSourceFilePath = value;
-    }
-  },
-  collapsedFolderPaths,
-  actions: {
-    closeTreeContextMenu,
-    setSidebarFaded,
-    renderFileList,
-    saveCollapsedFolders,
-    closeCurrentFile,
-    openFile,
-    moveFileToFolder: (sourcePath, toFolderRelativePath) =>
-      projectEntryActionsController.moveFileToFolder(sourcePath, toFolderRelativePath)
-  }
-});
-
 function renderFileList(): void {
-  renderProjectTreeList({
-    listElement: fileList,
-    project,
-    selectedTreePath,
-    selectedTreeKind,
-    currentFilePath,
-    dirty,
-    collapsedFolderPaths,
-    maxTreeIndent: MAX_TREE_INDENT,
-    getProjectDisplayTitle,
-    getDragSourceFilePath: () => dragSourceFilePath,
-    callbacks: projectTreeRenderCallbacks
-  });
+  projectTreeStateController.renderFileList();
 }
 
 function syncSettingsInputs(settings: AppSettings): void {
@@ -879,9 +669,9 @@ function syncSettingsInputs(settings: AppSettings): void {
 function applyProjectMetadata(metadata: ProjectMetadata): void {
   cancelPendingLiveWordCount();
   stopSidebarResize();
-  resetTreeState();
+  projectTreeStateController.resetTreeState();
   setProjectState(metadata);
-  restoreCollapsedFolders();
+  projectTreeStateController.restoreCollapsedFolders();
   snapshotLabelController.update(
     metadata.latestSnapshotCreatedAt ? parseSnapshotTimestamp(metadata.latestSnapshotCreatedAt) : null
   );
@@ -900,117 +690,23 @@ function applyProjectMetadata(metadata: ProjectMetadata): void {
 }
 
 function cancelPendingLiveWordCount(): void {
-  liveWordCountTracker.cancelPending();
+  fileSessionController.cancelPendingLiveWordCount();
 }
 
 function scheduleLiveWordCountRefresh(): void {
-  if (!project || !currentFilePath) {
-    return;
-  }
-
-  const contentSnapshot = editor.getValue();
-  const filePathSnapshot = currentFilePath;
-  liveWordCountTracker.schedule({
-    contentSnapshot,
-    filePathSnapshot,
-    countPreviewWords: (text) => window.witApi.countPreviewWords(text),
-    shouldApply: (snapshotPath) => Boolean(project && currentFilePath === snapshotPath),
-    onApply: (nextWordCount) => {
-      if (!project || currentFilePath !== filePathSnapshot) {
-        return;
-      }
-
-      const delta = nextWordCount - currentFileWordCount;
-      if (delta === 0) {
-        return;
-      }
-
-      project.wordCount = Math.max(0, project.wordCount + delta);
-      currentFileWordCount = nextWordCount;
-      renderStatusFooter();
-    }
-  });
+  fileSessionController.scheduleLiveWordCountRefresh();
 }
 
 async function persistCurrentFile(showStatus = true): Promise<boolean> {
-  return persistCurrentFileInSession({
-    project,
-    currentFilePath,
-    dirty,
-    showStatus,
-    editorValue: editor.getValue(),
-    cancelPendingLiveWordCount,
-    saveFile: (relativePath, content) => window.witApi.saveFile(relativePath, content),
-    getWordCount: () => window.witApi.getWordCount(),
-    countPreviewWords: (text) => window.witApi.countPreviewWords(text),
-    setProjectWordCount: (wordCount) => {
-      if (!project) {
-        return;
-      }
-
-      project.wordCount = wordCount;
-    },
-    setCurrentFileWordCount: (wordCount) => {
-      currentFileWordCount = wordCount;
-    },
-    setDirty,
-    renderStatusFooter,
-    setStatus
-  });
+  return fileSessionController.persistCurrentFile(showStatus);
 }
 
 function saveCurrentFileSynchronously(): void {
-  saveCurrentFileSynchronouslyInSession({
-    project,
-    currentFilePath,
-    dirty,
-    editorValue: editor.getValue(),
-    saveFileSync: (relativePath, content) => window.witApi.saveFileSync(relativePath, content),
-    setDirty
-  });
+  fileSessionController.saveCurrentFileSynchronously();
 }
 
 async function openFile(relativePath: string): Promise<void> {
-  await openFileInEditorSession({
-    relativePath,
-    project,
-    persistCurrentFile,
-    cancelPendingLiveWordCount,
-    openFile: (nextPath) => window.witApi.openFile(nextPath),
-    countPreviewWords: (text) => window.witApi.countPreviewWords(text),
-    setEditorValueSilently: (content) => {
-      suppressDirtyEvents = true;
-      editor.setValue(content);
-      suppressDirtyEvents = false;
-    },
-    setCurrentFilePath: (nextPath) => {
-      setCurrentFilePathState(nextPath);
-    },
-    setSelectedTreeToFile: (nextPath) => {
-      selectedTreePath = nextPath;
-      selectedTreeKind = "file";
-    },
-    setCurrentFileWordCount: (wordCount) => {
-      currentFileWordCount = wordCount;
-    },
-    setActiveFileLabel: (nextPath) => {
-      activeFileLabel.textContent = nextPath;
-      activeFileLabel.title = nextPath;
-    },
-    setEditorPlaceholder: (value) => {
-      editor.setPlaceholder(value);
-    },
-    setDirty,
-    setSidebarFaded,
-    renderFileList,
-    setEditorWritable,
-    renderEmptyEditorState,
-    persistLastOpenedFilePath,
-    focusEditor: () => {
-      editor.focus();
-    },
-    setStatus
-  });
+  await fileSessionController.openFile(relativePath);
 }
 
 function isUserTyping(): boolean {
@@ -1029,25 +725,7 @@ function restartAutosaveTimer(): void {
 }
 
 async function runAutosaveTick(): Promise<void> {
-  if (!project) {
-    return;
-  }
-
-  try {
-    await persistCurrentFile(false);
-
-    const activeSeconds = consumeActiveTypingSeconds();
-
-    const result = await window.witApi.autosaveTick(activeSeconds);
-    project.wordCount = result.wordCount;
-    project.totalWritingSeconds = result.totalWritingSeconds;
-    snapshotLabelController.update(parseSnapshotTimestamp(result.snapshotCreatedAt) ?? Date.now());
-    renderStatusFooter();
-
-    setStatus(`Autosaved (${project.settings.autosaveIntervalSec}s interval)`, 2000);
-  } catch {
-    setStatus("Autosave tick failed.");
-  }
+  await fileSessionController.runAutosaveTick();
 }
 
 async function openProjectPicker(): Promise<void> {
@@ -1059,33 +737,7 @@ async function closeCurrentProject(): Promise<void> {
 }
 
 async function persistSettings(update: Partial<AppSettings>): Promise<void> {
-  settingsPersistQueue = settingsPersistQueue
-    .then(async () => {
-      if (!project) {
-        return;
-      }
-
-      const nextSettings: AppSettings = {
-        ...project.settings,
-        ...update
-      };
-
-      const savedSettings = await window.witApi.updateSettings(nextSettings);
-      if (!project) {
-        return;
-      }
-
-      project.settings = savedSettings;
-      syncSettingsInputs(savedSettings);
-      renderStatusFooter();
-      restartAutosaveTimer();
-      setStatus("Settings saved.", 1300);
-    })
-    .catch(() => {
-      setStatus("Could not save settings.");
-    });
-
-  return settingsPersistQueue;
+  return projectPersistenceController.persistSettings(update);
 }
 
 bindAppEventBindings({
@@ -1104,21 +756,7 @@ bindAppEventBindings({
   onEditorInput: () => editorInteractionsController.onEditorInput(),
   onEditorBlur: () => editorInteractionsController.onEditorBlur(),
   onEditorKeydown: (event) => editorInteractionsController.onEditorKeydown(event),
-  projectTreeState: {
-    getSelectedTreePath: () => selectedTreePath,
-    setSelectedTreePath: (value) => {
-      selectedTreePath = value;
-    },
-    getSelectedTreeKind: () => selectedTreeKind,
-    setSelectedTreeKind: (value) => {
-      selectedTreeKind = value;
-    },
-    getCurrentFilePath: () => currentFilePath,
-    getDragSourceFilePath: () => dragSourceFilePath,
-    setDragSourceFilePath: (value) => {
-      dragSourceFilePath = value;
-    }
-  },
+  projectTreeState: projectTreeStateController.state,
   closeTreeContextMenu,
   openProjectPicker,
   createNewFile: () => projectEntryActionsController.createNewFile(),
@@ -1154,9 +792,7 @@ bindAppEventBindings({
       unsubscribe();
     }
   },
-  setDragSourceFilePath: (value) => {
-    dragSourceFilePath = value;
-  },
+  setDragSourceFilePath: projectTreeStateController.setDragSourceFilePath,
   setStatus
 });
 
