@@ -2045,7 +2045,7 @@ async function initialize(): Promise<void> {
   document.body.dataset.appReady = "false";
   const platform = window.witApi.getPlatform();
   document.body.classList.add(`platform-${platform}`);
-  await loadAboutInfo();
+  void loadAboutInfo();
 
   loadSidebarWidthPreference();
   setProjectControlsEnabled(false);
@@ -2055,7 +2055,6 @@ async function initialize(): Promise<void> {
   setSidebarVisibility(false, false);
   setSidebarFaded(false);
   setEditorWritable(false);
-  await loadSystemFonts();
   populateFontSelect(DEFAULT_EDITOR_FONT);
   applyTheme("light");
   applyEditorLineHeight(Number.parseFloat(lineHeightInput.value));
@@ -2134,6 +2133,14 @@ async function initialize(): Promise<void> {
   );
 
   document.body.dataset.appReady = "true";
+
+  // Font discovery can be slow; populate extra system fonts after initial UI is ready.
+  void (async () => {
+    await loadSystemFonts();
+    const selectedFont = fontSelect.value || project?.settings.editorFontFamily || DEFAULT_EDITOR_FONT;
+    populateFontSelect(selectedFont);
+    applyEditorFont(fontSelect.value);
+  })();
 }
 
 openProjectButton.addEventListener("click", () => {

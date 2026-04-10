@@ -1,7 +1,49 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
-import { IPC_CHANNELS, type Unsubscribe, type WitApi } from "../shared/ipc";
+import type { Unsubscribe, WitApi } from "../shared/ipc";
 type NodePlatform = typeof process.platform;
+
+// Keep channel literals in preload so the sandboxed preload script has no local runtime imports.
+const IPC_CHANNELS = {
+  project: {
+    select: "project:select",
+    getActive: "project:get-active",
+    close: "project:close",
+    exitSnapshot: "project:exit-snapshot",
+    openPath: "project:open-path",
+    openFile: "project:open-file",
+    saveFile: "project:save-file",
+    getWordCount: "project:get-word-count",
+    countPreviewWords: "project:count-preview-words",
+    saveFileSync: "project:save-file-sync",
+    newFile: "project:new-file",
+    newFolder: "project:new-folder",
+    deleteEntry: "project:delete-entry",
+    renameEntry: "project:rename-entry",
+    moveFile: "project:move-file",
+    showTreeContextMenu: "project:show-tree-context-menu",
+    updateSettings: "project:update-settings",
+    setLastOpenedFilePath: "project:set-last-opened-file-path",
+    autosaveTick: "project:autosave-tick"
+  },
+  window: {
+    toggleFullscreen: "window:toggle-fullscreen",
+    fullscreenChanged: "window:fullscreen-changed"
+  },
+  app: {
+    version: "app:version",
+    info: "app:info"
+  },
+  menu: {
+    openProject: "menu:open-project",
+    newFile: "menu:new-file",
+    saveCurrentFile: "menu:save-current-file",
+    zoomInText: "menu:zoom-in-text",
+    zoomOutText: "menu:zoom-out-text",
+    zoomResetText: "menu:zoom-reset-text",
+    toggleSidebar: "menu:toggle-sidebar"
+  }
+} as const;
 
 function createMenuListener(channel: string, listener: () => void): Unsubscribe {
   const wrappedListener = () => listener();
