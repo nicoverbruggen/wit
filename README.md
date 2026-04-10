@@ -1,77 +1,74 @@
 # Wit
 
-Wit is a minimalist Electron desktop app for writing long-form plain text projects.
-
-It is built around local project folders, a distraction-light editor, project-scoped settings, automatic saves, and compressed full-project snapshots.
+Wit is an Electron desktop app for long-form writing in local plain-text projects, with autosave, compressed full snapshots, and optional Git snapshot commits.
 
 ## Features
 
-- Open a project directory and browse plain text or markdown files in the sidebar
-- Create, rename, move, and delete project files and folders from the UI
-- Use sidebar context menus for project, folder, and file actions
-- Resize, hide, and restore the project sidebar from the main window chrome
-- Edit the selected file in a centered writing view
-- See centered empty states when no project or no file is open, including shortcut hints
-- Save manually with `Cmd/Ctrl+S`
-- Autosave on a configurable interval
-- Create compressed full snapshots in `.wit/snapshots/<timestamp>.json.gz`
-- Store snapshot storage version metadata in `.wit/snapshots/version.json`
-- Optionally create Git commits during snapshots when the project is a Git repository
-- Optionally choose a Git remote for automatic snapshot pushes, or leave it on `Don't push`
-- Track total project writing time and word count
-- Toggle footer metrics and the current-file bar from Project Settings
-- Adjust editor font, text zoom, line height, and max width from Project Settings
-- Toggle the sidebar and fullscreen from the top-left toolbar
-- Restore the latest snapshot label when reopening a project
+- Opens a local project folder and builds a file tree for supported writing files
+- Supports `.txt`, `.md`, `.markdown`, `.text`, and `.wxt` files
+- Creates, renames, moves, and deletes files/folders from the UI (including context menus and drag/drop moves)
+- Saves with `Cmd/Ctrl+S` and autosaves on a configurable interval (minimum `5s`)
+- Tracks project word count and accumulated writing time
+- Creates compressed project snapshots in `.wit/snapshots/*.json.gz`
+- Optionally creates Git commits during snapshots (Git repo only), with optional remote push
+- Persists per-project settings (writing, editor, autosave, Git snapshot behavior)
+- Restores the last opened project and last opened file on relaunch
+- Includes light/dark theme, smart quotes, editor typography controls, and sidebar visibility/size controls
 
-## Snapshot Storage
+## Data on Disk
 
-Wit stores its internal data in a hidden `.wit` directory inside the project.
+Wit stores project metadata in a hidden `.wit` directory inside each project:
 
-Snapshot data currently uses:
+- `.wit/config.json`: project settings and last opened file path
+- `.wit/stats.json`: accumulated writing time
+- `.wit/snapshots/version.json`: snapshot storage version
+- `.wit/snapshots/<timestamp>.json.gz`: full-project compressed snapshots
 
-- `.wit/snapshots/version.json` for the snapshot storage format version
-- `.wit/snapshots/<timestamp>.json.gz` for each compressed full-project snapshot
+Additional behavior:
 
-Snapshots are full text backups rather than incremental diffs.
-
-If a project is a Git repository, snapshot creation can also create a Git commit. Pushes are opt-in and target the selected remote only.
+- If a project has no `.gitignore`, Wit creates one with `.wit/snapshots/`
+- Last opened project path is stored in Electron user data as `last-project.json` (outside the project folder)
+- Snapshots are full backups (not incremental diffs)
+- A new snapshot archive is only created when files or file list changed since the latest snapshot
 
 ## Project Settings
 
-Settings are stored per project in `.wit/config.json`.
+Stored per project in `.wit/config.json`:
 
-Current settings include:
+- Writing: show word count, show writing time, show current-file bar, smart quotes, default new-file extension
+- Editor: theme (`light`/`dark`), font family, text zoom (`50-250%`), line height (`1.2-2.4`), paragraph spacing, max width (`360-1200px`)
+- Autosave/Snapshots: autosave interval, snapshot storage size limit, Git snapshots, push remote (`Don't push` by default)
 
-- Writing display options such as word count, writing time, and the current-file bar
-- Editor appearance controls such as font, text zoom, line height, and max width
-- Autosave interval
-- Git snapshot behavior, including commit creation and optional remote selection
+## Shortcuts
 
-## Project Structure
+- `Cmd/Ctrl+O`: Open project
+- `Cmd/Ctrl+N`: New file
+- `Cmd/Ctrl+S`: Save current file
+- `Cmd/Ctrl+B`: Toggle sidebar
+- `Cmd/Ctrl+=`: Zoom in editor text
+- `Cmd/Ctrl+-`: Zoom out editor text
+- `Cmd/Ctrl+0`: Reset editor text zoom
+- Fullscreen toggle is available from the toolbar and app menu
 
-- `src/main`: Electron main-process code, IPC handlers, project services, snapshot services
-- `src/preload`: secure renderer bridge
-- `src/renderer`: HTML, CSS, and renderer-side UI logic
-- `src/shared`: shared TypeScript types
-- `tests/core`: fast contract and service tests
-- `tests/e2e`: Playwright Electron end-to-end tests
-
-## Local Development
+## Development
 
 ```bash
 npm install
 npm run start
 ```
 
-The app is bundled with local fonts and Material Symbols for its UI icons.
+`npm run dev` is currently an alias for `npm run start`.
 
-## Quality Scripts
+UI assets bundled at build time include Inter (UI), Material Symbols (icons), and the packaged writing fonts in `font/`.
+
+## Scripts
 
 ```bash
-npm run typecheck
-npm run lint
+npm run clean
 npm run build
+npm run start
+npm run lint
+npm run typecheck
 npm run test:core
 npm run test:e2e
 npm test
@@ -90,3 +87,12 @@ Helper scripts:
 - `build/build_macos.sh`
 - `build/build_linux.sh`
 - `build/build_windows.sh`
+
+## Project Structure
+
+- `src/main`: Electron main process, IPC handlers, project/session/snapshot services
+- `src/preload`: secure renderer API bridge
+- `src/renderer`: HTML, CSS, and renderer-side UI logic
+- `src/shared`: shared IPC/types/utilities/defaults
+- `tests/core`: Node test runner service and contract tests
+- `tests/e2e`: Playwright Electron end-to-end tests
