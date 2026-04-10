@@ -44,6 +44,9 @@ import {
   persistCurrentFileInSession,
   saveCurrentFileSynchronouslyInSession
 } from "./features/editor/editor-session.js";
+import { createTypingActivityTracker } from "./features/editor/typing-activity.js";
+import { createAutosaveController } from "./features/autosave/autosave-controller.js";
+import { createSnapshotLabelController } from "./features/autosave/snapshot-label-controller.js";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
 const openProjectWrap = document.querySelector(".open-project-wrap") as HTMLElement;
@@ -147,21 +150,15 @@ let project: ProjectMetadata | null = null;
 let currentFilePath: string | null = null;
 let currentFileWordCount = 0;
 let dirty = false;
-let lastTypedAtMs: number | null = null;
-let activeTypingSeconds = 0;
 const TYPING_IDLE_THRESHOLD_MS = 5_000;
 const AUTOSAVE_LENIENCY_THRESHOLD_SEC = 60;
 const AUTOSAVE_LENIENCY_MAX_MS = 5_000;
 const AUTOSAVE_LENIENCY_POLL_MS = 500;
-let autosaveTimer: number | null = null;
-let autosaveInFlight = false;
 let statusResetTimer: number | null = null;
 let suppressDirtyEvents = false;
 let editorBaseFontSizePx = 0;
 let editorZoomFactor = 1;
 let isWindowFullscreen = false;
-let snapshotCreatedAtMs: number | null = null;
-let snapshotLabelTimer: number | null = null;
 let editorWidthGuideTimer: number | null = null;
 let settingsPersistQueue: Promise<void> = Promise.resolve();
 let dragSourceFilePath: string | null = null;
@@ -180,6 +177,19 @@ type TestWindowWithContextAction = Window & {
   __WIT_TEST_TREE_ACTION?: TreeContextAction;
 };
 const liveWordCountTracker = createLiveWordCountTracker(LIVE_WORD_COUNT_DEBOUNCE_MS);
+const typingActivityTracker = createTypingActivityTracker(TYPING_IDLE_THRESHOLD_MS);
+const snapshotLabelController = createSnapshotLabelController({
+  element: snapshotLabel,
+  refreshMs: SNAPSHOT_LABEL_REFRESH_MS,
+  formatRelativeElapsed
+});
+const autosaveController = createAutosaveController({
+  getIntervalSec: () => (project ? project.settings.autosaveIntervalSec : null),
+  leniencyThresholdSec: AUTOSAVE_LENIENCY_THRESHOLD_SEC,
+  isTyping: () => isUserTyping(),
+  waitForPause: waitForTypingPause,
+  onTick: runAutosaveTick
+});
 
 function setProjectState(nextProject: ProjectMetadata | null): void {
   project = nextProject;
@@ -222,31 +232,11 @@ function setStatus(message: string, clearAfterMs?: number): void {
 }
 
 function renderSnapshotLabel(): void {
-  if (!snapshotCreatedAtMs) {
-    snapshotLabel.textContent = "✓ --";
-    snapshotLabel.title = "No snapshot yet";
-    return;
-  }
-
-  const elapsedMs = Date.now() - snapshotCreatedAtMs;
-  const relative = formatRelativeElapsed(elapsedMs);
-  snapshotLabel.textContent = `✓ ${relative}`;
-  snapshotLabel.title = `Last snapshot at ${new Date(snapshotCreatedAtMs).toLocaleString()}`;
+  snapshotLabelController.render();
 }
 
 function restartSnapshotLabelTimer(): void {
-  if (snapshotLabelTimer) {
-    window.clearInterval(snapshotLabelTimer);
-    snapshotLabelTimer = null;
-  }
-
-  snapshotLabelTimer = window.setInterval(() => {
-    if (!snapshotCreatedAtMs) {
-      return;
-    }
-
-    renderSnapshotLabel();
-  }, SNAPSHOT_LABEL_REFRESH_MS);
+  snapshotLabelController.start();
 }
 
 function showEditorWidthGuides(): void {
@@ -284,23 +274,11 @@ function consumeTestTreeContextAction(): TreeContextAction | undefined {
 }
 
 function recordTypingActivity(): void {
-  const now = Date.now();
-
-  if (lastTypedAtMs !== null) {
-    const gap = now - lastTypedAtMs;
-    if (gap < TYPING_IDLE_THRESHOLD_MS) {
-      activeTypingSeconds += gap / 1000;
-    }
-  }
-
-  lastTypedAtMs = now;
+  typingActivityTracker.recordTypingActivity();
 }
 
 function consumeActiveTypingSeconds(): number {
-  const seconds = Math.floor(activeTypingSeconds);
-  activeTypingSeconds = 0;
-  lastTypedAtMs = null;
-  return seconds;
+  return typingActivityTracker.consumeActiveSeconds();
 }
 
 function setDirty(nextDirty: boolean): void {
@@ -749,8 +727,7 @@ function clearProjectState(showStatusMessage = false): void {
   stopSidebarResize();
   resetTreeState();
   resetActiveFile();
-  snapshotCreatedAtMs = null;
-  renderSnapshotLabel();
+  snapshotLabelController.update(null);
   syncProjectPathLabels("No project selected");
   setProjectControlsEnabled(false);
   setSidebarVisibility(false, false);
@@ -998,10 +975,9 @@ function applyProjectMetadata(metadata: ProjectMetadata): void {
   resetTreeState();
   setProjectState(metadata);
   restoreCollapsedFolders();
-  snapshotCreatedAtMs = metadata.latestSnapshotCreatedAt
-    ? parseSnapshotTimestamp(metadata.latestSnapshotCreatedAt)
-    : null;
-  renderSnapshotLabel();
+  snapshotLabelController.update(
+    metadata.latestSnapshotCreatedAt ? parseSnapshotTimestamp(metadata.latestSnapshotCreatedAt) : null
+  );
   resetActiveFile();
 
   syncProjectPathLabels(metadata.projectPath);
@@ -1131,50 +1107,24 @@ async function openFile(relativePath: string): Promise<void> {
 }
 
 function isUserTyping(): boolean {
-  return lastTypedAtMs !== null && (Date.now() - lastTypedAtMs) < TYPING_IDLE_THRESHOLD_MS;
+  return typingActivityTracker.isTyping();
 }
 
 function waitForTypingPause(): Promise<void> {
-  return new Promise((resolve) => {
-    const deadline = Date.now() + AUTOSAVE_LENIENCY_MAX_MS;
-    const check = () => {
-      if (!isUserTyping() || Date.now() >= deadline) {
-        resolve();
-        return;
-      }
-      window.setTimeout(check, AUTOSAVE_LENIENCY_POLL_MS);
-    };
-    check();
+  return typingActivityTracker.waitForPause({
+    maxWaitMs: AUTOSAVE_LENIENCY_MAX_MS,
+    pollMs: AUTOSAVE_LENIENCY_POLL_MS
   });
 }
 
 function restartAutosaveTimer(): void {
-  if (autosaveTimer) {
-    window.clearInterval(autosaveTimer);
-    autosaveTimer = null;
-  }
-
-  if (!project) {
-    return;
-  }
-
-  const intervalSec = project.settings.autosaveIntervalSec;
-  const intervalMs = intervalSec * 1000;
-  autosaveTimer = window.setInterval(() => {
-    if (intervalSec >= AUTOSAVE_LENIENCY_THRESHOLD_SEC && isUserTyping()) {
-      void waitForTypingPause().then(() => runAutosaveTick());
-    } else {
-      void runAutosaveTick();
-    }
-  }, intervalMs);
+  autosaveController.restart();
 }
 
 async function runAutosaveTick(): Promise<void> {
-  if (!project || autosaveInFlight) {
+  if (!project) {
     return;
   }
-
-  autosaveInFlight = true;
 
   try {
     await persistCurrentFile(false);
@@ -1184,15 +1134,12 @@ async function runAutosaveTick(): Promise<void> {
     const result = await window.witApi.autosaveTick(activeSeconds);
     project.wordCount = result.wordCount;
     project.totalWritingSeconds = result.totalWritingSeconds;
-    snapshotCreatedAtMs = parseSnapshotTimestamp(result.snapshotCreatedAt) ?? Date.now();
-    renderSnapshotLabel();
+    snapshotLabelController.update(parseSnapshotTimestamp(result.snapshotCreatedAt) ?? Date.now());
     renderStatusFooter();
 
     setStatus(`Autosaved (${project.settings.autosaveIntervalSec}s interval)`, 2000);
   } catch {
     setStatus("Autosave tick failed.");
-  } finally {
-    autosaveInFlight = false;
   }
 }
 
@@ -2141,14 +2088,8 @@ window.addEventListener("beforeunload", () => {
   stopSidebarResize();
   clearEditorWidthGuides();
   closeTreeContextMenu();
-
-  if (autosaveTimer) {
-    window.clearInterval(autosaveTimer);
-  }
-
-  if (snapshotLabelTimer) {
-    window.clearInterval(snapshotLabelTimer);
-  }
+  autosaveController.stop();
+  snapshotLabelController.stop();
 
   for (const unsubscribe of subscriptions) {
     unsubscribe();

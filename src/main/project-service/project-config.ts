@@ -1,0 +1,158 @@
+import { promises as fs } from "node:fs";
+import { DEFAULT_SETTINGS } from "../../shared/default-settings";
+import type { AppSettings } from "../../shared/types";
+import {
+  normalizeDefaultFileExtension,
+  normalizeEditorLineHeight,
+  normalizeEditorMaxWidth,
+  normalizeEditorParagraphSpacing,
+  normalizeEditorZoomPercent,
+  normalizeTheme
+} from "../../shared/utils";
+import { listGitRemotes } from "./project-git";
+import { ensureProjectInitialized } from "./project-init";
+import { getConfigPath } from "./project-paths";
+
+export async function loadSettings(projectPath: string): Promise<AppSettings> {
+  await ensureProjectInitialized(projectPath);
+
+  const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
+  const parsed = JSON.parse(raw) as Partial<AppSettings> & {
+    settings?: Partial<AppSettings>;
+    lastOpenedFilePath?: unknown;
+  };
+  const rawSettings = parsed.settings && typeof parsed.settings === "object" ? parsed.settings : parsed;
+
+  return {
+    autosaveIntervalSec:
+      typeof rawSettings.autosaveIntervalSec === "number" && rawSettings.autosaveIntervalSec > 0
+        ? Math.round(rawSettings.autosaveIntervalSec)
+        : DEFAULT_SETTINGS.autosaveIntervalSec,
+    theme: normalizeTheme(rawSettings.theme),
+    defaultFileExtension: normalizeDefaultFileExtension(rawSettings.defaultFileExtension),
+    showWordCount:
+      typeof rawSettings.showWordCount === "boolean" ? rawSettings.showWordCount : DEFAULT_SETTINGS.showWordCount,
+    showWritingTime:
+      typeof rawSettings.showWritingTime === "boolean"
+        ? rawSettings.showWritingTime
+        : DEFAULT_SETTINGS.showWritingTime,
+    showCurrentFileBar:
+      typeof rawSettings.showCurrentFileBar === "boolean"
+        ? rawSettings.showCurrentFileBar
+        : DEFAULT_SETTINGS.showCurrentFileBar,
+    smartQuotes:
+      typeof rawSettings.smartQuotes === "boolean" ? rawSettings.smartQuotes : DEFAULT_SETTINGS.smartQuotes,
+    snapshotMaxSizeMb:
+      typeof rawSettings.snapshotMaxSizeMb === "number" && rawSettings.snapshotMaxSizeMb > 0
+        ? Math.round(rawSettings.snapshotMaxSizeMb)
+        : DEFAULT_SETTINGS.snapshotMaxSizeMb,
+    gitSnapshots:
+      typeof rawSettings.gitSnapshots === "boolean" ? rawSettings.gitSnapshots : DEFAULT_SETTINGS.gitSnapshots,
+    gitPushRemote:
+      typeof rawSettings.gitPushRemote === "string" && rawSettings.gitPushRemote.trim().length > 0
+        ? rawSettings.gitPushRemote.trim()
+        : DEFAULT_SETTINGS.gitPushRemote,
+    editorLineHeight:
+      typeof rawSettings.editorLineHeight === "number" && Number.isFinite(rawSettings.editorLineHeight)
+        ? normalizeEditorLineHeight(rawSettings.editorLineHeight)
+        : DEFAULT_SETTINGS.editorLineHeight,
+    editorParagraphSpacing: normalizeEditorParagraphSpacing(rawSettings.editorParagraphSpacing),
+    editorMaxWidthPx:
+      typeof rawSettings.editorMaxWidthPx === "number" && Number.isFinite(rawSettings.editorMaxWidthPx)
+        ? normalizeEditorMaxWidth(rawSettings.editorMaxWidthPx)
+        : DEFAULT_SETTINGS.editorMaxWidthPx,
+    editorZoomPercent:
+      typeof rawSettings.editorZoomPercent === "number" && Number.isFinite(rawSettings.editorZoomPercent)
+        ? normalizeEditorZoomPercent(rawSettings.editorZoomPercent)
+        : DEFAULT_SETTINGS.editorZoomPercent,
+    editorFontFamily:
+      typeof rawSettings.editorFontFamily === "string" && rawSettings.editorFontFamily.length > 0
+        ? rawSettings.editorFontFamily
+        : DEFAULT_SETTINGS.editorFontFamily
+  };
+}
+
+export async function saveSettings(projectPath: string, settings: AppSettings): Promise<AppSettings> {
+  const gitRemotes = await listGitRemotes(projectPath);
+  const normalizedRemote =
+    typeof settings.gitPushRemote === "string" && gitRemotes.includes(settings.gitPushRemote)
+      ? settings.gitPushRemote
+      : null;
+  const normalizedSettings: AppSettings = {
+    autosaveIntervalSec: Math.max(5, Math.round(settings.autosaveIntervalSec)),
+    theme: normalizeTheme(settings.theme),
+    defaultFileExtension: normalizeDefaultFileExtension(settings.defaultFileExtension),
+    showWordCount: Boolean(settings.showWordCount),
+    showWritingTime: Boolean(settings.showWritingTime),
+    showCurrentFileBar: Boolean(settings.showCurrentFileBar),
+    smartQuotes: Boolean(settings.smartQuotes),
+    snapshotMaxSizeMb: Math.max(1, Math.round(settings.snapshotMaxSizeMb)),
+    gitSnapshots: Boolean(settings.gitSnapshots),
+    gitPushRemote: normalizedRemote,
+    editorLineHeight: normalizeEditorLineHeight(settings.editorLineHeight),
+    editorParagraphSpacing: normalizeEditorParagraphSpacing(settings.editorParagraphSpacing),
+    editorMaxWidthPx: normalizeEditorMaxWidth(settings.editorMaxWidthPx),
+    editorZoomPercent: normalizeEditorZoomPercent(settings.editorZoomPercent),
+    editorFontFamily: settings.editorFontFamily || DEFAULT_SETTINGS.editorFontFamily
+  };
+
+  await ensureProjectInitialized(projectPath);
+  const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
+  const parsed = JSON.parse(raw) as { lastOpenedFilePath?: unknown };
+  await fs.writeFile(
+    getConfigPath(projectPath),
+    `${JSON.stringify(
+      {
+        lastOpenedFilePath:
+          typeof parsed.lastOpenedFilePath === "string" && parsed.lastOpenedFilePath.trim().length > 0
+            ? parsed.lastOpenedFilePath.trim()
+            : null,
+        settings: normalizedSettings
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
+
+  return normalizedSettings;
+}
+
+export async function getLastOpenedFilePath(projectPath: string): Promise<string | null> {
+  await ensureProjectInitialized(projectPath);
+  const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
+  const parsed = JSON.parse(raw) as { lastOpenedFilePath?: unknown };
+
+  return typeof parsed.lastOpenedFilePath === "string" && parsed.lastOpenedFilePath.trim().length > 0
+    ? parsed.lastOpenedFilePath.trim()
+    : null;
+}
+
+export async function hasStoredLastOpenedFilePath(projectPath: string): Promise<boolean> {
+  await ensureProjectInitialized(projectPath);
+  const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
+  const parsed = JSON.parse(raw) as { lastOpenedFilePath?: unknown };
+  return Object.prototype.hasOwnProperty.call(parsed, "lastOpenedFilePath");
+}
+
+export async function saveLastOpenedFilePath(projectPath: string, relativePath: string | null): Promise<string | null> {
+  await ensureProjectInitialized(projectPath);
+  const settings = await loadSettings(projectPath);
+  const normalizedRelativePath =
+    typeof relativePath === "string" && relativePath.trim().length > 0 ? relativePath.trim() : null;
+
+  await fs.writeFile(
+    getConfigPath(projectPath),
+    `${JSON.stringify(
+      {
+        lastOpenedFilePath: normalizedRelativePath,
+        settings
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
+
+  return normalizedRelativePath;
+}
