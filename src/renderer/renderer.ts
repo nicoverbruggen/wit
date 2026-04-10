@@ -1,4 +1,4 @@
-import type { AppSettings, ProjectMetadata } from "../shared/types";
+import type { AppSettings, ProjectMetadata, TreeContextAction } from "../shared/types";
 import {
   normalizeDefaultFileExtension,
   normalizeEditorLineHeight,
@@ -20,6 +20,16 @@ import {
 import { currentFileWillBeDeleted, resolveNewFilePath, resolveNewFolderPath } from "./project-path-rules.js";
 import { buildProjectTree, type TreeNode } from "./tree-model.js";
 import { createCodeMirrorEditor } from "./codemirror-editor-adapter.js";
+import {
+  renderEmptyStateShortcutRows as renderShortcutRows,
+  formatPrimaryShortcut,
+  type EmptyStateShortcut
+} from "./empty-state-shortcuts.js";
+import {
+  buildEditorFontStack,
+  loadSystemFontFamilies,
+  populateFontSelect as populateFontOptions
+} from "./font-utils.js";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
 const openProjectWrap = document.querySelector(".open-project-wrap") as HTMLElement;
@@ -119,14 +129,6 @@ const DEFAULT_EDITOR_FONT = "Readerly";
 type SelectedTreeKind = "file" | "folder";
 type SettingsTabKey = "writing" | "editor" | "autosave" | "about";
 
-type LocalFontData = {
-  family: string;
-};
-
-type WindowWithLocalFonts = Window & {
-  queryLocalFonts?: () => Promise<LocalFontData[]>;
-};
-
 let project: ProjectMetadata | null = null;
 let currentFilePath: string | null = null;
 let currentFileWordCount = 0;
@@ -162,13 +164,12 @@ let currentSettingsTab: SettingsTabKey = "writing";
 let systemFontFamilies: string[] = [];
 
 const subscriptions: Array<() => void> = [];
-type TreeContextAction = "new-file" | "new-folder" | "rename" | "delete" | "close-project";
 type TestWindowWithContextAction = Window & {
   __WIT_TEST_TREE_ACTION?: TreeContextAction;
 };
 
 function primaryShortcutLabel(key: string): string {
-  return window.witApi.getPlatform() === "darwin" ? `Cmd+${key}` : `Ctrl+${key}`;
+  return formatPrimaryShortcut(key, window.witApi.getPlatform());
 }
 
 function setStatus(message: string, clearAfterMs?: number): void {
@@ -540,83 +541,24 @@ function applyEditorMaxWidth(editorWidth: number): void {
 }
 
 function applyEditorFont(fontFamily: string): void {
-  const fontStack = `"${fontFamily}", "Palatino", "Times New Roman", serif`;
+  const fontStack = buildEditorFontStack(fontFamily);
   editor.setFontFamily(fontStack);
   fontSelect.style.fontFamily = fontStack;
 }
 
 function populateFontSelect(selectedFont: string): void {
-  fontSelect.innerHTML = "";
-
-  const seenValues = new Set<string>();
-  const appendOption = (value: string, label = value): void => {
-    if (seenValues.has(value)) {
-      return;
-    }
-
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = label;
-    option.style.fontFamily = `"${value}", "Palatino", "Times New Roman", serif`;
-    fontSelect.appendChild(option);
-    seenValues.add(value);
-  };
-
-  for (const fontName of BUILT_IN_EDITOR_FONTS) {
-    appendOption(fontName);
-  }
-
-  if (systemFontFamilies.length > 0) {
-    const separator = document.createElement("option");
-    separator.disabled = true;
-    separator.textContent = "\u2014\u2014 System Fonts \u2014\u2014";
-    separator.style.fontFamily = '"Inter", system-ui, -apple-system, "Segoe UI", sans-serif';
-    fontSelect.appendChild(separator);
-
-    for (const fontName of systemFontFamilies) {
-      appendOption(fontName);
-    }
-  }
-
-  if (selectedFont && !seenValues.has(selectedFont)) {
-    appendOption(selectedFont, `${selectedFont} (Current)`);
-  }
-
-  fontSelect.value = seenValues.has(selectedFont) ? selectedFont : DEFAULT_EDITOR_FONT;
-  fontSelect.style.fontFamily = `"${fontSelect.value}", "Palatino", "Times New Roman", serif`;
+  const resolvedFont = populateFontOptions({
+    select: fontSelect,
+    builtInFonts: BUILT_IN_EDITOR_FONTS,
+    systemFontFamilies,
+    selectedFont,
+    defaultFont: DEFAULT_EDITOR_FONT
+  });
+  fontSelect.style.fontFamily = buildEditorFontStack(resolvedFont);
 }
 
 async function loadSystemFonts(): Promise<void> {
-  const fontWindow = window as WindowWithLocalFonts;
-  if (typeof fontWindow.queryLocalFonts !== "function") {
-    systemFontFamilies = [];
-    return;
-  }
-
-  try {
-    const localFonts = await fontWindow.queryLocalFonts();
-    const uniqueFamilies = new Set<string>();
-
-    for (const font of localFonts) {
-      if (typeof font.family !== "string") {
-        continue;
-      }
-
-      const normalizedFamily = font.family.trim();
-      if (
-        !normalizedFamily ||
-        BUILT_IN_EDITOR_FONTS.includes(normalizedFamily as typeof BUILT_IN_EDITOR_FONTS[number])
-      ) {
-        continue;
-      }
-
-      uniqueFamilies.add(normalizedFamily);
-    }
-
-    systemFontFamilies = [...uniqueFamilies].sort((left, right) => left.localeCompare(right));
-  } catch {
-    systemFontFamilies = [];
-  }
+  systemFontFamilies = await loadSystemFontFamilies(window, BUILT_IN_EDITOR_FONTS);
 }
 
 function applyTheme(theme: AppSettings["theme"]): void {
@@ -792,72 +734,8 @@ function clearProjectState(showStatusMessage = false): void {
   }
 }
 
-function renderEmptyStateShortcutRows(shortcuts: Array<{ label: string; key: string }>): void {
-  emptyStateShortcutsList.innerHTML = "";
-
-  const parseShortcutAlternatives = (shortcut: string): string[][] =>
-    shortcut.split(" / ").map((alternative) => {
-      const tokens: string[] = [];
-      let currentToken = "";
-
-      for (const character of alternative) {
-        if (character === "+") {
-          if (currentToken.trim().length > 0) {
-            tokens.push(currentToken.trim());
-            currentToken = "";
-          } else {
-            tokens.push("+");
-          }
-
-          continue;
-        }
-
-        currentToken += character;
-      }
-
-      if (currentToken.trim().length > 0) {
-        tokens.push(currentToken.trim());
-      }
-
-      return tokens;
-    });
-
-  for (const shortcut of shortcuts) {
-    const item = document.createElement("li");
-    const label = document.createElement("span");
-    const key = document.createElement("span");
-    const alternatives = parseShortcutAlternatives(shortcut.key);
-
-    label.className = "empty-state-shortcut-label";
-    label.textContent = shortcut.label;
-    key.className = "empty-state-shortcut-key";
-
-    alternatives.forEach((parts, alternativeIndex) => {
-      parts.forEach((part, index) => {
-        const keycap = document.createElement("span");
-        keycap.className = "empty-state-shortcut-keycap";
-        keycap.textContent = part;
-        key.appendChild(keycap);
-
-        if (index < parts.length - 1) {
-          const separator = document.createElement("span");
-          separator.className = "empty-state-shortcut-plus";
-          separator.textContent = "+";
-          key.appendChild(separator);
-        }
-      });
-
-      if (alternativeIndex < alternatives.length - 1) {
-        const separator = document.createElement("span");
-        separator.className = "empty-state-shortcut-slash";
-        separator.textContent = "/";
-        key.appendChild(separator);
-      }
-    });
-
-    item.append(label, key);
-    emptyStateShortcutsList.appendChild(item);
-  }
+function renderEmptyStateShortcutRows(shortcuts: EmptyStateShortcut[]): void {
+  renderShortcutRows(emptyStateShortcutsList, shortcuts);
 }
 
 function renderEmptyEditorState(): void {
