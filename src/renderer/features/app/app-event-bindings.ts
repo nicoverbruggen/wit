@@ -25,7 +25,9 @@ export function bindAppEventBindings(options: {
   fileList: HTMLUListElement;
   editor: EditorEventAdapter;
   getProject: () => unknown | null;
-  getSuppressDirtyEvents: () => boolean;
+  onEditorInput: () => void;
+  onEditorBlur: () => void;
+  onEditorKeydown: (event: KeyboardEvent) => void;
   projectTreeState: ProjectTreeControllerState;
   closeTreeContextMenu: () => void;
   openProjectPicker: () => Promise<void>;
@@ -37,11 +39,7 @@ export function bindAppEventBindings(options: {
   adjustSidebarWidth: (delta: number) => void;
   toggleFullscreen: () => Promise<boolean>;
   syncFullscreenToggleButton: (isFullscreen: boolean) => void;
-  recordTypingActivity: () => void;
-  setDirty: (nextDirty: boolean) => void;
-  scheduleLiveWordCountRefresh: () => void;
   setSidebarFaded: (nextFaded: boolean) => void;
-  handleEditorKeydown: (event: KeyboardEvent) => void;
   addSubscription: (unsubscribe: () => void) => void;
   consumeTestTreeContextAction: () => TreeContextAction | undefined;
   showTreeContextMenu: (payload: {
@@ -150,26 +148,19 @@ export function bindAppEventBindings(options: {
 
   options.addSubscription(
     options.editor.onInput(() => {
-      if (options.getSuppressDirtyEvents()) {
-        return;
-      }
-
-      options.recordTypingActivity();
-      options.setDirty(true);
-      options.scheduleLiveWordCountRefresh();
-      options.setSidebarFaded(true);
+      options.onEditorInput();
     })
   );
 
   options.addSubscription(
     options.editor.onKeydown((event) => {
-      options.handleEditorKeydown(event);
+      options.onEditorKeydown(event);
     })
   );
 
   options.addSubscription(
     options.editor.onBlur(() => {
-      options.setSidebarFaded(false);
+      options.onEditorBlur();
     })
   );
 

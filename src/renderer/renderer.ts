@@ -28,7 +28,7 @@ import {
 import { createEntryDialogController } from "./features/project-tree/entry-dialog-controller.js";
 import { createProjectEntryActionsController } from "./features/project-tree/project-entry-actions-controller.js";
 import { createLiveWordCountTracker } from "./features/editor/live-word-count.js";
-import { computeSmartQuoteReplacement, isSmartQuoteCharacter } from "./features/editor/smart-quotes.js";
+import { createEditorInteractionsController } from "./features/editor/editor-interactions-controller.js";
 import {
   openFileInEditorSession,
   persistCurrentFileInSession,
@@ -41,6 +41,8 @@ import { createSidebarController } from "./features/sidebar/sidebar-controller.j
 import { createSettingsDialogController } from "./features/settings/settings-dialog-controller.js";
 import { initializeApp } from "./features/app/app-initializer.js";
 import { bindAppEventBindings } from "./features/app/app-event-bindings.js";
+import { createProjectUiController } from "./features/project/project-ui-controller.js";
+import { createProjectLifecycleController } from "./features/project/project-lifecycle-controller.js";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
 const openProjectWrap = document.querySelector(".open-project-wrap") as HTMLElement;
@@ -279,6 +281,85 @@ const projectEntryActionsController = createProjectEntryActionsController({
   renameEntry: (payload) => window.witApi.renameEntry(payload),
   moveFile: (payload) => window.witApi.moveFile(payload)
 });
+const projectUiController = createProjectUiController({
+  sidebarProjectTitle,
+  projectPathLabel,
+  statusBar,
+  statusMessage,
+  wordCountLabel,
+  writingTimeLabel,
+  snapshotLabel,
+  editorHeader,
+  themeSelect,
+  defaultFileExtensionSelect,
+  showWordCountInput,
+  showWritingTimeInput,
+  showCurrentFileBarInput,
+  smartQuotesInput,
+  gitSnapshotsInput,
+  gitPushRemoteSelect,
+  gitSnapshotsNotice,
+  autosaveIntervalInput,
+  snapshotMaxSizeInput,
+  applyTheme,
+  applyEditorLineHeight,
+  applyEditorParagraphSpacing,
+  applyEditorMaxWidth,
+  setEditorZoomFromPercent,
+  populateFontSelect,
+  applyEditorFont,
+  getProjectDisplayTitle,
+  formatWritingTime,
+  defaultEditorFont: DEFAULT_EDITOR_FONT
+});
+const projectLifecycleController = createProjectLifecycleController({
+  getCurrentFilePath: () => currentFilePath,
+  persistCurrentFile,
+  persistLastOpenedFilePath,
+  resetActiveFile,
+  setProjectState,
+  stopSidebarResize,
+  resetTreeState,
+  updateSnapshotLabel: (nextTimestamp) => snapshotLabelController.update(nextTimestamp),
+  syncProjectPathLabels,
+  setProjectControlsEnabled,
+  setSidebarVisibility,
+  setSidebarFaded,
+  setThemeValue: (theme) => {
+    themeSelect.value = theme;
+  },
+  applyTheme,
+  renderStatusFooter,
+  renderFileList,
+  restartAutosaveTimer,
+  renderEmptyEditorState,
+  closeTreeContextMenu,
+  closeProject: () => window.witApi.closeProject(),
+  selectProject: () => window.witApi.selectProject(),
+  applyProjectMetadata,
+  openFile,
+  setStatus
+});
+const editorInteractionsController = createEditorInteractionsController({
+  getSuppressDirtyEvents: () => suppressDirtyEvents,
+  setSuppressDirtyEvents: (value) => {
+    suppressDirtyEvents = value;
+  },
+  getSmartQuotesEnabled: () => Boolean(project?.settings.smartQuotes),
+  getEditorSelection: () => editor.getSelection(),
+  getEditorValue: () => editor.getValue(),
+  replaceEditorSelection: (value) => {
+    editor.replaceSelection(value);
+  },
+  persistCurrentFile,
+  handleUserEdit: () => {
+    typingActivityTracker.recordTypingActivity();
+    setDirty(true);
+    scheduleLiveWordCountRefresh();
+    setSidebarFaded(true);
+  },
+  setSidebarFaded
+});
 
 function setProjectState(nextProject: ProjectMetadata | null): void {
   project = nextProject;
@@ -352,10 +433,6 @@ function consumeTestTreeContextAction(): TreeContextAction | undefined {
   const action = testWindow.__WIT_TEST_TREE_ACTION;
   delete testWindow.__WIT_TEST_TREE_ACTION;
   return action;
-}
-
-function recordTypingActivity(): void {
-  typingActivityTracker.recordTypingActivity();
 }
 
 function consumeActiveTypingSeconds(): number {
@@ -677,40 +754,7 @@ function resetActiveFile(): void {
 }
 
 async function closeCurrentFile(): Promise<void> {
-  if (!currentFilePath) {
-    return;
-  }
-
-  const saved = await persistCurrentFile(false);
-  if (!saved) {
-    return;
-  }
-
-  await persistLastOpenedFilePath(null);
-  resetActiveFile();
-  setStatus("Closed current file.", 1200);
-}
-
-function clearProjectState(showStatusMessage = false): void {
-  setProjectState(null);
-  stopSidebarResize();
-  resetTreeState();
-  resetActiveFile();
-  snapshotLabelController.update(null);
-  syncProjectPathLabels("No project selected");
-  setProjectControlsEnabled(false);
-  setSidebarVisibility(false, false);
-  setSidebarFaded(false);
-  themeSelect.value = "light";
-  applyTheme("light");
-  renderStatusFooter();
-  renderFileList();
-  restartAutosaveTimer();
-  renderEmptyEditorState();
-
-  if (showStatusMessage) {
-    setStatus("Project closed.", 2000);
-  }
+  await projectLifecycleController.closeCurrentFile();
 }
 
 function renderEmptyStateShortcutRows(shortcuts: EmptyStateShortcut[]): void {
@@ -768,19 +812,7 @@ function renderEmptyEditorState(): void {
 }
 
 function syncProjectPathLabels(projectPath: string): void {
-  if (!project) {
-    sidebarProjectTitle.textContent = "No Project";
-    sidebarProjectTitle.title = "";
-    projectPathLabel.textContent = "No project selected";
-    projectPathLabel.title = "";
-    return;
-  }
-
-  const displayName = getProjectDisplayTitle(projectPath);
-  sidebarProjectTitle.textContent = displayName;
-  sidebarProjectTitle.title = projectPath;
-  projectPathLabel.textContent = displayName;
-  projectPathLabel.title = projectPath;
+  projectUiController.syncProjectPathLabels(projectPath, project);
 }
 
 function getSelectedFolderPath(): string | null {
@@ -792,41 +824,7 @@ function getSelectedFolderPath(): string | null {
 }
 
 function renderStatusFooter(): void {
-  if (!project) {
-    statusBar.classList.add("status-bar--empty");
-    statusMessage.textContent = "";
-    wordCountLabel.hidden = true;
-    writingTimeLabel.hidden = true;
-    snapshotLabel.hidden = true;
-    return;
-  }
-
-  statusBar.classList.remove("status-bar--empty");
-  wordCountLabel.hidden = false;
-  writingTimeLabel.hidden = false;
-  snapshotLabel.hidden = false;
-
-  const totalWords = project.wordCount;
-  const totalWritingSeconds = project.totalWritingSeconds;
-
-  wordCountLabel.textContent = `Words: ${totalWords.toLocaleString()}`;
-  writingTimeLabel.textContent = `Writing: ${formatWritingTime(totalWritingSeconds)}`;
-
-  if (!project.settings.showWordCount) {
-    wordCountLabel.style.display = "none";
-  } else {
-    wordCountLabel.style.display = "inline";
-  }
-
-  if (!project.settings.showWritingTime) {
-    writingTimeLabel.style.display = "none";
-  } else {
-    writingTimeLabel.style.display = "inline";
-  }
-}
-
-function renderEditorHeaderVisibility(): void {
-  editorHeader.hidden = Boolean(project && !project.settings.showCurrentFileBar);
+  projectUiController.renderStatusFooter(project);
 }
 
 const projectTreeRenderCallbacks = createProjectTreeRenderCallbacks({
@@ -874,57 +872,8 @@ function renderFileList(): void {
   });
 }
 
-function syncGitSnapshotsAvailability(): void {
-  const repositoryAvailable = Boolean(project?.isGitRepository);
-  const remotes = project?.gitRemotes ?? [];
-
-  gitSnapshotsInput.disabled = !project || !repositoryAvailable;
-  gitSnapshotsNotice.hidden = !project || repositoryAvailable;
-  gitPushRemoteSelect.disabled = !project || !repositoryAvailable;
-
-  if (!repositoryAvailable) {
-    gitSnapshotsInput.checked = false;
-    gitPushRemoteSelect.innerHTML = "";
-    return;
-  }
-
-  gitPushRemoteSelect.innerHTML = "";
-  const disabledOption = document.createElement("option");
-  disabledOption.value = "";
-  disabledOption.textContent = "Don't push";
-  gitPushRemoteSelect.appendChild(disabledOption);
-
-  for (const remoteName of remotes) {
-    const option = document.createElement("option");
-    option.value = remoteName;
-    option.textContent = remoteName;
-    gitPushRemoteSelect.appendChild(option);
-  }
-}
-
 function syncSettingsInputs(settings: AppSettings): void {
-  themeSelect.value = settings.theme;
-  applyTheme(settings.theme);
-  defaultFileExtensionSelect.value = settings.defaultFileExtension ?? ".txt";
-  showWordCountInput.checked = settings.showWordCount;
-  showWritingTimeInput.checked = settings.showWritingTime;
-  showCurrentFileBarInput.checked = settings.showCurrentFileBar;
-  smartQuotesInput.checked = settings.smartQuotes;
-  gitSnapshotsInput.checked = settings.gitSnapshots && Boolean(project?.isGitRepository);
-  autosaveIntervalInput.value = String(settings.autosaveIntervalSec);
-  snapshotMaxSizeInput.value = String(settings.snapshotMaxSizeMb);
-  applyEditorLineHeight(settings.editorLineHeight);
-  applyEditorParagraphSpacing(settings.editorParagraphSpacing ?? "none");
-  applyEditorMaxWidth(settings.editorMaxWidthPx);
-  setEditorZoomFromPercent(settings.editorZoomPercent, false);
-  populateFontSelect(settings.editorFontFamily ?? DEFAULT_EDITOR_FONT);
-  applyEditorFont(settings.editorFontFamily ?? DEFAULT_EDITOR_FONT);
-  syncGitSnapshotsAvailability();
-  gitPushRemoteSelect.value =
-    settings.gitPushRemote && project?.gitRemotes.includes(settings.gitPushRemote)
-      ? settings.gitPushRemote
-      : "";
-  renderEditorHeaderVisibility();
+  projectUiController.syncSettingsInputs(settings, project);
 }
 
 function applyProjectMetadata(metadata: ProjectMetadata): void {
@@ -1102,48 +1051,11 @@ async function runAutosaveTick(): Promise<void> {
 }
 
 async function openProjectPicker(): Promise<void> {
-  let selectedProject: ProjectMetadata | null = null;
-  try {
-    selectedProject = await window.witApi.selectProject();
-  } catch {
-    setStatus("Could not open project picker.");
-    return;
-  }
-
-  if (!selectedProject) {
-    return;
-  }
-
-  applyProjectMetadata(selectedProject);
-
-  const preferredFile =
-    selectedProject.lastOpenedFilePath && selectedProject.files.includes(selectedProject.lastOpenedFilePath)
-      ? selectedProject.lastOpenedFilePath
-      : null;
-
-  if (preferredFile) {
-    await openFile(preferredFile);
-  } else if (!selectedProject.hasStoredLastOpenedFilePath && selectedProject.files.length > 0) {
-    await openFile(selectedProject.files[0]);
-  } else {
-    resetActiveFile();
-
-    if (selectedProject.files.length === 0) {
-      setStatus("Project opened. Create your first file.", 2000);
-    }
-  }
+  await projectLifecycleController.openProjectPicker();
 }
 
 async function closeCurrentProject(): Promise<void> {
-  closeTreeContextMenu();
-
-  try {
-    await persistCurrentFile(true);
-    await window.witApi.closeProject();
-    clearProjectState(true);
-  } catch {
-    setStatus("Could not close project.");
-  }
+  await projectLifecycleController.closeCurrentProject();
 }
 
 async function persistSettings(update: Partial<AppSettings>): Promise<void> {
@@ -1176,51 +1088,6 @@ async function persistSettings(update: Partial<AppSettings>): Promise<void> {
   return settingsPersistQueue;
 }
 
-function insertSmartQuote(quoteCharacter: string): void {
-  const { start, end } = editor.getSelection();
-  const value = editor.getValue();
-  if (!isSmartQuoteCharacter(quoteCharacter)) {
-    return;
-  }
-  const replacement = computeSmartQuoteReplacement({
-    text: value,
-    start,
-    end,
-    quoteCharacter
-  });
-
-  // Use insertText to preserve the browser undo stack (Cmd/Ctrl+Z).
-  suppressDirtyEvents = true;
-  editor.replaceSelection(replacement);
-  suppressDirtyEvents = false;
-
-  recordTypingActivity();
-  setDirty(true);
-  scheduleLiveWordCountRefresh();
-  setSidebarFaded(true);
-}
-
-function handleEditorKeydown(event: KeyboardEvent): void {
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
-    event.preventDefault();
-    void persistCurrentFile(true);
-    return;
-  }
-
-  if (!project?.settings.smartQuotes) {
-    return;
-  }
-
-  if (event.ctrlKey || event.metaKey || event.altKey) {
-    return;
-  }
-
-  if (isSmartQuoteCharacter(event.key)) {
-    event.preventDefault();
-    insertSmartQuote(event.key);
-  }
-}
-
 bindAppEventBindings({
   openProjectButton,
   emptyStatePrimaryButton,
@@ -1234,7 +1101,9 @@ bindAppEventBindings({
   fileList,
   editor,
   getProject: () => project,
-  getSuppressDirtyEvents: () => suppressDirtyEvents,
+  onEditorInput: () => editorInteractionsController.onEditorInput(),
+  onEditorBlur: () => editorInteractionsController.onEditorBlur(),
+  onEditorKeydown: (event) => editorInteractionsController.onEditorKeydown(event),
   projectTreeState: {
     getSelectedTreePath: () => selectedTreePath,
     setSelectedTreePath: (value) => {
@@ -1260,11 +1129,7 @@ bindAppEventBindings({
   adjustSidebarWidth: (delta) => sidebarController.adjustWidth(delta),
   toggleFullscreen: () => window.witApi.toggleFullscreen(),
   syncFullscreenToggleButton,
-  recordTypingActivity,
-  setDirty,
-  scheduleLiveWordCountRefresh,
   setSidebarFaded,
-  handleEditorKeydown,
   addSubscription: (unsubscribe) => {
     subscriptions.push(unsubscribe);
   },
