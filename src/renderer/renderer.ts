@@ -47,6 +47,7 @@ import {
 import { createTypingActivityTracker } from "./features/editor/typing-activity.js";
 import { createAutosaveController } from "./features/autosave/autosave-controller.js";
 import { createSnapshotLabelController } from "./features/autosave/snapshot-label-controller.js";
+import { createSidebarController } from "./features/sidebar/sidebar-controller.js";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
 const openProjectWrap = document.querySelector(".open-project-wrap") as HTMLElement;
@@ -165,10 +166,6 @@ let dragSourceFilePath: string | null = null;
 const collapsedFolderPaths = new Set<string>();
 let selectedTreePath: string | null = null;
 let selectedTreeKind: SelectedTreeKind | null = null;
-let sidebarVisible = true;
-let sidebarVisibleBeforeFullscreen = true;
-let sidebarWidthPx = DEFAULT_SIDEBAR_WIDTH_PX;
-let sidebarResizeCleanup: (() => void) | null = null;
 let currentSettingsTab: SettingsTabKey = "writing";
 let systemFontFamilies: string[] = [];
 
@@ -190,6 +187,14 @@ const autosaveController = createAutosaveController({
   waitForPause: waitForTypingPause,
   onTick: runAutosaveTick
 });
+const sidebarController = createSidebarController({
+  appShell,
+  toggleButton: toggleSidebarButton,
+  minWidthPx: MIN_SIDEBAR_WIDTH_PX,
+  maxWidthPx: MAX_SIDEBAR_WIDTH_PX,
+  defaultWidthPx: DEFAULT_SIDEBAR_WIDTH_PX,
+  widthStorageKey: SIDEBAR_WIDTH_STORAGE_KEY
+});
 
 function setProjectState(nextProject: ProjectMetadata | null): void {
   project = nextProject;
@@ -201,14 +206,6 @@ function setCurrentFilePathState(nextFilePath: string | null): void {
 
 function setDirtyState(nextDirty: boolean): void {
   dirty = nextDirty;
-}
-
-function setSidebarVisibleState(nextVisible: boolean): void {
-  sidebarVisible = nextVisible;
-}
-
-function setSidebarWidthPxState(nextWidthPx: number): void {
-  sidebarWidthPx = nextWidthPx;
 }
 
 function primaryShortcutLabel(key: string): string {
@@ -344,57 +341,16 @@ function setProjectControlsEnabled(enabled: boolean): void {
 }
 
 function setSidebarFaded(nextFaded: boolean): void {
-  const shouldFade = Boolean(sidebarVisible && project && currentFilePath && nextFaded);
-  appShell.classList.toggle("sidebar-faded", shouldFade);
-}
-
-function clampSidebarWidth(width: number): number {
-  return Math.max(MIN_SIDEBAR_WIDTH_PX, Math.min(MAX_SIDEBAR_WIDTH_PX, Math.round(width)));
-}
-
-function applySidebarWidth(width: number): void {
-  setSidebarWidthPxState(clampSidebarWidth(width));
-  appShell.style.setProperty("--sidebar-width", `${sidebarWidthPx}px`);
-
-  try {
-    localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidthPx));
-  } catch {
-    // Ignore storage failures.
-  }
+  const shouldFade = Boolean(sidebarController.isVisible() && project && currentFilePath && nextFaded);
+  sidebarController.setFaded(shouldFade);
 }
 
 function loadSidebarWidthPreference(): void {
-  try {
-    const rawValue = localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
-    if (!rawValue) {
-      applySidebarWidth(DEFAULT_SIDEBAR_WIDTH_PX);
-      return;
-    }
-
-    const parsed = Number.parseInt(rawValue, 10);
-    applySidebarWidth(Number.isFinite(parsed) ? parsed : DEFAULT_SIDEBAR_WIDTH_PX);
-  } catch {
-    applySidebarWidth(DEFAULT_SIDEBAR_WIDTH_PX);
-  }
+  sidebarController.loadWidthPreference();
 }
 
 function syncSidebarToggleButton(): void {
-  const sidebarAvailable = Boolean(project);
-  toggleSidebarButton.hidden = !sidebarAvailable;
-
-  if (!sidebarAvailable) {
-    toggleSidebarButton.disabled = false;
-    toggleSidebarButton.title = "Hide sidebar";
-    toggleSidebarButton.setAttribute("aria-label", "Hide sidebar");
-    toggleSidebarButton.setAttribute("aria-pressed", "false");
-    return;
-  }
-
-  toggleSidebarButton.disabled = false;
-  const nextActionLabel = sidebarVisible ? "Hide sidebar" : "Show sidebar";
-  toggleSidebarButton.title = nextActionLabel;
-  toggleSidebarButton.setAttribute("aria-label", nextActionLabel);
-  toggleSidebarButton.setAttribute("aria-pressed", String(sidebarVisible));
+  sidebarController.syncToggleButton(Boolean(project));
 }
 
 function syncFullscreenToggleButton(isFullscreen: boolean): void {
@@ -406,72 +362,35 @@ function syncFullscreenToggleButton(isFullscreen: boolean): void {
   fullscreenToggleButton.setAttribute("aria-pressed", String(isFullscreen));
 
   if (isFullscreen && !wasFullscreen) {
-    sidebarVisibleBeforeFullscreen = sidebarVisible;
+    sidebarController.setVisibleBeforeFullscreen(sidebarController.isVisible());
     setSidebarVisibility(false, false);
   } else if (!isFullscreen && wasFullscreen) {
-    setSidebarVisibility(sidebarVisibleBeforeFullscreen, false);
+    setSidebarVisibility(sidebarController.getVisibleBeforeFullscreen(), false);
   }
 
   applyEditorZoom(false);
 }
 
 function setSidebarVisibility(nextVisible: boolean, showStatus = true): void {
-  if (sidebarVisible === nextVisible) {
-    syncSidebarToggleButton();
-    return;
-  }
-
-  setSidebarVisibleState(nextVisible);
-  appShell.classList.toggle("sidebar-hidden", !sidebarVisible);
-  appShell.classList.remove("sidebar-faded");
-  syncSidebarToggleButton();
-
-  if (showStatus) {
-    setStatus(sidebarVisible ? "Sidebar shown." : "Sidebar hidden.", 1200);
-  }
+  sidebarController.setVisibility(nextVisible, {
+    showStatus,
+    setStatus,
+    projectAvailable: Boolean(project)
+  });
 }
 
 function toggleSidebarVisibility(): void {
-  if (!project) {
-    return;
-  }
-
-  setSidebarVisibility(!sidebarVisible);
+  sidebarController.toggleVisibility(Boolean(project), {
+    setStatus
+  });
 }
 
 function stopSidebarResize(): void {
-  if (!sidebarResizeCleanup) {
-    return;
-  }
-
-  sidebarResizeCleanup();
-  sidebarResizeCleanup = null;
-  appShell.classList.remove("sidebar-resizing");
+  sidebarController.stopResize();
 }
 
 function beginSidebarResize(pointerClientX: number): void {
-  if (!project || !sidebarVisible) {
-    return;
-  }
-
-  stopSidebarResize();
-  appShell.classList.add("sidebar-resizing");
-
-  const shellLeft = appShell.getBoundingClientRect().left;
-  const handlePointerMove = (event: MouseEvent) => {
-    applySidebarWidth(event.clientX - shellLeft);
-  };
-  const handlePointerUp = () => {
-    stopSidebarResize();
-  };
-
-  applySidebarWidth(pointerClientX - shellLeft);
-  window.addEventListener("mousemove", handlePointerMove);
-  window.addEventListener("mouseup", handlePointerUp, { once: true });
-
-  sidebarResizeCleanup = () => {
-    window.removeEventListener("mousemove", handlePointerMove);
-  };
+  sidebarController.beginResize(pointerClientX, Boolean(project));
 }
 
 function openSettingsDialog(): void {
@@ -1864,7 +1783,7 @@ sidebarResizer.addEventListener("mousedown", (event) => {
 });
 
 sidebarResizer.addEventListener("keydown", (event) => {
-  if (!project || !sidebarVisible) {
+  if (!project || !sidebarController.isVisible()) {
     return;
   }
 
@@ -1875,7 +1794,7 @@ sidebarResizer.addEventListener("keydown", (event) => {
   event.preventDefault();
   closeTreeContextMenu();
   const delta = event.key === "ArrowLeft" ? -20 : 20;
-  applySidebarWidth(sidebarWidthPx + delta);
+  sidebarController.adjustWidth(delta);
 });
 
 fullscreenToggleButton.addEventListener("click", () => {
