@@ -18,7 +18,6 @@ import {
   withOriginalFileExtension
 } from "./path-utils.js";
 import { currentFileWillBeDeleted, resolveNewFilePath, resolveNewFolderPath } from "./project-path-rules.js";
-import { buildProjectTree, type TreeNode } from "./tree-model.js";
 import { createCodeMirrorEditor } from "./codemirror-editor-adapter.js";
 import {
   renderEmptyStateShortcutRows as renderShortcutRows,
@@ -30,6 +29,32 @@ import {
   loadSystemFontFamilies,
   populateFontSelect as populateFontOptions
 } from "./font-utils.js";
+import {
+  setCurrentFilePathAction,
+  setDirtyAction,
+  setProjectAction,
+  setSidebarVisibleAction,
+  setSidebarWidthAction,
+  type RendererAppAction
+} from "./app/actions.js";
+import {
+  createInitialRendererAppState,
+  reduceRendererAppState,
+  type RendererAppState
+} from "./app/state.js";
+import { createRendererStore } from "./app/store.js";
+import {
+  selectCurrentFilePath,
+  selectDirty,
+  selectProject,
+  selectSidebarVisible,
+  selectSidebarWidthPx
+} from "./app/selectors.js";
+import {
+  renderProjectTreeList,
+  type ProjectTreeSelectionKind
+} from "./features/project-tree/project-tree-view.js";
+import { bindProjectTreeContextMenu } from "./features/project-tree/project-tree-context-menu.js";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
 const openProjectWrap = document.querySelector(".open-project-wrap") as HTMLElement;
@@ -126,7 +151,7 @@ const DEFAULT_SIDEBAR_WIDTH_PX = 270;
 const BUILT_IN_EDITOR_FONTS = ["Sourcerer", "Readerly", "iA Writer Mono", "iA Writer Duo", "iA Writer Quattro"] as const;
 const DEFAULT_EDITOR_FONT = "Readerly";
 
-type SelectedTreeKind = "file" | "folder";
+type SelectedTreeKind = ProjectTreeSelectionKind;
 type SettingsTabKey = "writing" | "editor" | "autosave" | "about";
 
 let project: ProjectMetadata | null = null;
@@ -167,6 +192,49 @@ const subscriptions: Array<() => void> = [];
 type TestWindowWithContextAction = Window & {
   __WIT_TEST_TREE_ACTION?: TreeContextAction;
 };
+
+const appStore = createRendererStore<RendererAppState, RendererAppAction>({
+  initialState: createInitialRendererAppState({
+    project,
+    currentFilePath,
+    dirty,
+    sidebarVisible,
+    sidebarWidthPx
+  }),
+  reducer: reduceRendererAppState
+});
+
+function syncCoreStateFromStore(): void {
+  const state = appStore.getState();
+  project = selectProject(state);
+  currentFilePath = selectCurrentFilePath(state);
+  dirty = selectDirty(state);
+  sidebarVisible = selectSidebarVisible(state);
+  sidebarWidthPx = selectSidebarWidthPx(state);
+}
+
+function setProjectState(nextProject: ProjectMetadata | null): void {
+  appStore.dispatch(setProjectAction(nextProject));
+}
+
+function setCurrentFilePathState(nextFilePath: string | null): void {
+  appStore.dispatch(setCurrentFilePathAction(nextFilePath));
+}
+
+function setDirtyState(nextDirty: boolean): void {
+  appStore.dispatch(setDirtyAction(nextDirty));
+}
+
+function setSidebarVisibleState(nextVisible: boolean): void {
+  appStore.dispatch(setSidebarVisibleAction(nextVisible));
+}
+
+function setSidebarWidthPxState(nextWidthPx: number): void {
+  appStore.dispatch(setSidebarWidthAction(nextWidthPx));
+}
+
+syncCoreStateFromStore();
+subscriptions.push(appStore.subscribe(syncCoreStateFromStore));
 
 function primaryShortcutLabel(key: string): string {
   return formatPrimaryShortcut(key, window.witApi.getPlatform());
@@ -271,7 +339,7 @@ function consumeActiveTypingSeconds(): number {
 }
 
 function setDirty(nextDirty: boolean): void {
-  dirty = nextDirty;
+  setDirtyState(nextDirty);
   dirtyIndicator.hidden = !nextDirty;
   syncActiveFileMarkerState();
 }
@@ -342,7 +410,7 @@ function clampSidebarWidth(width: number): number {
 }
 
 function applySidebarWidth(width: number): void {
-  sidebarWidthPx = clampSidebarWidth(width);
+  setSidebarWidthPxState(clampSidebarWidth(width));
   appShell.style.setProperty("--sidebar-width", `${sidebarWidthPx}px`);
 
   try {
@@ -410,7 +478,7 @@ function setSidebarVisibility(nextVisible: boolean, showStatus = true): void {
     return;
   }
 
-  sidebarVisible = nextVisible;
+  setSidebarVisibleState(nextVisible);
   appShell.classList.toggle("sidebar-hidden", !sidebarVisible);
   appShell.classList.remove("sidebar-faded");
   syncSidebarToggleButton();
@@ -680,7 +748,7 @@ function resetTreeState(): void {
 }
 
 function resetActiveFile(): void {
-  currentFilePath = null;
+  setCurrentFilePathState(null);
   currentFileWordCount = 0;
   activeFileLabel.textContent = "No file selected";
   activeFileLabel.removeAttribute("title");
@@ -712,7 +780,7 @@ async function closeCurrentFile(): Promise<void> {
 }
 
 function clearProjectState(showStatusMessage = false): void {
-  project = null;
+  setProjectState(null);
   stopSidebarResize();
   resetTreeState();
   resetActiveFile();
@@ -786,242 +854,6 @@ function renderEmptyEditorState(): void {
     { label: "Toggle sidebar", key: primaryShortcutLabel("B") },
     { label: "Text zoom", key: `${primaryShortcutLabel("+")} / ${primaryShortcutLabel("-")}` }
   ]);
-}
-
-function toIndentClass(depth: number): string {
-  return `tree-indent-${Math.min(depth, MAX_TREE_INDENT)}`;
-}
-
-function renderTreeNodes(nodes: TreeNode[], depth: number): void {
-  for (const node of nodes) {
-    if (node.kind === "folder") {
-      const item = document.createElement("li");
-      const button = document.createElement("button");
-      const disclosure = document.createElement("span");
-      const icon = document.createElement("span");
-      const label = document.createElement("span");
-      const isCollapsed = collapsedFolderPaths.has(node.relativePath);
-
-      button.type = "button";
-      const selectedClass =
-        selectedTreeKind === "folder" && selectedTreePath === node.relativePath ? "active" : "";
-      button.className = ["tree-item", "folder-button", toIndentClass(depth), selectedClass]
-        .filter(Boolean)
-        .join(" ");
-      button.dataset.relativePath = node.relativePath;
-      button.dataset.itemKind = "folder";
-      button.title = node.relativePath;
-      button.setAttribute("aria-expanded", String(!isCollapsed));
-      disclosure.className = "material-symbol-icon tree-disclosure";
-      disclosure.textContent = isCollapsed ? "chevron_right" : "expand_more";
-      disclosure.setAttribute("aria-hidden", "true");
-      icon.className = "material-symbol-icon folder-icon";
-      icon.textContent = isCollapsed ? "folder" : "folder_open";
-      icon.setAttribute("aria-hidden", "true");
-      label.className = "tree-label";
-      label.textContent = node.name;
-
-      button.append(disclosure, icon, label);
-      button.addEventListener("click", () => {
-        closeTreeContextMenu();
-
-        if (selectedTreePath === node.relativePath && selectedTreeKind === "folder" && !isCollapsed) {
-          collapsedFolderPaths.add(node.relativePath);
-        } else {
-          collapsedFolderPaths.delete(node.relativePath);
-        }
-
-        selectedTreePath = node.relativePath;
-        selectedTreeKind = "folder";
-        saveCollapsedFolders();
-        setSidebarFaded(false);
-        renderFileList();
-      });
-      button.addEventListener("dragenter", () => {
-        if (!dragSourceFilePath) {
-          return;
-        }
-
-        button.classList.add("drop-target");
-      });
-      button.addEventListener("dragover", (event) => {
-        if (!dragSourceFilePath && !event.dataTransfer?.types.includes("text/wit-file-path")) {
-          return;
-        }
-
-        event.preventDefault();
-        if (event.dataTransfer) {
-          event.dataTransfer.dropEffect = "move";
-        }
-        button.classList.add("drop-target");
-      });
-      button.addEventListener("dragleave", () => {
-        button.classList.remove("drop-target");
-      });
-      button.addEventListener("drop", (event) => {
-        event.preventDefault();
-        button.classList.remove("drop-target");
-        const sourcePath =
-          event.dataTransfer?.getData("text/wit-file-path") || dragSourceFilePath;
-
-        if (!sourcePath) {
-          return;
-        }
-
-        void moveFileToFolder(sourcePath, node.relativePath);
-      });
-
-      item.appendChild(button);
-      fileList.appendChild(item);
-
-      if (!isCollapsed) {
-        renderTreeNodes(node.children, depth + 1);
-      }
-
-      continue;
-    }
-
-    const item = document.createElement("li");
-    const button = document.createElement("button");
-    const disclosurePlaceholder = document.createElement("span");
-    const icon = document.createElement("span");
-    const label = document.createElement("span");
-    const marker = document.createElement("span");
-    const isCurrentFile = currentFilePath !== null && pathEquals(currentFilePath, node.relativePath);
-
-    button.type = "button";
-    const selectedClass =
-      selectedTreeKind === "file" && selectedTreePath === node.relativePath ? "active" : "";
-    const currentFileClass = isCurrentFile ? "current-file" : "";
-    const rootFileClass = depth === 0 ? "tree-root-file" : "";
-    button.className = ["tree-item", "file-button", toIndentClass(depth), selectedClass, currentFileClass, rootFileClass]
-      .filter(Boolean)
-      .join(" ");
-    button.dataset.relativePath = node.relativePath;
-    button.dataset.itemKind = "file";
-    button.draggable = true;
-    button.title = node.relativePath;
-    disclosurePlaceholder.className = "tree-disclosure-placeholder";
-    disclosurePlaceholder.setAttribute("aria-hidden", "true");
-    icon.className = "material-symbol-icon file-icon";
-    icon.textContent = "description";
-    icon.setAttribute("aria-hidden", "true");
-    label.className = "tree-label";
-    label.textContent = node.name;
-    marker.className = "active-file-marker";
-    marker.hidden = !isCurrentFile;
-    marker.dataset.dirty = String(isCurrentFile && dirty);
-    marker.setAttribute("aria-hidden", "true");
-
-    if (depth === 0) {
-      button.append(icon, label, marker);
-    } else {
-      button.append(disclosurePlaceholder, icon, label, marker);
-    }
-    button.addEventListener("click", () => {
-      selectedTreePath = node.relativePath;
-      selectedTreeKind = "file";
-      closeTreeContextMenu();
-      void openFile(node.relativePath);
-    });
-    button.addEventListener("dragstart", (event) => {
-      dragSourceFilePath = node.relativePath;
-      closeTreeContextMenu();
-      button.classList.add("dragging");
-      if (event.dataTransfer) {
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/wit-file-path", node.relativePath);
-      }
-    });
-    button.addEventListener("dragend", () => {
-      dragSourceFilePath = null;
-      button.classList.remove("dragging");
-      fileList.querySelectorAll(".drop-target").forEach((element) => {
-        element.classList.remove("drop-target");
-      });
-    });
-
-    item.appendChild(button);
-    fileList.appendChild(item);
-  }
-}
-
-function renderRootTreeItem(): void {
-  if (!project) {
-    return;
-  }
-
-  const item = document.createElement("li");
-  const button = document.createElement("button");
-  const icon = document.createElement("span");
-  const label = document.createElement("span");
-  const selectedClass = selectedTreeKind === "folder" && selectedTreePath === "" ? "active" : "";
-
-  button.type = "button";
-  button.className = ["tree-item", "folder-button", "tree-root-item", selectedClass].filter(Boolean).join(" ");
-  button.dataset.relativePath = "";
-  button.dataset.itemKind = "project";
-  button.title = project.projectPath;
-  icon.className = "material-symbol-icon folder-icon";
-  icon.textContent = "work";
-  icon.setAttribute("aria-hidden", "true");
-  label.className = "tree-label";
-  label.textContent = getProjectDisplayTitle(project.projectPath);
-
-  button.append(icon, label);
-  button.addEventListener("click", () => {
-    const closingCurrentFile =
-      selectedTreePath === "" && selectedTreeKind === "folder" && currentFilePath !== null;
-
-    selectedTreePath = "";
-    selectedTreeKind = "folder";
-    closeTreeContextMenu();
-    setSidebarFaded(false);
-
-    if (closingCurrentFile) {
-      void closeCurrentFile();
-      return;
-    }
-
-    renderFileList();
-  });
-  button.addEventListener("dragenter", () => {
-    if (!dragSourceFilePath) {
-      return;
-    }
-
-    button.classList.add("drop-target");
-  });
-  button.addEventListener("dragover", (event) => {
-    if (!dragSourceFilePath && !event.dataTransfer?.types.includes("text/wit-file-path")) {
-      return;
-    }
-
-    event.preventDefault();
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = "move";
-    }
-
-    button.classList.add("drop-target");
-  });
-  button.addEventListener("dragleave", () => {
-    button.classList.remove("drop-target");
-  });
-  button.addEventListener("drop", (event) => {
-    event.preventDefault();
-    button.classList.remove("drop-target");
-    const sourcePath =
-      event.dataTransfer?.getData("text/wit-file-path") || dragSourceFilePath;
-
-    if (!sourcePath) {
-      return;
-    }
-
-    void moveFileToFolder(sourcePath, "");
-  });
-
-  item.appendChild(button);
-  fileList.appendChild(item);
 }
 
 function syncProjectPathLabels(projectPath: string): void {
@@ -1099,27 +931,57 @@ function renderEditorHeaderVisibility(): void {
 }
 
 function renderFileList(): void {
-  fileList.innerHTML = "";
+  renderProjectTreeList({
+    listElement: fileList,
+    project,
+    selectedTreePath,
+    selectedTreeKind,
+    currentFilePath,
+    dirty,
+    collapsedFolderPaths,
+    maxTreeIndent: MAX_TREE_INDENT,
+    getProjectDisplayTitle,
+    getDragSourceFilePath: () => dragSourceFilePath,
+    callbacks: {
+      onBeforeInteraction: closeTreeContextMenu,
+      onProjectRootClick: (closingCurrentFile) => {
+        selectedTreePath = "";
+        selectedTreeKind = "folder";
+        setSidebarFaded(false);
 
-  if (!project) {
-    const emptyItem = document.createElement("li");
-    emptyItem.textContent = "Open a project to start writing.";
-    emptyItem.className = "empty-state";
-    fileList.appendChild(emptyItem);
-    return;
-  }
+        if (closingCurrentFile) {
+          void closeCurrentFile();
+          return;
+        }
 
-  renderRootTreeItem();
+        renderFileList();
+      },
+      onFolderClick: (relativePath, isCollapsed) => {
+        if (selectedTreePath === relativePath && selectedTreeKind === "folder" && !isCollapsed) {
+          collapsedFolderPaths.add(relativePath);
+        } else {
+          collapsedFolderPaths.delete(relativePath);
+        }
 
-  if (project.files.length === 0 && project.folders.length === 0) {
-    const emptyItem = document.createElement("li");
-    emptyItem.textContent = "No files yet. Create one with New File or add a folder.";
-    emptyItem.className = "empty-state";
-    fileList.appendChild(emptyItem);
-    return;
-  }
-
-  renderTreeNodes(buildProjectTree(project.files, project.folders), 0);
+        selectedTreePath = relativePath;
+        selectedTreeKind = "folder";
+        saveCollapsedFolders();
+        setSidebarFaded(false);
+        renderFileList();
+      },
+      onFileClick: (relativePath) => {
+        selectedTreePath = relativePath;
+        selectedTreeKind = "file";
+        void openFile(relativePath);
+      },
+      onMoveFileToFolder: (sourcePath, toFolderRelativePath) => {
+        void moveFileToFolder(sourcePath, toFolderRelativePath);
+      },
+      onDragSourceChange: (sourcePath) => {
+        dragSourceFilePath = sourcePath;
+      }
+    }
+  });
 }
 
 function syncGitSnapshotsAvailability(): void {
@@ -1179,7 +1041,7 @@ function applyProjectMetadata(metadata: ProjectMetadata): void {
   cancelPendingLiveWordCount();
   stopSidebarResize();
   resetTreeState();
-  project = metadata;
+  setProjectState(metadata);
   restoreCollapsedFolders();
   snapshotCreatedAtMs = metadata.latestSnapshotCreatedAt
     ? parseSnapshotTimestamp(metadata.latestSnapshotCreatedAt)
@@ -1301,7 +1163,7 @@ async function openFile(relativePath: string): Promise<void> {
     editor.setValue(content);
     suppressDirtyEvents = false;
 
-    currentFilePath = relativePath;
+    setCurrentFilePathState(relativePath);
     selectedTreePath = relativePath;
     selectedTreeKind = "file";
     currentFileWordCount = await window.witApi.countPreviewWords(content);
@@ -1737,12 +1599,12 @@ async function renameEntryByPath(relativePath: string, kind: SelectedTreeKind): 
 
     if (previousCurrentFilePath) {
       if (kind === "file" && pathEquals(previousCurrentFilePath, relativePath)) {
-        currentFilePath = renamedPath;
+        setCurrentFilePathState(renamedPath);
       }
 
       if (kind === "folder" && (pathEquals(previousCurrentFilePath, relativePath) || previousCurrentFilePath.startsWith(`${relativePath}/`))) {
         const suffix = previousCurrentFilePath.slice(relativePath.length).replace(/^\/+/, "");
-        currentFilePath = suffix.length > 0 ? `${renamedPath}/${suffix}` : renamedPath;
+        setCurrentFilePathState(suffix.length > 0 ? `${renamedPath}/${suffix}` : renamedPath);
       }
     }
 
@@ -1824,7 +1686,7 @@ async function moveFileToFolder(fromRelativePath: string, toFolderRelativePath: 
     selectedTreeKind = "file";
 
     if (currentFilePath && pathEquals(currentFilePath, normalizedFrom)) {
-      currentFilePath = result.nextFilePath;
+      setCurrentFilePathState(result.nextFilePath);
       activeFileLabel.textContent = result.nextFilePath;
       activeFileLabel.title = result.nextFilePath;
     }
@@ -2274,112 +2136,95 @@ sidebar.addEventListener("focusin", () => {
   setSidebarFaded(false);
 });
 
-fileList.addEventListener("contextmenu", (event) => {
-  event.preventDefault();
+subscriptions.push(
+  bindProjectTreeContextMenu({
+    listElement: fileList,
+    onInvalidTarget: () => {
+      closeTreeContextMenu();
+    },
+    onProjectTarget: ({ relativePath, x, y }) => {
+      selectedTreePath = "";
+      selectedTreeKind = "folder";
+      renderFileList();
+      setSidebarFaded(false);
 
-  const target = event.target as HTMLElement | null;
-  const treeItem = target?.closest("button.tree-item") as HTMLButtonElement | null;
+      const testAction = consumeTestTreeContextAction();
+      void (async () => {
+        try {
+          const action = await window.witApi.showTreeContextMenu({
+            relativePath,
+            kind: "project",
+            x,
+            y,
+            testAction
+          });
 
-  if (!treeItem) {
-    closeTreeContextMenu();
-    return;
-  }
+          if (action === "new-file") {
+            await createNewFile();
+            return;
+          }
 
-  const itemKind = treeItem.dataset.itemKind;
-  if (itemKind !== "file" && itemKind !== "folder" && itemKind !== "project") {
-    closeTreeContextMenu();
-    return;
-  }
+          if (action === "new-folder") {
+            await createNewFolder();
+            return;
+          }
 
-  const relativePath = treeItem.dataset.relativePath;
-  if (relativePath === undefined) {
-    closeTreeContextMenu();
-    return;
-  }
-
-  if (itemKind === "project") {
-    selectedTreePath = "";
-    selectedTreeKind = "folder";
-    renderFileList();
-    setSidebarFaded(false);
-
-    const testAction = consumeTestTreeContextAction();
-    void (async () => {
-      try {
-        const action = await window.witApi.showTreeContextMenu({
-          relativePath,
-          kind: "project",
-          x: event.clientX,
-          y: event.clientY,
-          testAction
-        });
-
-        if (action === "new-file") {
-          await createNewFile();
-          return;
+          if (action === "close-project") {
+            await closeCurrentProject();
+          }
+        } catch {
+          setStatus("Could not open project actions menu.");
         }
+      })();
+    },
+    onNodeTarget: ({ relativePath, kind, x, y }) => {
+      selectedTreePath = relativePath;
+      selectedTreeKind = kind;
+      renderFileList();
+      setSidebarFaded(false);
 
-        if (action === "new-folder") {
-          await createNewFolder();
-          return;
+      const testAction = consumeTestTreeContextAction();
+      void (async () => {
+        try {
+          const action = await window.witApi.showTreeContextMenu({
+            relativePath,
+            kind,
+            isCurrentFile: kind === "file" && currentFilePath !== null && pathEquals(currentFilePath, relativePath),
+            x,
+            y,
+            testAction
+          });
+
+          if (action === "new-file") {
+            await createNewFile();
+            return;
+          }
+
+          if (action === "new-folder") {
+            await createNewFolder();
+            return;
+          }
+
+          if (action === "delete") {
+            await deleteEntryByPath(relativePath, kind);
+            return;
+          }
+
+          if (action === "close-file") {
+            await closeCurrentFile();
+            return;
+          }
+
+          if (action === "rename") {
+            await renameEntryByPath(relativePath, kind);
+          }
+        } catch {
+          setStatus("Could not open file actions menu.");
         }
-
-        if (action === "close-project") {
-          await closeCurrentProject();
-        }
-      } catch {
-        setStatus("Could not open project actions menu.");
-      }
-    })();
-    return;
-  }
-
-  const kind: SelectedTreeKind = itemKind === "folder" ? "folder" : "file";
-  selectedTreePath = relativePath;
-  selectedTreeKind = kind;
-  renderFileList();
-  setSidebarFaded(false);
-
-  const testAction = consumeTestTreeContextAction();
-  void (async () => {
-    try {
-      const action = await window.witApi.showTreeContextMenu({
-        relativePath,
-        kind,
-        isCurrentFile: kind === "file" && currentFilePath !== null && pathEquals(currentFilePath, relativePath),
-        x: event.clientX,
-        y: event.clientY,
-        testAction
-      });
-
-      if (action === "new-file") {
-        await createNewFile();
-        return;
-      }
-
-      if (action === "new-folder") {
-        await createNewFolder();
-        return;
-      }
-
-      if (action === "delete") {
-        await deleteEntryByPath(relativePath, kind);
-        return;
-      }
-
-      if (action === "close-file") {
-        await closeCurrentFile();
-        return;
-      }
-
-      if (action === "rename") {
-        await renameEntryByPath(relativePath, kind);
-      }
-    } catch {
-      setStatus("Could not open file actions menu.");
+      })();
     }
-  })();
-});
+  })
+);
 
 settingsDialog.addEventListener("close", () => {
   clearEditorWidthGuides();
