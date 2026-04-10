@@ -26,6 +26,7 @@ import {
   saveSettings
 } from "./project-service";
 import { createProjectSessionService } from "./project-session-service";
+import { buildTreeContextMenuTemplate } from "./tree-context-menu-template";
 import { countWordsUsingSystemTool } from "./word-count-service";
 import type {
   AppInfo,
@@ -399,84 +400,11 @@ function setupIpcHandlers(): void {
         resolve(action);
       };
 
-      const menuTemplate: MenuItemConstructorOptions[] =
-        payload.kind === "project"
-          ? [
-              {
-                label: "New File",
-                click: () => {
-                  resolveOnce("new-file");
-                }
-              },
-              {
-                label: "New Folder",
-                click: () => {
-                  resolveOnce("new-folder");
-                }
-              },
-              { type: "separator" },
-              {
-                label: "Close Project",
-                click: () => {
-                  resolveOnce("close-project");
-                }
-              }
-            ]
-          : payload.kind === "folder"
-            ? [
-                {
-                  label: "New File",
-                  click: () => {
-                    resolveOnce("new-file");
-                  }
-                },
-                {
-                  label: "New Folder",
-                  click: () => {
-                    resolveOnce("new-folder");
-                  }
-                },
-                { type: "separator" },
-                {
-                  label: "Rename",
-                  click: () => {
-                    resolveOnce("rename");
-                  }
-                },
-                { type: "separator" },
-                {
-                  label: "Delete",
-                  click: () => {
-                    resolveOnce("delete");
-                  }
-                }
-              ]
-          : [
-              ...(payload.isCurrentFile
-                ? [
-                    {
-                      label: "Close",
-                      click: () => {
-                        resolveOnce("close-file");
-                      }
-                    },
-                    { type: "separator" as const }
-                  ]
-                : []),
-              {
-                label: "Rename",
-                click: () => {
-                  resolveOnce("rename");
-                }
-              },
-              { type: "separator" },
-              {
-                label: "Delete",
-                click: () => {
-                  resolveOnce("delete");
-                }
-              }
-            ];
+      const menuTemplate = buildTreeContextMenuTemplate({
+        kind: payload.kind,
+        isCurrentFile: payload.isCurrentFile,
+        onAction: resolveOnce
+      });
 
       const menu = Menu.buildFromTemplate(menuTemplate);
 

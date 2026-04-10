@@ -30,27 +30,6 @@ import {
   populateFontSelect as populateFontOptions
 } from "./font-utils.js";
 import {
-  setCurrentFilePathAction,
-  setDirtyAction,
-  setProjectAction,
-  setSidebarVisibleAction,
-  setSidebarWidthAction,
-  type RendererAppAction
-} from "./app/actions.js";
-import {
-  createInitialRendererAppState,
-  reduceRendererAppState,
-  type RendererAppState
-} from "./app/state.js";
-import { createRendererStore } from "./app/store.js";
-import {
-  selectCurrentFilePath,
-  selectDirty,
-  selectProject,
-  selectSidebarVisible,
-  selectSidebarWidthPx
-} from "./app/selectors.js";
-import {
   renderProjectTreeList,
   type ProjectTreeSelectionKind
 } from "./features/project-tree/project-tree-view.js";
@@ -202,48 +181,25 @@ type TestWindowWithContextAction = Window & {
 };
 const liveWordCountTracker = createLiveWordCountTracker(LIVE_WORD_COUNT_DEBOUNCE_MS);
 
-const appStore = createRendererStore<RendererAppState, RendererAppAction>({
-  initialState: createInitialRendererAppState({
-    project,
-    currentFilePath,
-    dirty,
-    sidebarVisible,
-    sidebarWidthPx
-  }),
-  reducer: reduceRendererAppState
-});
-
-function syncCoreStateFromStore(): void {
-  const state = appStore.getState();
-  project = selectProject(state);
-  currentFilePath = selectCurrentFilePath(state);
-  dirty = selectDirty(state);
-  sidebarVisible = selectSidebarVisible(state);
-  sidebarWidthPx = selectSidebarWidthPx(state);
-}
-
 function setProjectState(nextProject: ProjectMetadata | null): void {
-  appStore.dispatch(setProjectAction(nextProject));
+  project = nextProject;
 }
 
 function setCurrentFilePathState(nextFilePath: string | null): void {
-  appStore.dispatch(setCurrentFilePathAction(nextFilePath));
+  currentFilePath = nextFilePath;
 }
 
 function setDirtyState(nextDirty: boolean): void {
-  appStore.dispatch(setDirtyAction(nextDirty));
+  dirty = nextDirty;
 }
 
 function setSidebarVisibleState(nextVisible: boolean): void {
-  appStore.dispatch(setSidebarVisibleAction(nextVisible));
+  sidebarVisible = nextVisible;
 }
 
 function setSidebarWidthPxState(nextWidthPx: number): void {
-  appStore.dispatch(setSidebarWidthAction(nextWidthPx));
+  sidebarWidthPx = nextWidthPx;
 }
-
-syncCoreStateFromStore();
-subscriptions.push(appStore.subscribe(syncCoreStateFromStore));
 
 function primaryShortcutLabel(key: string): string {
   return formatPrimaryShortcut(key, window.witApi.getPlatform());
