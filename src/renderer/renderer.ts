@@ -1,12 +1,10 @@
 import type { AppSettings, ProjectMetadata, TreeContextAction } from "../shared/types";
 import {
-  normalizeDefaultFileExtension,
   normalizeEditorLineHeight,
   normalizeEditorMaxWidth,
   normalizeEditorParagraphSpacing,
   normalizeEditorZoomPercent,
   normalizePathInput,
-  normalizeTheme,
   pathEquals
 } from "../shared/utils.js";
 import { formatRelativeElapsed, formatWritingTime, parseSnapshotTimestamp } from "./formatting.js";
@@ -48,6 +46,7 @@ import { createTypingActivityTracker } from "./features/editor/typing-activity.j
 import { createAutosaveController } from "./features/autosave/autosave-controller.js";
 import { createSnapshotLabelController } from "./features/autosave/snapshot-label-controller.js";
 import { createSidebarController } from "./features/sidebar/sidebar-controller.js";
+import { createSettingsDialogController } from "./features/settings/settings-dialog-controller.js";
 
 const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
 const openProjectWrap = document.querySelector(".open-project-wrap") as HTMLElement;
@@ -145,7 +144,6 @@ const BUILT_IN_EDITOR_FONTS = ["Sourcerer", "Readerly", "iA Writer Mono", "iA Wr
 const DEFAULT_EDITOR_FONT = "Readerly";
 
 type SelectedTreeKind = ProjectTreeSelectionKind;
-type SettingsTabKey = "writing" | "editor" | "autosave" | "about";
 
 let project: ProjectMetadata | null = null;
 let currentFilePath: string | null = null;
@@ -166,7 +164,6 @@ let dragSourceFilePath: string | null = null;
 const collapsedFolderPaths = new Set<string>();
 let selectedTreePath: string | null = null;
 let selectedTreeKind: SelectedTreeKind | null = null;
-let currentSettingsTab: SettingsTabKey = "writing";
 let systemFontFamilies: string[] = [];
 
 const subscriptions: Array<() => void> = [];
@@ -194,6 +191,46 @@ const sidebarController = createSidebarController({
   maxWidthPx: MAX_SIDEBAR_WIDTH_PX,
   defaultWidthPx: DEFAULT_SIDEBAR_WIDTH_PX,
   widthStorageKey: SIDEBAR_WIDTH_STORAGE_KEY
+});
+const settingsDialogController = createSettingsDialogController({
+  dialog: settingsDialog,
+  toggleButton: settingsToggleButton,
+  tabs: {
+    writing: { button: settingsTabWriting, panel: settingsPanelWriting },
+    editor: { button: settingsTabEditor, panel: settingsPanelEditor },
+    autosave: { button: settingsTabAutosave, panel: settingsPanelAutosave },
+    about: { button: settingsTabAbout, panel: settingsPanelAbout }
+  },
+  inputs: {
+    showWordCountInput,
+    showWritingTimeInput,
+    showCurrentFileBarInput,
+    smartQuotesInput,
+    defaultFileExtensionSelect,
+    gitSnapshotsInput,
+    gitPushRemoteSelect,
+    autosaveIntervalInput,
+    snapshotMaxSizeInput,
+    lineHeightInput,
+    paragraphSpacingSelect,
+    editorWidthInput,
+    textZoomInput,
+    themeSelect,
+    fontSelect
+  },
+  closeTreeContextMenu,
+  persistSettings,
+  applyEditorLineHeight,
+  applyEditorParagraphSpacing,
+  applyEditorMaxWidth,
+  applyEditorFont,
+  setEditorZoomFromPercent,
+  applyTheme,
+  refreshEditorLayout,
+  showEditorWidthGuides,
+  clearEditorWidthGuides,
+  setStatus,
+  initialTab: "writing"
 });
 
 function setProjectState(nextProject: ProjectMetadata | null): void {
@@ -391,40 +428,6 @@ function stopSidebarResize(): void {
 
 function beginSidebarResize(pointerClientX: number): void {
   sidebarController.beginResize(pointerClientX, Boolean(project));
-}
-
-function openSettingsDialog(): void {
-  if (settingsToggleButton.disabled) {
-    return;
-  }
-
-  if (typeof settingsDialog.showModal !== "function") {
-    setStatus("Settings dialog is unavailable.");
-    return;
-  }
-
-  if (!settingsDialog.open) {
-    setActiveSettingsTab(currentSettingsTab);
-    settingsDialog.showModal();
-  }
-}
-
-function setActiveSettingsTab(nextTab: SettingsTabKey): void {
-  currentSettingsTab = nextTab;
-
-  const tabs: Array<{ key: SettingsTabKey; button: HTMLButtonElement; panel: HTMLElement }> = [
-    { key: "writing", button: settingsTabWriting, panel: settingsPanelWriting },
-    { key: "editor", button: settingsTabEditor, panel: settingsPanelEditor },
-    { key: "autosave", button: settingsTabAutosave, panel: settingsPanelAutosave },
-    { key: "about", button: settingsTabAbout, panel: settingsPanelAbout }
-  ];
-
-  for (const tab of tabs) {
-    const isActive = tab.key === nextTab;
-    tab.button.setAttribute("aria-selected", String(isActive));
-    tab.button.tabIndex = isActive ? 0 : -1;
-    tab.panel.hidden = !isActive;
-  }
 }
 
 async function loadAboutInfo(): Promise<void> {
@@ -1598,7 +1601,7 @@ async function initialize(): Promise<void> {
 
   loadSidebarWidthPreference();
   setProjectControlsEnabled(false);
-  setActiveSettingsTab("writing");
+  settingsDialogController.setActiveTab("writing");
   syncSidebarToggleButton();
   syncFullscreenToggleButton(false);
   setSidebarVisibility(false, false);
@@ -1746,27 +1749,6 @@ renameEntryCancelButton.addEventListener("click", () => {
   }
 });
 
-settingsToggleButton.addEventListener("click", () => {
-  closeTreeContextMenu();
-  openSettingsDialog();
-});
-
-settingsTabWriting.addEventListener("click", () => {
-  setActiveSettingsTab("writing");
-});
-
-settingsTabEditor.addEventListener("click", () => {
-  setActiveSettingsTab("editor");
-});
-
-settingsTabAutosave.addEventListener("click", () => {
-  setActiveSettingsTab("autosave");
-});
-
-settingsTabAbout.addEventListener("click", () => {
-  setActiveSettingsTab("about");
-});
-
 toggleSidebarButton.addEventListener("click", () => {
   closeTreeContextMenu();
   toggleSidebarVisibility();
@@ -1807,115 +1789,6 @@ fullscreenToggleButton.addEventListener("click", () => {
       setStatus("Could not toggle fullscreen.");
     }
   })();
-});
-
-showWordCountInput.addEventListener("change", () => {
-  void persistSettings({ showWordCount: showWordCountInput.checked });
-});
-
-showWritingTimeInput.addEventListener("change", () => {
-  void persistSettings({ showWritingTime: showWritingTimeInput.checked });
-});
-
-showCurrentFileBarInput.addEventListener("change", () => {
-  void persistSettings({ showCurrentFileBar: showCurrentFileBarInput.checked });
-});
-
-smartQuotesInput.addEventListener("change", () => {
-  void persistSettings({ smartQuotes: smartQuotesInput.checked });
-});
-
-defaultFileExtensionSelect.addEventListener("change", () => {
-  const selectedExtension = normalizeDefaultFileExtension(defaultFileExtensionSelect.value);
-  defaultFileExtensionSelect.value = selectedExtension;
-  void persistSettings({ defaultFileExtension: selectedExtension });
-});
-
-gitSnapshotsInput.addEventListener("change", () => {
-  void persistSettings({ gitSnapshots: gitSnapshotsInput.checked });
-});
-
-gitPushRemoteSelect.addEventListener("change", () => {
-  void persistSettings({
-    gitPushRemote: gitPushRemoteSelect.value || null
-  });
-});
-
-autosaveIntervalInput.addEventListener("change", () => {
-  const parsed = Number.parseInt(autosaveIntervalInput.value, 10);
-  const safeValue = Number.isFinite(parsed) ? Math.max(5, parsed) : 60;
-  void persistSettings({ autosaveIntervalSec: safeValue });
-});
-
-snapshotMaxSizeInput.addEventListener("change", () => {
-  const parsed = Number.parseInt(snapshotMaxSizeInput.value, 10);
-  const safeValue = Number.isFinite(parsed) ? Math.max(1, parsed) : 10;
-  void persistSettings({ snapshotMaxSizeMb: safeValue });
-});
-
-lineHeightInput.addEventListener("input", () => {
-  const parsed = Number.parseFloat(lineHeightInput.value);
-  if (!Number.isFinite(parsed)) {
-    return;
-  }
-
-  applyEditorLineHeight(parsed);
-});
-
-lineHeightInput.addEventListener("change", () => {
-  const parsed = Number.parseFloat(lineHeightInput.value);
-  if (!Number.isFinite(parsed)) {
-    return;
-  }
-
-  applyEditorLineHeight(parsed);
-  void persistSettings({ editorLineHeight: normalizeEditorLineHeight(parsed) });
-});
-
-paragraphSpacingSelect.addEventListener("change", () => {
-  const selectedSpacing = normalizeEditorParagraphSpacing(paragraphSpacingSelect.value);
-  applyEditorParagraphSpacing(selectedSpacing);
-  refreshEditorLayout();
-  void persistSettings({ editorParagraphSpacing: selectedSpacing });
-});
-
-editorWidthInput.addEventListener("input", () => {
-  applyEditorMaxWidth(Number.parseInt(editorWidthInput.value, 10));
-});
-
-fontSelect.addEventListener("change", () => {
-  const selectedFont = fontSelect.value;
-  applyEditorFont(selectedFont);
-  refreshEditorLayout();
-  void persistSettings({ editorFontFamily: selectedFont });
-});
-
-editorWidthInput.addEventListener("change", () => {
-  const parsed = Number.parseInt(editorWidthInput.value, 10);
-  if (!Number.isFinite(parsed)) {
-    return;
-  }
-
-  const normalized = normalizeEditorMaxWidth(parsed);
-  applyEditorMaxWidth(normalized);
-  showEditorWidthGuides();
-  void persistSettings({ editorMaxWidthPx: normalized });
-});
-
-textZoomInput.addEventListener("input", () => {
-  const selectedPercent = Number.parseInt(textZoomInput.value, 10);
-  if (!Number.isFinite(selectedPercent)) {
-    return;
-  }
-
-  setEditorZoomFromPercent(selectedPercent);
-  refreshEditorLayout();
-});
-
-themeSelect.addEventListener("change", () => {
-  const selectedTheme = normalizeTheme(themeSelect.value);
-  applyTheme(selectedTheme);
-  void persistSettings({ theme: selectedTheme });
 });
 
 subscriptions.push(editor.onInput(() => {
@@ -1978,10 +1851,6 @@ subscriptions.push(
   })
 );
 
-settingsDialog.addEventListener("close", () => {
-  clearEditorWidthGuides();
-});
-
 document.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
     event.preventDefault();
@@ -2009,6 +1878,7 @@ window.addEventListener("beforeunload", () => {
   closeTreeContextMenu();
   autosaveController.stop();
   snapshotLabelController.stop();
+  settingsDialogController.destroy();
 
   for (const unsubscribe of subscriptions) {
     unsubscribe();
