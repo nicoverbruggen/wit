@@ -35,6 +35,7 @@ import {
   bindProjectTreeContextMenuController,
   createProjectTreeRenderCallbacks
 } from "./features/project-tree/project-tree-controller.js";
+import { createEntryDialogController } from "./features/project-tree/entry-dialog-controller.js";
 import { createLiveWordCountTracker } from "./features/editor/live-word-count.js";
 import { computeSmartQuoteReplacement, isSmartQuoteCharacter } from "./features/editor/smart-quotes.js";
 import {
@@ -231,6 +232,27 @@ const settingsDialogController = createSettingsDialogController({
   clearEditorWidthGuides,
   setStatus,
   initialTab: "writing"
+});
+const entryDialogController = createEntryDialogController({
+  getProject: () => project,
+  getSelectedFolderPath,
+  setStatus,
+  newFileDialog,
+  newFilePathInput,
+  newFileCancelButton,
+  newFileCreateButton,
+  newFileError,
+  newFolderDialog,
+  newFolderPathInput,
+  newFolderCancelButton,
+  newFolderCreateButton,
+  newFolderError,
+  renameEntryDialog,
+  renameEntryTitle,
+  renameEntryInput,
+  renameEntryCancelButton,
+  renameEntryConfirmButton,
+  renameEntryError
 });
 
 function setProjectState(nextProject: ProjectMetadata | null): void {
@@ -744,18 +766,6 @@ function getSelectedFolderPath(): string | null {
   return null;
 }
 
-function syncNewFileDialogValidation(): void {
-  const validation = resolveNewFilePath(project, newFilePathInput.value, getSelectedFolderPath());
-  newFileError.textContent = validation.error ?? "";
-  newFileCreateButton.disabled = validation.relativePath === null;
-}
-
-function syncNewFolderDialogValidation(): void {
-  const validation = resolveNewFolderPath(project, newFolderPathInput.value, getSelectedFolderPath());
-  newFolderError.textContent = validation.error ?? "";
-  newFolderCreateButton.disabled = validation.relativePath === null;
-}
-
 function renderStatusFooter(): void {
   if (!project) {
     statusBar.classList.add("status-bar--empty");
@@ -1110,160 +1120,12 @@ async function closeCurrentProject(): Promise<void> {
   }
 }
 
-function askForNewFilePath(defaultPath = ""): Promise<string | null> {
-  if (typeof newFileDialog.showModal !== "function") {
-    try {
-      return Promise.resolve(window.prompt("New text file path", defaultPath));
-    } catch {
-      setStatus("New file dialog is unavailable.");
-      return Promise.resolve(null);
-    }
-  }
-
-  newFilePathInput.value = defaultPath;
-  syncNewFileDialogValidation();
-
-  if (!newFileDialog.open) {
-    newFileDialog.showModal();
-  }
-
-  const handleInput = () => {
-    syncNewFileDialogValidation();
-  };
-  newFilePathInput.addEventListener("input", handleInput);
-
-  window.requestAnimationFrame(() => {
-    newFilePathInput.focus();
-    newFilePathInput.select();
-  });
-
-  return new Promise((resolve) => {
-    newFileDialog.addEventListener(
-      "close",
-      () => {
-        newFilePathInput.removeEventListener("input", handleInput);
-        newFileError.textContent = "";
-        newFileCreateButton.disabled = false;
-
-        if (newFileDialog.returnValue === "create") {
-          resolve(newFilePathInput.value);
-          return;
-        }
-
-        resolve(null);
-      },
-      { once: true }
-    );
-  });
-}
-
-function askForNewFolderPath(defaultPath = ""): Promise<string | null> {
-  if (typeof newFolderDialog.showModal !== "function") {
-    try {
-      return Promise.resolve(window.prompt("New folder path", defaultPath));
-    } catch {
-      setStatus("New folder dialog is unavailable.");
-      return Promise.resolve(null);
-    }
-  }
-
-  newFolderPathInput.value = defaultPath;
-  syncNewFolderDialogValidation();
-
-  if (!newFolderDialog.open) {
-    newFolderDialog.showModal();
-  }
-
-  const handleInput = () => {
-    syncNewFolderDialogValidation();
-  };
-  newFolderPathInput.addEventListener("input", handleInput);
-
-  window.requestAnimationFrame(() => {
-    newFolderPathInput.focus();
-    newFolderPathInput.select();
-  });
-
-  return new Promise((resolve) => {
-    newFolderDialog.addEventListener(
-      "close",
-      () => {
-        newFolderPathInput.removeEventListener("input", handleInput);
-        newFolderError.textContent = "";
-        newFolderCreateButton.disabled = false;
-
-        if (newFolderDialog.returnValue === "create") {
-          resolve(newFolderPathInput.value);
-          return;
-        }
-
-        resolve(null);
-      },
-      { once: true }
-    );
-  });
-}
-
-function askForRenameValue(kind: SelectedTreeKind, currentName: string): Promise<string | null> {
-  if (typeof renameEntryDialog.showModal !== "function") {
-    try {
-      return Promise.resolve(window.prompt(`Rename ${kind}`, currentName));
-    } catch {
-      setStatus("Rename dialog is unavailable.");
-      return Promise.resolve(null);
-    }
-  }
-
-  renameEntryTitle.textContent = `Rename ${kind === "folder" ? "Folder" : "File"}`;
-  renameEntryInput.value = currentName;
-  renameEntryError.textContent = "";
-  renameEntryConfirmButton.disabled = false;
-
-  if (!renameEntryDialog.open) {
-    renameEntryDialog.showModal();
-  }
-
-  const validate = () => {
-    const value = renameEntryInput.value.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
-    const invalid = value.length === 0 || value.includes("/");
-    renameEntryError.textContent = invalid ? "Use a single name without slashes." : "";
-    renameEntryConfirmButton.disabled = invalid;
-  };
-
-  renameEntryInput.addEventListener("input", validate);
-  validate();
-
-  window.requestAnimationFrame(() => {
-    renameEntryInput.focus();
-    renameEntryInput.select();
-  });
-
-  return new Promise((resolve) => {
-    renameEntryDialog.addEventListener(
-      "close",
-      () => {
-        renameEntryInput.removeEventListener("input", validate);
-        renameEntryError.textContent = "";
-        renameEntryConfirmButton.disabled = false;
-
-        if (renameEntryDialog.returnValue === "rename") {
-          resolve(renameEntryInput.value);
-          return;
-        }
-
-        resolve(null);
-      },
-      { once: true }
-    );
-  });
-}
-
 async function createNewFile(): Promise<void> {
   if (!project) {
     return;
   }
 
-  const proposedName = await askForNewFilePath();
+  const proposedName = await entryDialogController.askForNewFilePath();
   if (!proposedName) {
     return;
   }
@@ -1292,7 +1154,7 @@ async function createNewFolder(): Promise<void> {
     return;
   }
 
-  const proposedPath = await askForNewFolderPath();
+  const proposedPath = await entryDialogController.askForNewFolderPath();
   if (!proposedPath) {
     return;
   }
@@ -1379,7 +1241,7 @@ async function renameEntryByPath(relativePath: string, kind: SelectedTreeKind): 
   closeTreeContextMenu();
 
   const currentName = getBaseName(relativePath);
-  const proposedName = await askForRenameValue(kind, currentName);
+  const proposedName = await entryDialogController.askForRenameValue(kind, currentName);
   if (proposedName === null) {
     return;
   }
@@ -1731,24 +1593,6 @@ newFolderButton.addEventListener("click", () => {
   void createNewFolder();
 });
 
-newFileCancelButton.addEventListener("click", () => {
-  if (newFileDialog.open) {
-    newFileDialog.close("cancel");
-  }
-});
-
-newFolderCancelButton.addEventListener("click", () => {
-  if (newFolderDialog.open) {
-    newFolderDialog.close("cancel");
-  }
-});
-
-renameEntryCancelButton.addEventListener("click", () => {
-  if (renameEntryDialog.open) {
-    renameEntryDialog.close("cancel");
-  }
-});
-
 toggleSidebarButton.addEventListener("click", () => {
   closeTreeContextMenu();
   toggleSidebarVisibility();
@@ -1879,6 +1723,7 @@ window.addEventListener("beforeunload", () => {
   autosaveController.stop();
   snapshotLabelController.stop();
   settingsDialogController.destroy();
+  entryDialogController.destroy();
 
   for (const unsubscribe of subscriptions) {
     unsubscribe();

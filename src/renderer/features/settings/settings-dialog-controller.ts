@@ -66,7 +66,7 @@ export function createSettingsDialogController(options: {
   const addListener = <T extends EventTarget>(
     target: T,
     eventName: string,
-    listener: EventListenerOrEventListenerObject
+    listener: () => void
   ): void => {
     target.addEventListener(eventName, listener);
     cleanup.push(() => {
