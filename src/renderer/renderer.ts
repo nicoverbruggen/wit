@@ -17,95 +17,32 @@ import { createSnapshotLabelController } from "./features/autosave/snapshot-labe
 import { createSidebarController } from "./features/sidebar/sidebar-controller.js";
 import { createSidebarUiController } from "./features/sidebar/sidebar-ui-controller.js";
 import { createAppShellUiController } from "./features/app/app-shell-ui-controller.js";
+import { bootstrapAppController } from "./features/app/app-bootstrap-controller.js";
+import { resolveRendererDom } from "./features/app/renderer-dom.js";
 import { createSettingsDialogController } from "./features/settings/settings-dialog-controller.js";
-import { initializeApp } from "./features/app/app-initializer.js";
-import { bindAppEventBindings } from "./features/app/app-event-bindings.js";
 import { createProjectUiController } from "./features/project/project-ui-controller.js";
 import { createProjectLifecycleController } from "./features/project/project-lifecycle-controller.js";
 import { createProjectPersistenceController } from "./features/project/project-persistence-controller.js";
+import { createProjectStateApplicationController } from "./features/project/project-state-application-controller.js";
 import { createEmptyEditorStateController } from "./features/project/empty-editor-state-controller.js";
 
-const openProjectButton = document.getElementById("open-project-btn") as HTMLButtonElement;
-const openProjectWrap = document.querySelector(".open-project-wrap") as HTMLElement;
-const newFileButton = document.getElementById("new-file-btn") as HTMLButtonElement;
-const newFolderButton = document.getElementById("new-folder-btn") as HTMLButtonElement;
-const projectActions = document.getElementById("project-actions") as HTMLElement;
-const settingsToggleButton = document.getElementById("settings-toggle-btn") as HTMLButtonElement;
-const fullscreenToggleButton = document.getElementById("toggle-fullscreen-btn") as HTMLButtonElement;
-const settingsDialog = document.getElementById("settings-dialog") as HTMLDialogElement;
-const settingsTabWriting = document.getElementById("settings-tab-writing") as HTMLButtonElement;
-const settingsTabEditor = document.getElementById("settings-tab-editor") as HTMLButtonElement;
-const settingsTabAutosave = document.getElementById("settings-tab-autosave") as HTMLButtonElement;
-const settingsTabAbout = document.getElementById("settings-tab-about") as HTMLButtonElement;
-const settingsPanelWriting = document.getElementById("settings-panel-writing") as HTMLElement;
-const settingsPanelEditor = document.getElementById("settings-panel-editor") as HTMLElement;
-const settingsPanelAutosave = document.getElementById("settings-panel-autosave") as HTMLElement;
-const settingsPanelAbout = document.getElementById("settings-panel-about") as HTMLElement;
-const appShell = document.getElementById("app-shell") as HTMLElement;
-const toggleSidebarButton = document.getElementById("toggle-sidebar-btn") as HTMLButtonElement;
-const sidebarResizer = document.getElementById("sidebar-resizer") as HTMLDivElement;
-const sidebar = document.querySelector(".sidebar") as HTMLElement;
-const editorWrap = document.querySelector(".editor-wrap") as HTMLElement;
-const editorHeader = document.querySelector(".editor-header") as HTMLElement;
-const statusBar = document.querySelector(".status-bar") as HTMLElement;
-const emptyStateScreen = document.getElementById("empty-state-screen") as HTMLDivElement;
-const emptyStateEyebrow = document.getElementById("empty-state-eyebrow") as HTMLParagraphElement;
-const emptyStateTitle = document.getElementById("empty-state-title") as HTMLHeadingElement;
-const emptyStateDescription = document.getElementById("empty-state-description") as HTMLParagraphElement;
-const emptyStatePrimaryButton = document.getElementById("empty-state-primary-btn") as HTMLButtonElement;
-const emptyStateSecondaryButton = document.getElementById("empty-state-secondary-btn") as HTMLButtonElement;
-const emptyStateShortcutsLabel = document.querySelector(".empty-state-shortcuts-label") as HTMLParagraphElement;
-const emptyStateShortcutsList = document.getElementById("empty-state-shortcuts-list") as HTMLUListElement;
-const sidebarProjectTitle = document.getElementById("sidebar-project-title") as HTMLHeadingElement;
-const fileList = document.getElementById("file-list") as HTMLUListElement;
-const newFileDialog = document.getElementById("new-file-dialog") as HTMLDialogElement;
-const newFilePathInput = document.getElementById("new-file-path-input") as HTMLInputElement;
-const newFileCancelButton = document.getElementById("new-file-cancel-btn") as HTMLButtonElement;
-const newFileCreateButton = document.getElementById("new-file-create-btn") as HTMLButtonElement;
-const newFileError = document.getElementById("new-file-error") as HTMLParagraphElement;
-const newFolderDialog = document.getElementById("new-folder-dialog") as HTMLDialogElement;
-const newFolderPathInput = document.getElementById("new-folder-path-input") as HTMLInputElement;
-const newFolderCancelButton = document.getElementById("new-folder-cancel-btn") as HTMLButtonElement;
-const newFolderCreateButton = document.getElementById("new-folder-create-btn") as HTMLButtonElement;
-const newFolderError = document.getElementById("new-folder-error") as HTMLParagraphElement;
-const renameEntryDialog = document.getElementById("rename-entry-dialog") as HTMLDialogElement;
-const renameEntryTitle = document.getElementById("rename-entry-title") as HTMLHeadingElement;
-const renameEntryInput = document.getElementById("rename-entry-input") as HTMLInputElement;
-const renameEntryCancelButton = document.getElementById("rename-entry-cancel-btn") as HTMLButtonElement;
-const renameEntryConfirmButton = document.getElementById("rename-entry-confirm-btn") as HTMLButtonElement;
-const renameEntryError = document.getElementById("rename-entry-error") as HTMLParagraphElement;
-const editorElement = document.getElementById("editor") as HTMLDivElement;
-const editor = createCodeMirrorEditor(editorElement);
-const projectPathLabel = document.getElementById("project-path") as HTMLSpanElement;
-const activeFileLabel = document.getElementById("active-file-label") as HTMLSpanElement;
-const dirtyIndicator = document.getElementById("dirty-indicator") as HTMLSpanElement;
-const statusMessage = document.getElementById("status-message") as HTMLSpanElement;
-const wordCountLabel = document.getElementById("word-count") as HTMLSpanElement;
-const writingTimeLabel = document.getElementById("writing-time") as HTMLSpanElement;
-const snapshotLabel = document.getElementById("snapshot-label") as HTMLSpanElement;
-const showWordCountInput = document.getElementById("show-word-count-input") as HTMLInputElement;
-const showWritingTimeInput = document.getElementById("show-writing-time-input") as HTMLInputElement;
-const showCurrentFileBarInput = document.getElementById("show-current-file-bar-input") as HTMLInputElement;
-const smartQuotesInput = document.getElementById("smart-quotes-input") as HTMLInputElement;
-const defaultFileExtensionSelect = document.getElementById("default-file-extension-select") as HTMLSelectElement;
-const gitSnapshotsInput = document.getElementById("git-snapshots-input") as HTMLInputElement;
-const gitPushRemoteSelect = document.getElementById("git-push-remote-select") as HTMLSelectElement;
-const gitSnapshotsNotice = document.getElementById("git-snapshots-notice") as HTMLParagraphElement;
-const autosaveIntervalInput = document.getElementById("autosave-interval-input") as HTMLInputElement;
-const snapshotMaxSizeInput = document.getElementById("snapshot-max-size-input") as HTMLInputElement;
-const lineHeightInput = document.getElementById("line-height-input") as HTMLInputElement;
-const lineHeightValue = document.getElementById("line-height-value") as HTMLSpanElement;
-const paragraphSpacingSelect = document.getElementById("paragraph-spacing-select") as HTMLSelectElement;
-const editorWidthInput = document.getElementById("editor-width-input") as HTMLInputElement;
-const editorWidthValue = document.getElementById("editor-width-value") as HTMLSpanElement;
-const textZoomInput = document.getElementById("text-zoom-input") as HTMLInputElement;
-const textZoomValue = document.getElementById("text-zoom-value") as HTMLSpanElement;
-const themeSelect = document.getElementById("theme-select") as HTMLSelectElement;
-const fontSelect = document.getElementById("font-select") as HTMLSelectElement;
-const aboutVersion = document.getElementById("about-version") as HTMLSpanElement;
-const aboutDescription = document.getElementById("about-description") as HTMLParagraphElement;
-const aboutAuthor = document.getElementById("about-author") as HTMLSpanElement;
-const aboutWebsite = document.getElementById("about-website") as HTMLAnchorElement;
+const dom = resolveRendererDom();
+const editor = createCodeMirrorEditor(dom.editorElement);
+const {
+  openProjectButton, openProjectWrap, newFileButton, newFolderButton, projectActions, settingsToggleButton,
+  fullscreenToggleButton, settingsDialog, settingsTabWriting, settingsTabEditor, settingsTabAutosave, settingsTabAbout,
+  settingsPanelWriting, settingsPanelEditor, settingsPanelAutosave, settingsPanelAbout, appShell, toggleSidebarButton,
+  sidebarResizer, sidebar, editorWrap, editorHeader, statusBar, emptyStateScreen, emptyStateEyebrow, emptyStateTitle,
+  emptyStateDescription, emptyStatePrimaryButton, emptyStateSecondaryButton, emptyStateShortcutsLabel,
+  emptyStateShortcutsList, sidebarProjectTitle, fileList, newFileDialog, newFilePathInput, newFileCancelButton,
+  newFileCreateButton, newFileError, newFolderDialog, newFolderPathInput, newFolderCancelButton, newFolderCreateButton,
+  newFolderError, renameEntryDialog, renameEntryTitle, renameEntryInput, renameEntryCancelButton, renameEntryConfirmButton,
+  renameEntryError, projectPathLabel, activeFileLabel, dirtyIndicator, statusMessage, wordCountLabel, writingTimeLabel,
+  snapshotLabel, showWordCountInput, showWritingTimeInput, showCurrentFileBarInput, smartQuotesInput,
+  defaultFileExtensionSelect, gitSnapshotsInput, gitPushRemoteSelect, gitSnapshotsNotice, autosaveIntervalInput,
+  snapshotMaxSizeInput, lineHeightInput, lineHeightValue, paragraphSpacingSelect, editorWidthInput, editorWidthValue,
+  textZoomInput, textZoomValue, themeSelect, fontSelect, aboutVersion, aboutDescription, aboutAuthor, aboutWebsite
+} = dom;
 
 const EDITOR_ZOOM_PRESETS = [50, 75, 90, 100, 110, 125, 150, 175, 200, 225, 250];
 const LIVE_WORD_COUNT_DEBOUNCE_MS = 280;
@@ -129,7 +66,6 @@ const AUTOSAVE_LENIENCY_POLL_MS = 500;
 let suppressDirtyEvents = false;
 let isWindowFullscreen = false;
 
-const subscriptions: Array<() => void> = [];
 type TestWindowWithContextAction = Window & {
   __WIT_TEST_TREE_ACTION?: TreeContextAction;
 };
@@ -365,11 +301,48 @@ const projectUiController = createProjectUiController({
   formatWritingTime,
   defaultEditorFont: DEFAULT_EDITOR_FONT
 });
+let fileSessionController: ReturnType<typeof createFileSessionController>;
+const projectStateApplicationController = createProjectStateApplicationController({
+  defaultEditorPlaceholder: DEFAULT_EDITOR_PLACEHOLDER,
+  getIsWindowFullscreen: () => isWindowFullscreen,
+  setProjectState,
+  setCurrentFilePathState,
+  resetCurrentFileWordCount: () => fileSessionController.resetCurrentFileWordCount(),
+  clearActiveFileLabel: () => {
+    activeFileLabel.textContent = "No file selected";
+    activeFileLabel.removeAttribute("title");
+  },
+  clearEditorValueSilently: () => {
+    suppressDirtyEvents = true;
+    editor.setValue("");
+    suppressDirtyEvents = false;
+  },
+  setEditorPlaceholder: (value) => {
+    editor.setPlaceholder(value);
+  },
+  setDirty,
+  setEditorWritable,
+  renderEmptyEditorState,
+  renderFileList,
+  cancelPendingLiveWordCount,
+  stopSidebarResize,
+  resetTreeState: () => projectTreeStateController.resetTreeState(),
+  restoreCollapsedFolders: () => projectTreeStateController.restoreCollapsedFolders(),
+  updateSnapshotLabel: (nextTimestamp) => snapshotLabelController.update(nextTimestamp),
+  parseSnapshotTimestamp,
+  syncProjectPathLabels,
+  setProjectControlsEnabled,
+  syncSettingsInputs,
+  renderStatusFooter,
+  setSidebarVisibility,
+  setSidebarFaded,
+  restartAutosaveTimer
+});
 const projectLifecycleController = createProjectLifecycleController({
   getCurrentFilePath: () => currentFilePath,
   persistCurrentFile,
   persistLastOpenedFilePath,
-  resetActiveFile,
+  resetActiveFile: () => projectStateApplicationController.resetActiveFile(),
   setProjectState,
   stopSidebarResize,
   resetTreeState: () => projectTreeStateController.resetTreeState(),
@@ -389,7 +362,7 @@ const projectLifecycleController = createProjectLifecycleController({
   closeTreeContextMenu,
   closeProject: () => window.witApi.closeProject(),
   selectProject: () => window.witApi.selectProject(),
-  applyProjectMetadata,
+  applyProjectMetadata: (metadata) => projectStateApplicationController.applyProjectMetadata(metadata),
   openFile,
   setStatus
 });
@@ -428,7 +401,7 @@ const editorInteractionsController = createEditorInteractionsController({
   },
   setSidebarFaded
 });
-const fileSessionController = createFileSessionController({
+fileSessionController = createFileSessionController({
   liveWordCountTracker,
   getProject: () => project,
   getCurrentFilePath: () => currentFilePath,
@@ -626,20 +599,7 @@ function getProjectDisplayTitle(projectPath: string): string {
 }
 
 function resetActiveFile(): void {
-  setCurrentFilePathState(null);
-  fileSessionController.resetCurrentFileWordCount();
-  activeFileLabel.textContent = "No file selected";
-  activeFileLabel.removeAttribute("title");
-
-  suppressDirtyEvents = true;
-  editor.setValue("");
-  suppressDirtyEvents = false;
-  editor.setPlaceholder(DEFAULT_EDITOR_PLACEHOLDER);
-
-  setDirty(false);
-  setEditorWritable(false);
-  renderEmptyEditorState();
-  renderFileList();
+  projectStateApplicationController.resetActiveFile();
 }
 
 async function closeCurrentFile(): Promise<void> {
@@ -667,26 +627,7 @@ function syncSettingsInputs(settings: AppSettings): void {
 }
 
 function applyProjectMetadata(metadata: ProjectMetadata): void {
-  cancelPendingLiveWordCount();
-  stopSidebarResize();
-  projectTreeStateController.resetTreeState();
-  setProjectState(metadata);
-  projectTreeStateController.restoreCollapsedFolders();
-  snapshotLabelController.update(
-    metadata.latestSnapshotCreatedAt ? parseSnapshotTimestamp(metadata.latestSnapshotCreatedAt) : null
-  );
-  resetActiveFile();
-
-  syncProjectPathLabels(metadata.projectPath);
-  setProjectControlsEnabled(true);
-  syncSettingsInputs(metadata.settings);
-  renderStatusFooter();
-  renderFileList();
-  setSidebarVisibility(!isWindowFullscreen, false);
-  setSidebarFaded(false);
-  setEditorWritable(false);
-  restartAutosaveTimer();
-  renderEmptyEditorState();
+  projectStateApplicationController.applyProjectMetadata(metadata);
 }
 
 function cancelPendingLiveWordCount(): void {
@@ -740,7 +681,9 @@ async function persistSettings(update: Partial<AppSettings>): Promise<void> {
   return projectPersistenceController.persistSettings(update);
 }
 
-bindAppEventBindings({
+bootstrapAppController({
+  body: document.body,
+  witApi: window.witApi,
   openProjectButton,
   emptyStatePrimaryButton,
   emptyStateSecondaryButton,
@@ -752,11 +695,11 @@ bindAppEventBindings({
   sidebar,
   fileList,
   editor,
+  projectTreeState: projectTreeStateController.state,
   getProject: () => project,
   onEditorInput: () => editorInteractionsController.onEditorInput(),
   onEditorBlur: () => editorInteractionsController.onEditorBlur(),
   onEditorKeydown: (event) => editorInteractionsController.onEditorKeydown(event),
-  projectTreeState: projectTreeStateController.state,
   closeTreeContextMenu,
   openProjectPicker,
   createNewFile: () => projectEntryActionsController.createNewFile(),
@@ -765,14 +708,9 @@ bindAppEventBindings({
   beginSidebarResize,
   isSidebarVisible: () => sidebarController.isVisible(),
   adjustSidebarWidth: (delta) => sidebarController.adjustWidth(delta),
-  toggleFullscreen: () => window.witApi.toggleFullscreen(),
   syncFullscreenToggleButton,
   setSidebarFaded,
-  addSubscription: (unsubscribe) => {
-    subscriptions.push(unsubscribe);
-  },
   consumeTestTreeContextAction,
-  showTreeContextMenu: (payload) => window.witApi.showTreeContextMenu(payload),
   closeCurrentProject,
   deleteEntryByPath: (relativePath, kind) => projectEntryActionsController.deleteEntryByPath(relativePath, kind),
   closeCurrentFile,
@@ -787,32 +725,19 @@ bindAppEventBindings({
   stopSnapshotLabelController: () => snapshotLabelController.stop(),
   destroySettingsDialogController: () => settingsDialogController.destroy(),
   destroyEntryDialogController: () => entryDialogController.destroy(),
-  cleanupSubscriptions: () => {
-    for (const unsubscribe of subscriptions) {
-      unsubscribe();
-    }
-  },
   setDragSourceFilePath: projectTreeStateController.setDragSourceFilePath,
-  setStatus
-});
-
-void initializeApp({
-  body: document.body,
-  witApi: window.witApi,
+  setStatus,
   defaultEditorFont: DEFAULT_EDITOR_FONT,
   lineHeightInput,
   paragraphSpacingSelect,
   editorWidthInput,
   fontSelect,
-  getProject: () => project,
   loadAboutInfo,
   loadSidebarWidthPreference,
   setProjectControlsEnabled,
   setSettingsTab: (tab) => settingsDialogController.setActiveTab(tab),
   syncSidebarToggleButton,
-  syncFullscreenToggleButton,
   setSidebarVisibility,
-  setSidebarFaded,
   setEditorWritable,
   populateFontSelect,
   applyTheme,
@@ -824,21 +749,12 @@ void initializeApp({
   applyEditorFont,
   renderSnapshotLabel,
   restartSnapshotLabelTimer,
-  renderFileList,
   renderStatusFooter,
   renderEmptyEditorState,
   applyProjectMetadata,
   openFile,
   resetActiveFile,
-  setStatus,
-  addSubscription: (unsubscribe) => {
-    subscriptions.push(unsubscribe);
-  },
-  openProjectPicker,
-  createNewFile: () => projectEntryActionsController.createNewFile(),
-  persistCurrentFile,
   stepEditorZoom,
   resetEditorZoom,
-  toggleSidebarVisibility,
   loadSystemFonts
 });
