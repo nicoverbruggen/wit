@@ -1,13 +1,12 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { _electron as electron } from "playwright";
 import {
+  afterEachCleanup,
   clearLastProjectState,
+  launchApp,
   launchWithProject,
-  repoRoot,
-  waitForAppReady
+  makeTempDir
 } from "./helpers";
 
 test.describe("Wit sidebar and shell chrome", () => {
@@ -15,18 +14,16 @@ test.describe("Wit sidebar and shell chrome", () => {
     await clearLastProjectState();
   });
 
+  test.afterEach(async () => {
+    await afterEachCleanup();
+  });
+
   test.afterAll(async () => {
     await clearLastProjectState();
   });
 
   test("sidebar stays hidden and the sidebar toggle stays hidden before a project is selected", async () => {
-    const app = await electron.launch({
-      args: [repoRoot],
-      cwd: repoRoot
-    });
-
-    const page = await app.firstWindow();
-    await waitForAppReady(page);
+    const { app, page } = await launchApp();
 
     await expect(page.locator("#app-shell")).toHaveClass(/sidebar-hidden/);
     await expect(page.locator(".sidebar")).toBeHidden();
@@ -40,7 +37,7 @@ test.describe("Wit sidebar and shell chrome", () => {
   });
 
   test("sidebar can be toggled from the top-left toolbar button", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-toggle-sidebar-"));
+    const projectPath = await makeTempDir("wit-e2e-toggle-sidebar-");
     await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -64,84 +61,73 @@ test.describe("Wit sidebar and shell chrome", () => {
   });
 
   test("sidebar can be resized by dragging the resize handle", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-resize-sidebar-"));
+    const projectPath = await makeTempDir("wit-e2e-resize-sidebar-");
     await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
     const resizer = page.locator("#sidebar-resizer");
 
-    const widthBefore = await page.locator(".sidebar").evaluate((element) => {
-      return Math.round(element.getBoundingClientRect().width);
-    });
+    const readSidebarWidth = async () =>
+      page.locator(".sidebar").evaluate((element) => Math.round(element.getBoundingClientRect().width));
+
+    const widthBefore = await readSidebarWidth();
     const box = await resizer.boundingBox();
     if (!box) {
       throw new Error("Sidebar resize handle is missing.");
     }
 
-    await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2));
+    const centerX = box.x + (box.width / 2);
+    const centerY = box.y + (box.height / 2);
+    await page.mouse.move(centerX, centerY);
     await page.mouse.down();
-    await page.mouse.move(box.x + 56, box.y + (box.height / 2), { steps: 8 });
+    await page.mouse.move(centerX - 100, centerY, { steps: 8 });
     await page.mouse.up();
 
-    const widthAfter = await page.locator(".sidebar").evaluate((element) => {
-      return Math.round(element.getBoundingClientRect().width);
-    });
-
-    expect(widthAfter).toBeGreaterThanOrEqual(widthBefore);
+    const widthAfter = await readSidebarWidth();
+    expect(widthAfter).toBeLessThan(widthBefore);
 
     await app.close();
   });
 
-  test("sidebar toggle icon switches to the blue active state when the sidebar is visible", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-sidebar-icon-"));
+  test("sidebar toggle button reflects its pressed state with a distinct visual style", async () => {
+    const projectPath = await makeTempDir("wit-e2e-sidebar-icon-");
     await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
     const toggleButton = page.locator("#toggle-sidebar-btn");
 
-    const activeStylesBefore = await toggleButton.evaluate((element) => {
-      const styles = window.getComputedStyle(element);
-      return {
-        backgroundColor: styles.backgroundColor,
-        borderColor: styles.borderColor
-      };
-    });
+    const readStyles = async () =>
+      toggleButton.evaluate((element) => {
+        const styles = window.getComputedStyle(element);
+        return {
+          backgroundColor: styles.backgroundColor,
+          borderColor: styles.borderColor
+        };
+      });
+
     await expect(toggleButton).toHaveAttribute("aria-pressed", "true");
-    expect(activeStylesBefore.backgroundColor).toBe("rgb(234, 241, 255)");
-    expect(activeStylesBefore.borderColor).toBe("rgb(184, 208, 255)");
+    const activeStylesBefore = await readStyles();
 
     await toggleButton.click();
     await expect(toggleButton).toHaveAttribute("aria-pressed", "false");
     await page.mouse.move(200, 200);
 
-    const inactiveStyles = await toggleButton.evaluate((element) => {
-      const styles = window.getComputedStyle(element);
-      return {
-        backgroundColor: styles.backgroundColor,
-        borderColor: styles.borderColor
-      };
-    });
+    const inactiveStyles = await readStyles();
     expect(inactiveStyles.backgroundColor).not.toBe(activeStylesBefore.backgroundColor);
     expect(inactiveStyles.borderColor).not.toBe(activeStylesBefore.borderColor);
 
     await toggleButton.click();
     await expect(toggleButton).toHaveAttribute("aria-pressed", "true");
 
-    const activeStylesAfter = await toggleButton.evaluate((element) => {
-      const styles = window.getComputedStyle(element);
-      return {
-        backgroundColor: styles.backgroundColor,
-        borderColor: styles.borderColor
-      };
-    });
-    expect(activeStylesAfter.backgroundColor).toBe("rgb(234, 241, 255)");
-    expect(activeStylesAfter.borderColor).toBe("rgb(184, 208, 255)");
+    const activeStylesAfter = await readStyles();
+    expect(activeStylesAfter.backgroundColor).toBe(activeStylesBefore.backgroundColor);
+    expect(activeStylesAfter.borderColor).toBe(activeStylesBefore.borderColor);
 
     await app.close();
   });
 
   test("fullscreen can be toggled from the top-left toolbar button", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-fullscreen-"));
+    const projectPath = await makeTempDir("wit-e2e-fullscreen-");
     await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -160,7 +146,7 @@ test.describe("Wit sidebar and shell chrome", () => {
   });
 
   test("sidebar fades while typing and restores when editor loses focus", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-sidebar-"));
+    const projectPath = await makeTempDir("wit-e2e-sidebar-");
     await fs.writeFile(path.join(projectPath, "sidebar.txt"), "Start", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);

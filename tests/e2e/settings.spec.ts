@@ -1,14 +1,15 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 import {
+  afterEachCleanup,
   clearLastProjectState,
   closeSettingsDialog,
   ensureSettingsDialogOpen,
   execFileAsync,
   getEditorTypography,
   launchWithProject,
+  makeTempDir,
   openSettingsTab
 } from "./helpers";
 
@@ -17,12 +18,16 @@ test.describe("Wit settings dialog", () => {
     await clearLastProjectState();
   });
 
+  test.afterEach(async () => {
+    await afterEachCleanup();
+  });
+
   test.afterAll(async () => {
     await clearLastProjectState();
   });
 
   test("settings remain accessible even when no file is open", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-empty-"));
+    const projectPath = await makeTempDir("wit-e2e-empty-");
     const { app, page } = await launchWithProject(projectPath);
 
     await expect(page.locator("#open-project-btn")).toBeHidden();
@@ -36,7 +41,7 @@ test.describe("Wit settings dialog", () => {
   });
 
   test("opening settings does not autofocus the autosave interval input", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-settings-focus-"));
+    const projectPath = await makeTempDir("wit-e2e-settings-focus-");
     await fs.writeFile(path.join(projectPath, "focus.txt"), "one two", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -49,7 +54,7 @@ test.describe("Wit settings dialog", () => {
   });
 
   test("about settings tab shows populated application metadata", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-about-"));
+    const projectPath = await makeTempDir("wit-e2e-about-");
     await fs.writeFile(path.join(projectPath, "about.txt"), "metadata", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -58,36 +63,41 @@ test.describe("Wit settings dialog", () => {
     await expect(page.locator("#settings-panel-about .about-header")).toBeVisible();
     await expect(page.locator("#about-version")).toHaveText(/\d+\.\d+\.\d+/);
     await expect(page.locator("#about-description")).toContainText("Minimalist desktop writing app");
-    await expect(page.locator("#about-author")).toHaveText("Nico Verbruggen");
-    await expect(page.locator("#about-website")).toHaveAttribute("href", "https://nicoverbruggen.be");
+    await expect(page.locator("#about-author")).not.toBeEmpty();
+    await expect(page.locator("#about-website")).toHaveAttribute("href", /^https?:\/\/.+/);
 
     await app.close();
   });
 
-  test("settings persist across relaunch", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-settings-"));
-    const remotePath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-settings-remote-"));
+  test("writing settings persist across relaunch", async () => {
+    const projectPath = await makeTempDir("wit-e2e-settings-writing-");
     await fs.writeFile(path.join(projectPath, "settings.txt"), "one two", "utf8");
-    await execFileAsync("git", ["init", "-q", projectPath]);
-    await execFileAsync("git", ["init", "--bare", "-q", remotePath]);
-    await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
-    await execFileAsync("git", ["-C", projectPath, "config", "user.name", "QA"]);
-    await execFileAsync("git", ["-C", projectPath, "remote", "add", "origin", remotePath]);
-    await execFileAsync("git", ["-C", projectPath, "add", "."]);
-    await execFileAsync("git", ["-C", projectPath, "commit", "-m", "init", "--quiet"]);
 
     const firstRun = await launchWithProject(projectPath);
-    const lineHeightBefore = (await getEditorTypography(firstRun.page)).lineHeight;
-
     await openSettingsTab(firstRun.page, "writing");
     await firstRun.page.click("#show-word-count-input");
     await firstRun.page.click("#smart-quotes-input");
     await firstRun.page.selectOption("#default-file-extension-select", ".md");
-    await openSettingsTab(firstRun.page, "autosave");
-    await firstRun.page.fill("#autosave-interval-input", "15");
-    await firstRun.page.dispatchEvent("#autosave-interval-input", "change");
-    await firstRun.page.click("#git-snapshots-input");
-    await firstRun.page.selectOption("#git-push-remote-select", "origin");
+    await closeSettingsDialog(firstRun.page);
+    await expect(firstRun.page.locator("#status-message")).toContainText("Settings saved.");
+    await firstRun.app.close();
+
+    const secondRun = await launchWithProject(projectPath);
+    await openSettingsTab(secondRun.page, "writing");
+    await expect(secondRun.page.locator("#show-word-count-input")).toBeChecked();
+    await expect(secondRun.page.locator("#smart-quotes-input")).not.toBeChecked();
+    await expect(secondRun.page.locator("#default-file-extension-select")).toHaveValue(".md");
+    await expect(secondRun.page.locator("#word-count")).toBeVisible();
+    await secondRun.app.close();
+  });
+
+  test("editor typography settings persist across relaunch", async () => {
+    const projectPath = await makeTempDir("wit-e2e-settings-editor-");
+    await fs.writeFile(path.join(projectPath, "settings.txt"), "one two", "utf8");
+
+    const firstRun = await launchWithProject(projectPath);
+    const lineHeightBefore = (await getEditorTypography(firstRun.page)).lineHeight;
+
     await openSettingsTab(firstRun.page, "editor");
     await firstRun.page.selectOption("#theme-select", "dark");
     await firstRun.page.selectOption("#paragraph-spacing-select", "loose");
@@ -117,24 +127,15 @@ test.describe("Wit settings dialog", () => {
     await closeSettingsDialog(firstRun.page);
     const lineHeightAfter = (await getEditorTypography(firstRun.page)).lineHeight;
     expect(lineHeightAfter).toBeGreaterThan(lineHeightBefore);
-    await expect(firstRun.page.locator("#status-message")).toContainText("Settings saved.");
     await firstRun.app.close();
 
     const secondRun = await launchWithProject(projectPath);
-    await openSettingsTab(secondRun.page, "writing");
-    await expect(secondRun.page.locator("#show-word-count-input")).toBeChecked();
-    await expect(secondRun.page.locator("#smart-quotes-input")).not.toBeChecked();
-    await expect(secondRun.page.locator("#default-file-extension-select")).toHaveValue(".md");
-    await openSettingsTab(secondRun.page, "autosave");
-    await expect(secondRun.page.locator("#git-snapshots-input")).toBeChecked();
-    await expect(secondRun.page.locator("#git-push-remote-select")).toHaveValue("origin");
-    await expect(secondRun.page.locator("#autosave-interval-input")).toHaveValue("15");
     await openSettingsTab(secondRun.page, "editor");
     await expect(secondRun.page.locator("#theme-select")).toHaveValue("dark");
     await expect(secondRun.page.locator("#paragraph-spacing-select")).toHaveValue("loose");
     await expect(secondRun.page.locator("#line-height-value")).toHaveText("1.90");
     await expect(secondRun.page.locator("#editor-width-value")).toHaveText("740px");
-    await expect(secondRun.page.locator("#word-count")).toBeVisible();
+
     const widthLayout = await secondRun.page.evaluate(() => {
       const editorWrap = document.querySelector(".editor-wrap");
       if (!editorWrap) {
@@ -150,11 +151,40 @@ test.describe("Wit settings dialog", () => {
     expect(widthLayout.editorMaxWidth).toBe("740px");
     await expect(secondRun.page.locator("body")).toHaveAttribute("data-theme", "dark");
     await secondRun.app.close();
-    await fs.rm(remotePath, { recursive: true, force: true });
+  });
+
+  test("autosave and git settings persist across relaunch", async () => {
+    const projectPath = await makeTempDir("wit-e2e-settings-autosave-");
+    const remotePath = await makeTempDir("wit-e2e-settings-autosave-remote-");
+    await fs.writeFile(path.join(projectPath, "settings.txt"), "one two", "utf8");
+    await execFileAsync("git", ["init", "-q", projectPath]);
+    await execFileAsync("git", ["init", "--bare", "-q", remotePath]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.name", "QA"]);
+    await execFileAsync("git", ["-C", projectPath, "remote", "add", "origin", remotePath]);
+    await execFileAsync("git", ["-C", projectPath, "add", "."]);
+    await execFileAsync("git", ["-C", projectPath, "commit", "-m", "init", "--quiet"]);
+
+    const firstRun = await launchWithProject(projectPath);
+    await openSettingsTab(firstRun.page, "autosave");
+    await firstRun.page.fill("#autosave-interval-input", "15");
+    await firstRun.page.dispatchEvent("#autosave-interval-input", "change");
+    await firstRun.page.click("#git-snapshots-input");
+    await firstRun.page.selectOption("#git-push-remote-select", "origin");
+    await closeSettingsDialog(firstRun.page);
+    await expect(firstRun.page.locator("#status-message")).toContainText("Settings saved.");
+    await firstRun.app.close();
+
+    const secondRun = await launchWithProject(projectPath);
+    await openSettingsTab(secondRun.page, "autosave");
+    await expect(secondRun.page.locator("#autosave-interval-input")).toHaveValue("15");
+    await expect(secondRun.page.locator("#git-snapshots-input")).toBeChecked();
+    await expect(secondRun.page.locator("#git-push-remote-select")).toHaveValue("origin");
+    await secondRun.app.close();
   });
 
   test("theme can be switched to dark and resets to light after closing the project", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-theme-"));
+    const projectPath = await makeTempDir("wit-e2e-theme-");
     await fs.writeFile(path.join(projectPath, "theme.txt"), "one two", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);

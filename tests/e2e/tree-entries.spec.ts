@@ -1,17 +1,13 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { _electron as electron } from "playwright";
 import {
   acceptNextConfirmDialog,
+  afterEachCleanup,
   clearLastProjectState,
-  closeSettingsDialog,
-  getEditorText,
+  getPageErrors,
   launchWithProject,
-  openSettingsTab,
-  repoRoot,
-  waitForAppReady
+  makeTempDir
 } from "./helpers";
 
 test.describe("Wit tree entry actions", () => {
@@ -19,12 +15,16 @@ test.describe("Wit tree entry actions", () => {
     await clearLastProjectState();
   });
 
+  test.afterEach(async () => {
+    await afterEachCleanup();
+  });
+
   test.afterAll(async () => {
     await clearLastProjectState();
   });
 
   test("renders folders in sidebar and shows full relative path on hover", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-folders-"));
+    const projectPath = await makeTempDir("wit-e2e-folders-");
     await fs.mkdir(path.join(projectPath, "drafts", "chapter-01"), { recursive: true });
     await fs.writeFile(path.join(projectPath, "drafts", "chapter-01", "scene.txt"), "one two", "utf8");
     await fs.writeFile(path.join(projectPath, "root.txt"), "three four", "utf8");
@@ -41,7 +41,7 @@ test.describe("Wit tree entry actions", () => {
   });
 
   test("creates a new folder from the sidebar action", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-folder-create-"));
+    const projectPath = await makeTempDir("wit-e2e-folder-create-");
     const { app, page } = await launchWithProject(projectPath);
 
     await expect(page.locator("#new-folder-btn")).toBeEnabled();
@@ -60,7 +60,7 @@ test.describe("Wit tree entry actions", () => {
   });
 
   test("prevents duplicate file and folder names before create", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-duplicates-"));
+    const projectPath = await makeTempDir("wit-e2e-duplicates-");
     await fs.mkdir(path.join(projectPath, "notes"), { recursive: true });
     await fs.writeFile(path.join(projectPath, "chapter-01.txt"), "start", "utf8");
     const { app, page } = await launchWithProject(projectPath);
@@ -87,7 +87,7 @@ test.describe("Wit tree entry actions", () => {
   });
 
   test("pressing Enter submits new file and new folder dialogs", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-enter-submit-"));
+    const projectPath = await makeTempDir("wit-e2e-enter-submit-");
     const { app, page } = await launchWithProject(projectPath);
 
     await page.click("#new-folder-btn");
@@ -107,45 +107,8 @@ test.describe("Wit tree entry actions", () => {
     await app.close();
   });
 
-  test("creates new file, applies smart quotes, and saves with keyboard shortcut", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-write-"));
-    await fs.writeFile(path.join(projectPath, "start.txt"), "Start", "utf8");
-
-    const { app, page } = await launchWithProject(projectPath);
-
-    await expect(page.locator("#new-file-btn")).toBeEnabled();
-    await page.click("#new-file-btn");
-    await expect(page.locator("#new-file-dialog")).toBeVisible();
-    await page.fill("#new-file-path-input", "chapter-02.txt");
-    await page.click("#new-file-create-btn");
-
-    await expect(page.locator("#active-file-label")).toHaveText("chapter-02.txt");
-    await expect.poll(async () => getEditorText(page)).toBe("");
-    await page.click("#editor");
-    await page.keyboard.type('"hello" and \'world\'');
-
-    const modifier = process.platform === "darwin" ? "Meta" : "Control";
-    await page.keyboard.press(`${modifier}+S`);
-    await expect(page.locator("#status-message")).toContainText("Saved chapter-02.txt");
-
-    const content = await fs.readFile(path.join(projectPath, "chapter-02.txt"), "utf8");
-    expect(content).toContain("“hello” and ‘world’");
-
-    await openSettingsTab(page, "writing");
-    await page.click("#smart-quotes-input");
-    await closeSettingsDialog(page);
-    await page.click("#editor");
-    await page.keyboard.type('\n"straight"');
-    await page.keyboard.press(`${modifier}+S`);
-
-    const updatedContent = await fs.readFile(path.join(projectPath, "chapter-02.txt"), "utf8");
-    expect(updatedContent).toContain('"straight"');
-
-    await app.close();
-  });
-
   test("deletes files and folders from right-click context menu", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-delete-"));
+    const projectPath = await makeTempDir("wit-e2e-delete-");
     await fs.mkdir(path.join(projectPath, "drafts"), { recursive: true });
     await fs.writeFile(path.join(projectPath, "drafts", "scene.txt"), "hello", "utf8");
     await fs.writeFile(path.join(projectPath, "keep.txt"), "keep", "utf8");
@@ -187,7 +150,7 @@ test.describe("Wit tree entry actions", () => {
   });
 
   test("creates files and folders from project and folder context menus", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-context-create-"));
+    const projectPath = await makeTempDir("wit-e2e-context-create-");
     const { app, page } = await launchWithProject(projectPath);
 
     await page.evaluate(() => {
@@ -241,7 +204,7 @@ test.describe("Wit tree entry actions", () => {
   });
 
   test("renames files and folders from right-click context menu", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-rename-"));
+    const projectPath = await makeTempDir("wit-e2e-rename-");
     await fs.mkdir(path.join(projectPath, "drafts"), { recursive: true });
     await fs.writeFile(path.join(projectPath, "drafts", "scene.txt"), "hello", "utf8");
 
@@ -288,7 +251,7 @@ test.describe("Wit tree entry actions", () => {
   });
 
   test("moves files between folder and project root using drag and drop", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-dnd-"));
+    const projectPath = await makeTempDir("wit-e2e-dnd-");
     await fs.mkdir(path.join(projectPath, "drafts"), { recursive: true });
     await fs.writeFile(path.join(projectPath, "scene.txt"), "hello", "utf8");
 
@@ -314,7 +277,7 @@ test.describe("Wit tree entry actions", () => {
   });
 
   test("creates new file inside selected folder when folder is selected", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-folder-target-"));
+    const projectPath = await makeTempDir("wit-e2e-folder-target-");
     await fs.mkdir(path.join(projectPath, "drafts"), { recursive: true });
 
     const { app, page } = await launchWithProject(projectPath);
@@ -334,27 +297,10 @@ test.describe("Wit tree entry actions", () => {
   });
 
   test("creates a new file from the in-app dialog", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-"));
+    const projectPath = await makeTempDir("wit-e2e-");
     await fs.writeFile(path.join(projectPath, "start.txt"), "Opening chapter", "utf8");
 
-    const app = await electron.launch({
-      args: [repoRoot],
-      cwd: repoRoot
-    });
-
-    const page = await app.firstWindow();
-    await waitForAppReady(page);
-
-    const pageErrors: string[] = [];
-    page.on("pageerror", (error) => {
-      pageErrors.push(error.message);
-    });
-
-    await page.evaluate(async (targetPath) => {
-      await window.witApi.openProjectPath(targetPath);
-    }, projectPath);
-    await page.reload();
-    await waitForAppReady(page);
+    const { app, page } = await launchWithProject(projectPath);
 
     await expect(page.locator("#new-file-btn")).toBeEnabled();
     await page.click("#new-file-btn");
@@ -372,28 +318,16 @@ test.describe("Wit tree entry actions", () => {
 
     const createdContent = await fs.readFile(path.join(projectPath, "chapter-02.txt"), "utf8");
     expect(createdContent).toBe("");
-    expect(pageErrors).toEqual([]);
+    expect(getPageErrors(page)).toEqual([]);
 
     await app.close();
   });
 
   test("uses the configured default extension for new files without one", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-default-ext-"));
+    const projectPath = await makeTempDir("wit-e2e-default-ext-");
     await fs.writeFile(path.join(projectPath, "start.txt"), "Opening chapter", "utf8");
 
-    const app = await electron.launch({
-      args: [repoRoot],
-      cwd: repoRoot
-    });
-
-    const page = await app.firstWindow();
-    await waitForAppReady(page);
-
-    await page.evaluate(async (targetPath) => {
-      await window.witApi.openProjectPath(targetPath);
-    }, projectPath);
-    await page.reload();
-    await waitForAppReady(page);
+    const { app, page } = await launchWithProject(projectPath);
 
     await page.click("#settings-toggle-btn");
     await page.click("#settings-tab-writing");

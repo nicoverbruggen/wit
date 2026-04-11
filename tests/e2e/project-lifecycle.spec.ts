@@ -1,13 +1,12 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { _electron as electron } from "playwright";
 import {
+  afterEachCleanup,
   clearLastProjectState,
+  launchApp,
   launchWithProject,
-  repoRoot,
-  waitForAppReady
+  makeTempDir
 } from "./helpers";
 
 test.describe("Wit project lifecycle", () => {
@@ -15,12 +14,16 @@ test.describe("Wit project lifecycle", () => {
     await clearLastProjectState();
   });
 
+  test.afterEach(async () => {
+    await afterEachCleanup();
+  });
+
   test.afterAll(async () => {
     await clearLastProjectState();
   });
 
   test("opens a project and renders file list + word count", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-open-"));
+    const projectPath = await makeTempDir("wit-e2e-open-");
     await fs.writeFile(path.join(projectPath, "a.txt"), "One two", "utf8");
     await fs.writeFile(path.join(projectPath, "b.md"), "Three four five", "utf8");
 
@@ -37,7 +40,7 @@ test.describe("Wit project lifecycle", () => {
   });
 
   test("project can be closed from the root project context menu", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-close-project-"));
+    const projectPath = await makeTempDir("wit-e2e-close-project-");
     await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -60,7 +63,7 @@ test.describe("Wit project lifecycle", () => {
   });
 
   test("clicking the project root twice closes the current file and keeps its tree marker in sync", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-root-close-file-"));
+    const projectPath = await makeTempDir("wit-e2e-root-close-file-");
     await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -81,10 +84,11 @@ test.describe("Wit project lifecycle", () => {
   });
 
   test("current file can be closed from its context menu", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-close-current-file-"));
+    const projectPath = await makeTempDir("wit-e2e-close-current-file-");
     await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
+    await page.click(".file-button:has-text('draft.txt')");
     await expect(page.locator("#active-file-label")).toHaveText("draft.txt");
 
     await page.evaluate(() => {
@@ -103,7 +107,7 @@ test.describe("Wit project lifecycle", () => {
   });
 
   test("active file dot reflects whether the open file is dirty", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-active-dot-"));
+    const projectPath = await makeTempDir("wit-e2e-active-dot-");
     await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -124,28 +128,22 @@ test.describe("Wit project lifecycle", () => {
   });
 
   test("reopens the last project when the app is relaunched", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-reopen-"));
+    const projectPath = await makeTempDir("wit-e2e-reopen-");
     await fs.writeFile(path.join(projectPath, "persist.txt"), "One two three", "utf8");
 
     const firstRun = await launchWithProject(projectPath);
     await firstRun.app.close();
 
-    const secondRun = await electron.launch({
-      args: [repoRoot],
-      cwd: repoRoot
-    });
+    const secondRun = await launchApp();
+    await expect(secondRun.page.locator("#sidebar-project-title")).toHaveText(path.basename(projectPath));
+    await expect(secondRun.page.locator(".file-button", { hasText: "persist.txt" })).toBeVisible();
+    await expect(secondRun.page.locator("#open-project-btn")).toBeHidden();
 
-    const secondPage = await secondRun.firstWindow();
-    await waitForAppReady(secondPage);
-    await expect(secondPage.locator("#sidebar-project-title")).toHaveText(path.basename(projectPath));
-    await expect(secondPage.locator(".file-button", { hasText: "persist.txt" })).toBeVisible();
-    await expect(secondPage.locator("#open-project-btn")).toBeHidden();
-
-    await secondRun.close();
+    await secondRun.app.close();
   });
 
   test("restores the last opened file and respects an explicitly closed editor on relaunch", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-last-opened-file-"));
+    const projectPath = await makeTempDir("wit-e2e-last-opened-file-");
     await fs.writeFile(path.join(projectPath, "alpha.txt"), "alpha", "utf8");
     await fs.writeFile(path.join(projectPath, "beta.txt"), "beta", "utf8");
 
@@ -154,57 +152,39 @@ test.describe("Wit project lifecycle", () => {
     await expect(firstRun.page.locator("#active-file-label")).toHaveText("beta.txt");
     await firstRun.app.close();
 
-    const secondRun = await electron.launch({
-      args: [repoRoot],
-      cwd: repoRoot
-    });
+    const secondRun = await launchApp();
+    await expect(secondRun.page.locator("#active-file-label")).toHaveText("beta.txt");
 
-    const secondPage = await secondRun.firstWindow();
-    await waitForAppReady(secondPage);
-    await expect(secondPage.locator("#active-file-label")).toHaveText("beta.txt");
+    await secondRun.page.click(".tree-root-item");
+    await secondRun.page.click(".tree-root-item");
+    await expect(secondRun.page.locator("#active-file-label")).toHaveText("No file selected");
+    await secondRun.app.close();
 
-    await secondPage.click(".tree-root-item");
-    await secondPage.click(".tree-root-item");
-    await expect(secondPage.locator("#active-file-label")).toHaveText("No file selected");
-    await secondRun.close();
+    const thirdRun = await launchApp();
+    await expect(thirdRun.page.locator("#sidebar-project-title")).toHaveText(path.basename(projectPath));
+    await expect(thirdRun.page.locator("#active-file-label")).toHaveText("No file selected");
 
-    const thirdRun = await electron.launch({
-      args: [repoRoot],
-      cwd: repoRoot
-    });
-
-    const thirdPage = await thirdRun.firstWindow();
-    await waitForAppReady(thirdPage);
-    await expect(thirdPage.locator("#sidebar-project-title")).toHaveText(path.basename(projectPath));
-    await expect(thirdPage.locator("#active-file-label")).toHaveText("No file selected");
-
-    await thirdRun.close();
+    await thirdRun.app.close();
   });
 
   test("does not restore the last project when the folder no longer exists", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-missing-"));
+    const projectPath = await makeTempDir("wit-e2e-missing-");
     await fs.writeFile(path.join(projectPath, "draft.txt"), "still here", "utf8");
 
     const firstRun = await launchWithProject(projectPath);
     await firstRun.app.close();
     await fs.rm(projectPath, { recursive: true, force: true });
 
-    const secondRun = await electron.launch({
-      args: [repoRoot],
-      cwd: repoRoot
-    });
+    const secondRun = await launchApp();
+    await expect(secondRun.page.locator("#sidebar-project-title")).toHaveText("No Project");
+    await expect(secondRun.page.locator("#open-project-btn")).toBeEnabled();
+    await expect(secondRun.page.locator(".file-button", { hasText: "draft.txt" })).toHaveCount(0);
 
-    const secondPage = await secondRun.firstWindow();
-    await waitForAppReady(secondPage);
-    await expect(secondPage.locator("#sidebar-project-title")).toHaveText("No Project");
-    await expect(secondPage.locator("#open-project-btn")).toBeEnabled();
-    await expect(secondPage.locator(".file-button", { hasText: "draft.txt" })).toHaveCount(0);
-
-    await secondRun.close();
+    await secondRun.app.close();
   });
 
   test("unsaved edits are persisted on app close", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-close-"));
+    const projectPath = await makeTempDir("wit-e2e-close-");
     await fs.writeFile(path.join(projectPath, "close.txt"), "Start", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);

@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { expect } from "@playwright/test";
@@ -10,25 +11,86 @@ export const execFileAsync = promisify(execFile);
 const LAST_PROJECT_STATE_FILE_NAME = "last-project.json";
 let cachedUserDataPath: string | null = null;
 
+const trackedTempDirs = new Set<string>();
+const pageErrorsByPage = new WeakMap<Page, string[]>();
+const trackedPages = new Set<Page>();
+
+export async function makeTempDir(prefix: string): Promise<string> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+  trackedTempDirs.add(dir);
+  return dir;
+}
+
+export async function cleanupTempDirs(): Promise<void> {
+  const dirs = Array.from(trackedTempDirs);
+  trackedTempDirs.clear();
+  await Promise.all(
+    dirs.map((dir) => fs.rm(dir, { recursive: true, force: true }).catch(() => undefined))
+  );
+}
+
+function trackPage(page: Page): void {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => {
+    errors.push(error.message);
+  });
+  pageErrorsByPage.set(page, errors);
+  trackedPages.add(page);
+}
+
+export function getPageErrors(page: Page): string[] {
+  return pageErrorsByPage.get(page) ?? [];
+}
+
+export function assertNoPageErrors(): void {
+  const errors: string[] = [];
+  for (const page of trackedPages) {
+    const pageErrors = pageErrorsByPage.get(page) ?? [];
+    if (pageErrors.length > 0) {
+      errors.push(...pageErrors);
+    }
+  }
+  trackedPages.clear();
+  if (errors.length > 0) {
+    throw new Error(`Page errors detected during test:\n${errors.join("\n")}`);
+  }
+}
+
+export async function afterEachCleanup(): Promise<void> {
+  try {
+    assertNoPageErrors();
+  } finally {
+    await cleanupTempDirs();
+  }
+}
+
 export async function waitForAppReady(page: Page): Promise<void> {
   await page.waitForLoadState("domcontentloaded");
   await page.waitForFunction(() => document.body.dataset.appReady === "true");
 }
 
-export async function launchWithProject(projectPath: string): Promise<{ app: ElectronApplication; page: Page }> {
+export async function launchApp(): Promise<{ app: ElectronApplication; page: Page }> {
   const app = await electron.launch({
     args: [repoRoot],
     cwd: repoRoot
   });
 
   const page = await app.firstWindow();
+  trackPage(page);
   await waitForAppReady(page);
+
+  return { app, page };
+}
+
+export async function launchWithProject(projectPath: string): Promise<{ app: ElectronApplication; page: Page }> {
+  const { app, page } = await launchApp();
 
   await page.evaluate(async (targetPath) => {
     await window.witApi.openProjectPath(targetPath);
   }, projectPath);
 
   await page.reload();
+  trackPage(page);
   await waitForAppReady(page);
 
   return { app, page };

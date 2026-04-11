@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 import {
+  afterEachCleanup,
   clearLastProjectState,
   closeSettingsDialog,
   getEditorPlaceholder,
@@ -10,6 +10,7 @@ import {
   getEditorText,
   getEditorTypography,
   launchWithProject,
+  makeTempDir,
   openSettingsTab,
   setRangeValueWithoutMovingFocus,
   setSelectValueWithoutMovingFocus
@@ -20,12 +21,16 @@ test.describe("Wit editor behavior", () => {
     await clearLastProjectState();
   });
 
+  test.afterEach(async () => {
+    await afterEachCleanup();
+  });
+
   test.afterAll(async () => {
     await clearLastProjectState();
   });
 
   test("editor placeholder is hidden when a file is selected", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-placeholder-"));
+    const projectPath = await makeTempDir("wit-e2e-placeholder-");
     await fs.writeFile(path.join(projectPath, "empty.txt"), "", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -35,7 +40,7 @@ test.describe("Wit editor behavior", () => {
   });
 
   test("autosave creates snapshot and tracks writing time", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-auto-"));
+    const projectPath = await makeTempDir("wit-e2e-auto-");
     await fs.writeFile(path.join(projectPath, "draft.txt"), "Draft", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -66,8 +71,8 @@ test.describe("Wit editor behavior", () => {
     await app.close();
   });
 
-  test("footer and editor chrome visibility toggles and zoom dropdown control work", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-ui-"));
+  test("footer and editor chrome visibility toggles and the text zoom slider work", async () => {
+    const projectPath = await makeTempDir("wit-e2e-ui-");
     await fs.writeFile(path.join(projectPath, "ui.txt"), "one two three", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -127,7 +132,7 @@ test.describe("Wit editor behavior", () => {
   });
 
   test("word count updates live per typed word and stays correct after save", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-count-"));
+    const projectPath = await makeTempDir("wit-e2e-count-");
     await fs.writeFile(path.join(projectPath, "count.txt"), "one two", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -150,7 +155,7 @@ test.describe("Wit editor behavior", () => {
   });
 
   test("Cmd/Ctrl+A selects all editor text for replacement", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-select-all-"));
+    const projectPath = await makeTempDir("wit-e2e-select-all-");
     await fs.writeFile(path.join(projectPath, "all.txt"), "alpha beta gamma", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -168,7 +173,7 @@ test.describe("Wit editor behavior", () => {
   });
 
   test("selection still replaces text after font and zoom changes", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-selection-typography-"));
+    const projectPath = await makeTempDir("wit-e2e-selection-typography-");
     await fs.writeFile(path.join(projectPath, "selection.txt"), "alpha beta gamma", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -186,8 +191,8 @@ test.describe("Wit editor behavior", () => {
     await app.close();
   });
 
-  test("editor uses default system context menu behavior", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-system-context-"));
+  test("editor does not suppress the native contextmenu event", async () => {
+    const projectPath = await makeTempDir("wit-e2e-system-context-");
     await fs.writeFile(path.join(projectPath, "context.txt"), "alpha beta gamma", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -213,7 +218,7 @@ test.describe("Wit editor behavior", () => {
   });
 
   test("smart quotes toggle applies immediately", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-smart-"));
+    const projectPath = await makeTempDir("wit-e2e-smart-");
     await fs.writeFile(path.join(projectPath, "smart.txt"), "", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -232,11 +237,12 @@ test.describe("Wit editor behavior", () => {
     const modifier = process.platform === "darwin" ? "Meta" : "Control";
     await page.keyboard.press(`${modifier}+S`);
 
-    const content = await expect
-      .poll(async () => fs.readFile(path.join(projectPath, "smart.txt"), "utf8"))
-      .toContain("“curly”")
-      .then(async () => fs.readFile(path.join(projectPath, "smart.txt"), "utf8"));
+    const smartFilePath = path.join(projectPath, "smart.txt");
+    await expect
+      .poll(async () => fs.readFile(smartFilePath, "utf8"))
+      .toContain("“curly”");
 
+    const content = await fs.readFile(smartFilePath, "utf8");
     expect(content).toContain("“curly”");
     expect(content).toContain("\"straight\"");
 
@@ -244,7 +250,7 @@ test.describe("Wit editor behavior", () => {
   });
 
   test("CodeMirror enables Markdown syntax support for markdown files only", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-markdown-editor-"));
+    const projectPath = await makeTempDir("wit-e2e-markdown-editor-");
     await fs.writeFile(path.join(projectPath, "notes.md"), "# Heading\n\nThis is **bold** text.\n", "utf8");
     await fs.writeFile(path.join(projectPath, "plain.txt"), "# Heading\n\nThis is **bold** text.\n", "utf8");
 
@@ -266,7 +272,7 @@ test.describe("Wit editor behavior", () => {
   });
 
   test("renaming a file between .txt and .md toggles Markdown syntax on the open editor", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-rename-syntax-"));
+    const projectPath = await makeTempDir("wit-e2e-rename-syntax-");
     await fs.writeFile(path.join(projectPath, "plain.txt"), "# Heading\n\nThis is **bold** text.\n", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);

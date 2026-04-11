@@ -1,14 +1,15 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 import {
+  afterEachCleanup,
   clearLastProjectState,
   closeSettingsDialog,
   execFileAsync,
   gitCommitCount,
   latestCommitMessage,
   launchWithProject,
+  makeTempDir,
   openSettingsTab
 } from "./helpers";
 
@@ -17,12 +18,16 @@ test.describe("Wit git integration", () => {
     await clearLastProjectState();
   });
 
+  test.afterEach(async () => {
+    await afterEachCleanup();
+  });
+
   test.afterAll(async () => {
     await clearLastProjectState();
   });
 
   test("git snapshots setting is disabled with notice outside git repositories", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-no-git-"));
+    const projectPath = await makeTempDir("wit-e2e-no-git-");
     await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -37,7 +42,7 @@ test.describe("Wit git integration", () => {
   });
 
   test("git snapshots stay disabled until a repository has an initial commit", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-no-initial-commit-"));
+    const projectPath = await makeTempDir("wit-e2e-no-initial-commit-");
     await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
     await execFileAsync("git", ["init", "-q", projectPath]);
 
@@ -52,7 +57,7 @@ test.describe("Wit git integration", () => {
   });
 
   test("opening settings rescans git readiness for the active project", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-refresh-git-"));
+    const projectPath = await makeTempDir("wit-e2e-refresh-git-");
     await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -71,7 +76,7 @@ test.describe("Wit git integration", () => {
   });
 
   test("settings can initialize a git repository with an initial commit", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-init-git-"));
+    const projectPath = await makeTempDir("wit-e2e-init-git-");
     await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
@@ -87,7 +92,7 @@ test.describe("Wit git integration", () => {
   });
 
   test("git push remote defaults to don't push and stays available when no remotes are configured", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-no-remote-"));
+    const projectPath = await makeTempDir("wit-e2e-no-remote-");
     await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
     await execFileAsync("git", ["init", "-q", projectPath]);
     await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
@@ -105,8 +110,8 @@ test.describe("Wit git integration", () => {
   });
 
   test("git push remote still defaults to don't push when remotes are configured", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-with-remote-"));
-    const remotePath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-with-remote-origin-"));
+    const projectPath = await makeTempDir("wit-e2e-with-remote-");
+    const remotePath = await makeTempDir("wit-e2e-with-remote-origin-");
     await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
     await execFileAsync("git", ["init", "-q", projectPath]);
     await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
@@ -123,11 +128,10 @@ test.describe("Wit git integration", () => {
     await expect(page.locator("#git-push-remote-select")).toContainText("Don't push");
     await expect(page.locator("#git-push-remote-select")).toContainText("origin");
     await app.close();
-    await fs.rm(remotePath, { recursive: true, force: true });
   });
 
   test("git snapshot commits run only when Git Snapshot is enabled", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-git-"));
+    const projectPath = await makeTempDir("wit-e2e-git-");
     await fs.writeFile(path.join(projectPath, ".gitignore"), ".wit/\n", "utf8");
     await fs.writeFile(path.join(projectPath, "git.txt"), "Start", "utf8");
 
@@ -168,7 +172,7 @@ test.describe("Wit git integration", () => {
   });
 
   test("latest snapshot label is restored when reopening a project", async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-snapshot-reopen-"));
+    const projectPath = await makeTempDir("wit-e2e-snapshot-reopen-");
     await fs.writeFile(path.join(projectPath, "draft.txt"), "Draft", "utf8");
 
     const firstRun = await launchWithProject(projectPath);
