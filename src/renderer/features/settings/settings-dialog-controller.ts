@@ -48,6 +48,19 @@ export type SettingsDialogController = {
   destroy: () => void;
 };
 
+type SettingsTab = {
+  key: SettingsTabKey;
+  button: HTMLButtonElement;
+  panel: HTMLElement;
+};
+
+type BooleanSettingsKey =
+  | "showWordCount"
+  | "showWritingTime"
+  | "showCurrentFileBar"
+  | "smartQuotes"
+  | "gitSnapshots";
+
 /**
  * Creates the settings dialog controller and binds its UI events.
  *
@@ -77,6 +90,12 @@ export function createSettingsDialogController(options: {
 }): SettingsDialogController {
   let activeTab: SettingsTabKey = options.initialTab ?? "writing";
   const cleanup: Array<() => void> = [];
+  const tabs: SettingsTab[] = [
+    { key: "writing", button: options.tabs.writing.button, panel: options.tabs.writing.panel },
+    { key: "editor", button: options.tabs.editor.button, panel: options.tabs.editor.panel },
+    { key: "autosave", button: options.tabs.autosave.button, panel: options.tabs.autosave.panel },
+    { key: "about", button: options.tabs.about.button, panel: options.tabs.about.panel }
+  ];
 
   const addListener = <T extends EventTarget>(
     target: T,
@@ -93,14 +112,34 @@ export function createSettingsDialogController(options: {
     void options.persistSettings(update);
   };
 
+  const persistSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K]): void => {
+    requestPersist({ [key]: value } as Pick<AppSettings, K>);
+  };
+
+  const parseFiniteInputValue = (
+    input: HTMLInputElement,
+    parse: (value: string) => number
+  ): number | null => {
+    const parsed = parse(input.value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const parseFiniteIntegerInputValue = (input: HTMLInputElement): number | null => {
+    return parseFiniteInputValue(input, (value) => Number.parseInt(value, 10));
+  };
+
+  const parseFiniteFloatInputValue = (input: HTMLInputElement): number | null => {
+    return parseFiniteInputValue(input, Number.parseFloat);
+  };
+
+  const bindCheckboxSetting = (input: HTMLInputElement, key: BooleanSettingsKey): void => {
+    addListener(input, "change", () => {
+      persistSetting(key, input.checked);
+    });
+  };
+
   const setActiveTab = (nextTab: SettingsTabKey): void => {
     activeTab = nextTab;
-    const tabs: Array<{ key: SettingsTabKey; button: HTMLButtonElement; panel: HTMLElement }> = [
-      { key: "writing", button: options.tabs.writing.button, panel: options.tabs.writing.panel },
-      { key: "editor", button: options.tabs.editor.button, panel: options.tabs.editor.panel },
-      { key: "autosave", button: options.tabs.autosave.button, panel: options.tabs.autosave.panel },
-      { key: "about", button: options.tabs.about.button, panel: options.tabs.about.panel }
-    ];
 
     for (const tab of tabs) {
       const isActive = tab.key === nextTab;
@@ -110,28 +149,30 @@ export function createSettingsDialogController(options: {
     }
   };
 
+  const openDialog = async (): Promise<void> => {
+    if (options.toggleButton.disabled) {
+      return;
+    }
+
+    if (typeof options.dialog.showModal !== "function") {
+      options.setStatus("Settings dialog is unavailable.");
+      return;
+    }
+
+    try {
+      await options.beforeOpen?.();
+    } catch {
+      options.setStatus("Could not refresh project settings.");
+    }
+
+    if (!options.dialog.open) {
+      setActiveTab(activeTab);
+      options.dialog.showModal();
+    }
+  };
+
   const open = (): void => {
-    void (async () => {
-      if (options.toggleButton.disabled) {
-        return;
-      }
-
-      if (typeof options.dialog.showModal !== "function") {
-        options.setStatus("Settings dialog is unavailable.");
-        return;
-      }
-
-      try {
-        await options.beforeOpen?.();
-      } catch {
-        options.setStatus("Could not refresh project settings.");
-      }
-
-      if (!options.dialog.open) {
-        setActiveTab(activeTab);
-        options.dialog.showModal();
-      }
-    })();
+    void openDialog();
   };
 
   addListener(options.toggleButton, "click", () => {
@@ -139,42 +180,25 @@ export function createSettingsDialogController(options: {
     open();
   });
 
-  addListener(options.tabs.writing.button, "click", () => {
-    setActiveTab("writing");
-  });
-  addListener(options.tabs.editor.button, "click", () => {
-    setActiveTab("editor");
-  });
-  addListener(options.tabs.autosave.button, "click", () => {
-    setActiveTab("autosave");
-  });
-  addListener(options.tabs.about.button, "click", () => {
-    setActiveTab("about");
-  });
+  for (const tab of tabs) {
+    addListener(tab.button, "click", () => {
+      setActiveTab(tab.key);
+    });
+  }
 
-  addListener(options.inputs.showWordCountInput, "change", () => {
-    requestPersist({ showWordCount: options.inputs.showWordCountInput.checked });
-  });
-  addListener(options.inputs.showWritingTimeInput, "change", () => {
-    requestPersist({ showWritingTime: options.inputs.showWritingTimeInput.checked });
-  });
-  addListener(options.inputs.showCurrentFileBarInput, "change", () => {
-    requestPersist({ showCurrentFileBar: options.inputs.showCurrentFileBarInput.checked });
-  });
-  addListener(options.inputs.smartQuotesInput, "change", () => {
-    requestPersist({ smartQuotes: options.inputs.smartQuotesInput.checked });
-  });
+  bindCheckboxSetting(options.inputs.showWordCountInput, "showWordCount");
+  bindCheckboxSetting(options.inputs.showWritingTimeInput, "showWritingTime");
+  bindCheckboxSetting(options.inputs.showCurrentFileBarInput, "showCurrentFileBar");
+  bindCheckboxSetting(options.inputs.smartQuotesInput, "smartQuotes");
+  bindCheckboxSetting(options.inputs.gitSnapshotsInput, "gitSnapshots");
 
   addListener(options.inputs.defaultFileExtensionSelect, "change", () => {
     const selectedExtension = normalizeDefaultFileExtension(options.inputs.defaultFileExtensionSelect.value);
     options.inputs.defaultFileExtensionSelect.value = selectedExtension;
-    requestPersist({ defaultFileExtension: selectedExtension });
-  });
-  addListener(options.inputs.gitSnapshotsInput, "change", () => {
-    requestPersist({ gitSnapshots: options.inputs.gitSnapshotsInput.checked });
+    persistSetting("defaultFileExtension", selectedExtension);
   });
   addListener(options.inputs.gitPushRemoteSelect, "change", () => {
-    requestPersist({ gitPushRemote: options.inputs.gitPushRemoteSelect.value || null });
+    persistSetting("gitPushRemote", options.inputs.gitPushRemoteSelect.value || null);
   });
   addListener(options.inputs.initializeGitRepoButton, "click", () => {
     if (!options.initializeGitRepository || options.inputs.initializeGitRepoButton.disabled) {
@@ -189,66 +213,69 @@ export function createSettingsDialogController(options: {
     });
   });
   addListener(options.inputs.autosaveIntervalInput, "change", () => {
-    const parsed = Number.parseInt(options.inputs.autosaveIntervalInput.value, 10);
-    const safeValue = Number.isFinite(parsed) ? Math.max(5, parsed) : 60;
-    requestPersist({ autosaveIntervalSec: safeValue });
+    const parsed = parseFiniteIntegerInputValue(options.inputs.autosaveIntervalInput);
+    persistSetting("autosaveIntervalSec", parsed === null ? 60 : Math.max(5, parsed));
   });
   addListener(options.inputs.snapshotMaxSizeInput, "change", () => {
-    const parsed = Number.parseInt(options.inputs.snapshotMaxSizeInput.value, 10);
-    const safeValue = Number.isFinite(parsed) ? Math.max(1, parsed) : 10;
-    requestPersist({ snapshotMaxSizeMb: safeValue });
+    const parsed = parseFiniteIntegerInputValue(options.inputs.snapshotMaxSizeInput);
+    persistSetting("snapshotMaxSizeMb", parsed === null ? 10 : Math.max(1, parsed));
   });
 
   addListener(options.inputs.lineHeightInput, "input", () => {
-    const parsed = Number.parseFloat(options.inputs.lineHeightInput.value);
-    if (!Number.isFinite(parsed)) {
+    const parsed = parseFiniteFloatInputValue(options.inputs.lineHeightInput);
+    if (parsed === null) {
       return;
     }
 
     options.applyEditorLineHeight(parsed);
   });
   addListener(options.inputs.lineHeightInput, "change", () => {
-    const parsed = Number.parseFloat(options.inputs.lineHeightInput.value);
-    if (!Number.isFinite(parsed)) {
+    const parsed = parseFiniteFloatInputValue(options.inputs.lineHeightInput);
+    if (parsed === null) {
       return;
     }
 
     options.applyEditorLineHeight(parsed);
-    requestPersist({ editorLineHeight: normalizeEditorLineHeight(parsed) });
+    persistSetting("editorLineHeight", normalizeEditorLineHeight(parsed));
   });
 
   addListener(options.inputs.paragraphSpacingSelect, "change", () => {
     const selectedSpacing = normalizeEditorParagraphSpacing(options.inputs.paragraphSpacingSelect.value);
     options.applyEditorParagraphSpacing(selectedSpacing);
     options.refreshEditorLayout();
-    requestPersist({ editorParagraphSpacing: selectedSpacing });
+    persistSetting("editorParagraphSpacing", selectedSpacing);
   });
 
   addListener(options.inputs.editorWidthInput, "input", () => {
-    options.applyEditorMaxWidth(Number.parseInt(options.inputs.editorWidthInput.value, 10));
+    const parsed = parseFiniteIntegerInputValue(options.inputs.editorWidthInput);
+    if (parsed === null) {
+      return;
+    }
+
+    options.applyEditorMaxWidth(parsed);
   });
   addListener(options.inputs.editorWidthInput, "change", () => {
-    const parsed = Number.parseInt(options.inputs.editorWidthInput.value, 10);
-    if (!Number.isFinite(parsed)) {
+    const parsed = parseFiniteIntegerInputValue(options.inputs.editorWidthInput);
+    if (parsed === null) {
       return;
     }
 
     const normalized = normalizeEditorMaxWidth(parsed);
     options.applyEditorMaxWidth(normalized);
     options.showEditorWidthGuides();
-    requestPersist({ editorMaxWidthPx: normalized });
+    persistSetting("editorMaxWidthPx", normalized);
   });
 
   addListener(options.inputs.fontSelect, "change", () => {
     const selectedFont = options.inputs.fontSelect.value;
     options.applyEditorFont(selectedFont);
     options.refreshEditorLayout();
-    requestPersist({ editorFontFamily: selectedFont });
+    persistSetting("editorFontFamily", selectedFont);
   });
 
   addListener(options.inputs.textZoomInput, "input", () => {
-    const selectedPercent = Number.parseInt(options.inputs.textZoomInput.value, 10);
-    if (!Number.isFinite(selectedPercent)) {
+    const selectedPercent = parseFiniteIntegerInputValue(options.inputs.textZoomInput);
+    if (selectedPercent === null) {
       return;
     }
 
@@ -259,7 +286,7 @@ export function createSettingsDialogController(options: {
   addListener(options.inputs.themeSelect, "change", () => {
     const selectedTheme = normalizeTheme(options.inputs.themeSelect.value);
     options.applyTheme(selectedTheme);
-    requestPersist({ theme: selectedTheme });
+    persistSetting("theme", selectedTheme);
   });
 
   addListener(options.dialog, "close", () => {

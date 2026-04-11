@@ -30,6 +30,7 @@ type RendererCompositionCallbacks = {
   setStatus: (message: string, clearAfterMs?: number) => void;
   syncSettingsInputs: (settings: AppSettings) => void;
   renderStatusFooter: () => void;
+  renderEditorHeaderVisibility: () => void;
   restartAutosaveTimer: () => void;
   isUserTyping: () => boolean;
   waitForTypingPause: () => Promise<void>;
@@ -116,6 +117,7 @@ export type RendererActions = {
   renderEmptyEditorState: () => void;
   syncProjectPathLabels: (projectPath: string) => void;
   renderStatusFooter: () => void;
+  renderEditorHeaderVisibility: () => void;
   renderFileList: () => void;
   syncSettingsInputs: (settings: AppSettings) => void;
   applyProjectMetadata: (metadata: ProjectMetadata) => void;
@@ -326,6 +328,10 @@ export function createRendererActions(options: RendererActionsOptions): Renderer
     requireComposition().projectUiController.renderStatusFooter(options.getProject());
   };
 
+  const renderEditorHeaderVisibility = (): void => {
+    requireComposition().projectUiController.renderEditorHeaderVisibility(options.getProject());
+  };
+
   const renderFileList = (): void => {
     requireComposition().projectTreeStateController.renderFileList();
   };
@@ -397,6 +403,7 @@ export function createRendererActions(options: RendererActionsOptions): Renderer
     setStatus,
     syncSettingsInputs,
     renderStatusFooter,
+    renderEditorHeaderVisibility,
     restartAutosaveTimer,
     isUserTyping,
     waitForTypingPause,
@@ -480,6 +487,7 @@ export function createRendererActions(options: RendererActionsOptions): Renderer
     renderEmptyEditorState,
     syncProjectPathLabels,
     renderStatusFooter,
+    renderEditorHeaderVisibility,
     renderFileList,
     syncSettingsInputs,
     applyProjectMetadata,

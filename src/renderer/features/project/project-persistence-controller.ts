@@ -7,6 +7,17 @@
 import type { AppSettings, ProjectMetadata } from "../../../shared/types";
 
 /**
+ * Returns whether persistence normalized any requested settings value.
+ *
+ * App settings are intentionally a flat object of scalar values, so a shallow
+ * key comparison is the correct reconciliation check here.
+ */
+function hasSavedSettingsDiff(requested: AppSettings, saved: AppSettings): boolean {
+  const settingKeys = Object.keys(requested) as Array<keyof AppSettings>;
+  return settingKeys.some((key) => requested[key] !== saved[key]);
+}
+
+/**
  * Exposes persistence helpers for project-bound settings state.
  */
 export type ProjectPersistenceController = {
@@ -25,6 +36,7 @@ export function createProjectPersistenceController(options: {
   setLastOpenedFilePath: (relativePath: string | null) => Promise<string | null>;
   updateSettings: (nextSettings: AppSettings) => Promise<AppSettings>;
   syncSettingsInputs: (settings: AppSettings) => void;
+  renderEditorHeaderVisibility: () => void;
   renderStatusFooter: () => void;
   restartAutosaveTimer: () => void;
   setStatus: (message: string, clearAfterMs?: number) => void;
@@ -69,7 +81,10 @@ export function createProjectPersistenceController(options: {
         }
 
         activeProject.settings = savedSettings;
-        options.syncSettingsInputs(savedSettings);
+        if (hasSavedSettingsDiff(nextSettings, savedSettings)) {
+          options.syncSettingsInputs(savedSettings);
+        }
+        options.renderEditorHeaderVisibility();
         options.renderStatusFooter();
         options.restartAutosaveTimer();
         options.setStatus("Settings saved.", 1300);

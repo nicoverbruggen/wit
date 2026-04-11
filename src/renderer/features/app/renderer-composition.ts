@@ -104,6 +104,7 @@ export function createRendererComposition(options: {
     setStatus: (message: string, clearAfterMs?: number) => void;
     syncSettingsInputs: (settings: AppSettings) => void;
     renderStatusFooter: () => void;
+    renderEditorHeaderVisibility: () => void;
     restartAutosaveTimer: () => void;
     isUserTyping: () => boolean;
     waitForTypingPause: () => Promise<void>;
@@ -185,6 +186,7 @@ export function createRendererComposition(options: {
     setLastOpenedFilePath: (relativePath) => options.witApi.setLastOpenedFilePath(relativePath),
     updateSettings: (nextSettings) => options.witApi.updateSettings(nextSettings),
     syncSettingsInputs: options.callbacks.syncSettingsInputs,
+    renderEditorHeaderVisibility: options.callbacks.renderEditorHeaderVisibility,
     renderStatusFooter: options.callbacks.renderStatusFooter,
     restartAutosaveTimer: options.callbacks.restartAutosaveTimer,
     setStatus: options.callbacks.setStatus
