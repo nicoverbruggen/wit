@@ -3,6 +3,7 @@ import type { AppSettings, ProjectMetadata } from "../../../shared/types";
 export type ProjectStateApplicationController = {
   resetActiveFile: () => void;
   applyProjectMetadata: (metadata: ProjectMetadata) => void;
+  refreshProjectMetadata: (metadata: ProjectMetadata) => void;
 };
 
 export function createProjectStateApplicationController(options: {
@@ -67,8 +68,23 @@ export function createProjectStateApplicationController(options: {
     options.renderEmptyEditorState();
   };
 
+  const refreshProjectMetadata = (metadata: ProjectMetadata): void => {
+    options.setProjectState(metadata);
+    options.restoreCollapsedFolders();
+    options.updateSnapshotLabel(
+      metadata.latestSnapshotCreatedAt ? options.parseSnapshotTimestamp(metadata.latestSnapshotCreatedAt) : null
+    );
+    options.syncProjectPathLabels(metadata.projectPath);
+    options.setProjectControlsEnabled(true);
+    options.syncSettingsInputs(metadata.settings);
+    options.renderStatusFooter();
+    options.renderFileList();
+    options.restartAutosaveTimer();
+  };
+
   return {
     resetActiveFile,
-    applyProjectMetadata
+    applyProjectMetadata,
+    refreshProjectMetadata
   };
 }

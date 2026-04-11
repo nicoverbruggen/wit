@@ -1063,6 +1063,8 @@ test.describe("Wit core app flow", () => {
     await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
     await execFileAsync("git", ["-C", projectPath, "config", "user.name", "QA"]);
     await execFileAsync("git", ["-C", projectPath, "remote", "add", "origin", remotePath]);
+    await execFileAsync("git", ["-C", projectPath, "add", "."]);
+    await execFileAsync("git", ["-C", projectPath, "commit", "-m", "init", "--quiet"]);
 
     const firstRun = await launchWithProject(projectPath);
     const lineHeightBefore = (await getEditorTypography(firstRun.page)).lineHeight;
@@ -1176,8 +1178,60 @@ test.describe("Wit core app flow", () => {
     await openSettingsTab(page, "autosave");
     await expect(page.locator("#git-snapshots-input")).toBeDisabled();
     await expect(page.locator("#git-push-remote-select")).toBeDisabled();
+    await expect(page.locator("#initialize-git-repo-card")).toBeVisible();
+    await expect(page.locator("#initialize-git-repo-btn")).toBeEnabled();
     await expect(page.locator("#git-snapshots-notice")).toBeVisible();
     await expect(page.locator("#git-snapshots-notice")).toContainText("not a Git repository");
+    await app.close();
+  });
+
+  test("git snapshots stay disabled until a repository has an initial commit", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-no-initial-commit-"));
+    await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
+    await execFileAsync("git", ["init", "-q", projectPath]);
+
+    const { app, page } = await launchWithProject(projectPath);
+    await openSettingsTab(page, "autosave");
+    await expect(page.locator("#git-snapshots-input")).toBeDisabled();
+    await expect(page.locator("#git-push-remote-select")).toBeDisabled();
+    await expect(page.locator("#initialize-git-repo-card")).toBeHidden();
+    await expect(page.locator("#git-snapshots-notice")).toBeVisible();
+    await expect(page.locator("#git-snapshots-notice")).toContainText("does not have an initial commit");
+    await app.close();
+  });
+
+  test("opening settings rescans git readiness for the active project", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-refresh-git-"));
+    await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await execFileAsync("git", ["init", "-q", projectPath]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.name", "QA"]);
+    await execFileAsync("git", ["-C", projectPath, "add", "."]);
+    await execFileAsync("git", ["-C", projectPath, "commit", "-m", "init", "--quiet"]);
+
+    await openSettingsTab(page, "autosave");
+    await expect(page.locator("#git-snapshots-input")).toBeEnabled();
+    await expect(page.locator("#git-push-remote-select")).toBeEnabled();
+    await expect(page.locator("#initialize-git-repo-card")).toBeHidden();
+    await expect(page.locator("#git-snapshots-notice")).toBeHidden();
+    await app.close();
+  });
+
+  test("settings can initialize a git repository with an initial commit", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-init-git-"));
+    await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await openSettingsTab(page, "autosave");
+    await page.click("#initialize-git-repo-btn");
+
+    await expect(page.locator("#git-snapshots-input")).toBeEnabled();
+    await expect(page.locator("#git-push-remote-select")).toBeEnabled();
+    await expect(page.locator("#initialize-git-repo-card")).toBeHidden();
+    await expect(page.locator("#git-snapshots-notice")).toBeHidden();
+    expect(await gitCommitCount(projectPath)).toBe(1);
     await app.close();
   });
 
@@ -1185,6 +1239,10 @@ test.describe("Wit core app flow", () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-no-remote-"));
     await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
     await execFileAsync("git", ["init", "-q", projectPath]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.name", "QA"]);
+    await execFileAsync("git", ["-C", projectPath, "add", "."]);
+    await execFileAsync("git", ["-C", projectPath, "commit", "-m", "init", "--quiet"]);
 
     const { app, page } = await launchWithProject(projectPath);
     await openSettingsTab(page, "autosave");
@@ -1200,6 +1258,10 @@ test.describe("Wit core app flow", () => {
     const remotePath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-with-remote-origin-"));
     await fs.writeFile(path.join(projectPath, "plain.txt"), "Start", "utf8");
     await execFileAsync("git", ["init", "-q", projectPath]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.name", "QA"]);
+    await execFileAsync("git", ["-C", projectPath, "add", "."]);
+    await execFileAsync("git", ["-C", projectPath, "commit", "-m", "init", "--quiet"]);
     await execFileAsync("git", ["init", "--bare", "-q", remotePath]);
     await execFileAsync("git", ["-C", projectPath, "remote", "add", "origin", remotePath]);
 

@@ -16,6 +16,7 @@ export const IPC_CHANNELS = {
   project: {
     select: "project:select",
     getActive: "project:get-active",
+    initializeGitRepository: "project:initialize-git-repository",
     close: "project:close",
     exitSnapshot: "project:exit-snapshot",
     openPath: "project:open-path",
@@ -59,6 +60,7 @@ export type WitApi = {
   getPlatform: () => string;
   selectProject: () => Promise<ProjectMetadata | null>;
   getActiveProject: () => Promise<ProjectMetadata | null>;
+  initializeGitRepository: () => Promise<ProjectMetadata>;
   closeProject: () => Promise<null>;
   exitSnapshot: () => Promise<void>;
   toggleFullscreen: () => Promise<boolean>;

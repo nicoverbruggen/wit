@@ -28,6 +28,10 @@ export {
   getProjectMetadata
 } from "./project-service/project-metadata";
 
-export { listGitRemotes } from "./project-service/project-git";
+export {
+  hasGitInitialCommit,
+  initializeGitRepository,
+  listGitRemotes
+} from "./project-service/project-git";
 
 export { getSnapshotDirectory } from "./project-service/project-paths";

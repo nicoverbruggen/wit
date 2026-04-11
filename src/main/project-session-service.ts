@@ -6,6 +6,7 @@ import {
   ensureProjectInitialized,
   getGitRepositoryStatus,
   getProjectMetadata,
+  hasGitInitialCommit,
   getProjectStats,
   getSnapshotDirectory,
   listProjectFiles,
@@ -58,7 +59,7 @@ function buildSnapshotOptions(
   projectPath: string,
   settings: AppSettings,
   files: string[],
-  gitRepository: boolean,
+  gitCommitReady: boolean,
   commitMessage: string
 ): Parameters<typeof createSnapshot>[0] {
   return {
@@ -66,8 +67,8 @@ function buildSnapshotOptions(
     snapshotDirectory: getSnapshotDirectory(projectPath),
     filePaths: files,
     snapshotMaxSizeMb: settings.snapshotMaxSizeMb,
-    createGitCommit: settings.gitSnapshots && gitRepository,
-    pushGitCommit: settings.gitSnapshots && settings.gitPushRemote !== null && gitRepository,
+    createGitCommit: settings.gitSnapshots && gitCommitReady,
+    pushGitCommit: settings.gitSnapshots && settings.gitPushRemote !== null && gitCommitReady,
     gitPushRemote: settings.gitPushRemote,
     commitMessage
   };
@@ -142,14 +143,21 @@ export function createProjectSessionService(options: ProjectSessionServiceOption
       await addWritingSeconds(projectPath, activeSeconds);
     }
 
-    const [settings, files, gitRepository] = await Promise.all([
+    const [settings, files, gitRepository, gitInitialCommit] = await Promise.all([
       loadSettings(projectPath),
       listProjectFiles(projectPath),
-      getGitRepositoryStatus(projectPath)
+      getGitRepositoryStatus(projectPath),
+      hasGitInitialCommit(projectPath)
     ]);
 
     const snapshotCreatedAt = await createSnapshot(
-      buildSnapshotOptions(projectPath, settings, files, gitRepository, "automatic snapshot")
+      buildSnapshotOptions(
+        projectPath,
+        settings,
+        files,
+        gitRepository && gitInitialCommit,
+        "automatic snapshot"
+      )
     );
 
     const [wordCount, stats] = await Promise.all([calculateTotalWordCount(projectPath), getProjectStats(projectPath)]);
@@ -163,13 +171,16 @@ export function createProjectSessionService(options: ProjectSessionServiceOption
 
   async function runExitSnapshot(projectPath = requireActiveProjectPath()): Promise<void> {
     try {
-      const [settings, files, gitRepository] = await Promise.all([
+      const [settings, files, gitRepository, gitInitialCommit] = await Promise.all([
         loadSettings(projectPath),
         listProjectFiles(projectPath),
-        getGitRepositoryStatus(projectPath)
+        getGitRepositoryStatus(projectPath),
+        hasGitInitialCommit(projectPath)
       ]);
 
-      await createSnapshot(buildSnapshotOptions(projectPath, settings, files, gitRepository, "exit snapshot"));
+      await createSnapshot(
+        buildSnapshotOptions(projectPath, settings, files, gitRepository && gitInitialCommit, "exit snapshot")
+      );
     } catch (error) {
       console.warn("Exit snapshot failed.", error);
     }

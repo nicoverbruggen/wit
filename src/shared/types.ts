@@ -24,6 +24,7 @@ export type ProjectMetadata = {
   totalWritingSeconds: number;
   latestSnapshotCreatedAt: string | null;
   isGitRepository: boolean;
+  hasGitInitialCommit: boolean;
   gitRemotes: string[];
   settings: AppSettings;
   lastOpenedFilePath: string | null;

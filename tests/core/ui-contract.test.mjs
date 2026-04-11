@@ -33,6 +33,8 @@ test("renderer markup contains core writing controls", async () => {
     "default-file-extension-select",
     "git-snapshots-input",
     "git-push-remote-select",
+    "initialize-git-repo-card",
+    "initialize-git-repo-btn",
     "git-snapshots-notice",
     "autosave-interval-input",
     "line-height-input",

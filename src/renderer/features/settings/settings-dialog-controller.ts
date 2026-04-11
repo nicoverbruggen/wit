@@ -24,6 +24,7 @@ type SettingsInputs = {
   defaultFileExtensionSelect: HTMLSelectElement;
   gitSnapshotsInput: HTMLInputElement;
   gitPushRemoteSelect: HTMLSelectElement;
+  initializeGitRepoButton: HTMLButtonElement;
   autosaveIntervalInput: HTMLInputElement;
   snapshotMaxSizeInput: HTMLInputElement;
   lineHeightInput: HTMLInputElement;
@@ -57,6 +58,8 @@ export function createSettingsDialogController(options: {
   refreshEditorLayout: () => void;
   showEditorWidthGuides: () => void;
   clearEditorWidthGuides: () => void;
+  beforeOpen?: () => Promise<void>;
+  initializeGitRepository?: () => Promise<void>;
   setStatus: (message: string, clearAfterMs?: number) => void;
   initialTab?: SettingsTabKey;
 }): SettingsDialogController {
@@ -96,19 +99,27 @@ export function createSettingsDialogController(options: {
   };
 
   const open = (): void => {
-    if (options.toggleButton.disabled) {
-      return;
-    }
+    void (async () => {
+      if (options.toggleButton.disabled) {
+        return;
+      }
 
-    if (typeof options.dialog.showModal !== "function") {
-      options.setStatus("Settings dialog is unavailable.");
-      return;
-    }
+      if (typeof options.dialog.showModal !== "function") {
+        options.setStatus("Settings dialog is unavailable.");
+        return;
+      }
 
-    if (!options.dialog.open) {
-      setActiveTab(activeTab);
-      options.dialog.showModal();
-    }
+      try {
+        await options.beforeOpen?.();
+      } catch {
+        options.setStatus("Could not refresh project settings.");
+      }
+
+      if (!options.dialog.open) {
+        setActiveTab(activeTab);
+        options.dialog.showModal();
+      }
+    })();
   };
 
   addListener(options.toggleButton, "click", () => {
@@ -152,6 +163,18 @@ export function createSettingsDialogController(options: {
   });
   addListener(options.inputs.gitPushRemoteSelect, "change", () => {
     requestPersist({ gitPushRemote: options.inputs.gitPushRemoteSelect.value || null });
+  });
+  addListener(options.inputs.initializeGitRepoButton, "click", () => {
+    if (!options.initializeGitRepository || options.inputs.initializeGitRepoButton.disabled) {
+      return;
+    }
+
+    options.inputs.initializeGitRepoButton.disabled = true;
+    void options.initializeGitRepository().finally(() => {
+      if (options.dialog.open) {
+        options.inputs.initializeGitRepoButton.disabled = false;
+      }
+    });
   });
   addListener(options.inputs.autosaveIntervalInput, "change", () => {
     const parsed = Number.parseInt(options.inputs.autosaveIntervalInput.value, 10);

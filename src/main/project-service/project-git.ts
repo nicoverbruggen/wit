@@ -1,5 +1,13 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+
+async function execGit(projectPath: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+  return execFileAsync("git", ["-C", projectPath, ...args]);
+}
 
 export async function isGitRepository(projectPath: string): Promise<boolean> {
   try {
@@ -10,16 +18,64 @@ export async function isGitRepository(projectPath: string): Promise<boolean> {
   }
 }
 
+export async function hasGitInitialCommit(projectPath: string): Promise<boolean> {
+  if (!(await isGitRepository(projectPath))) {
+    return false;
+  }
+
+  try {
+    await execGit(projectPath, ["rev-parse", "--verify", "HEAD"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureGitIdentity(projectPath: string): Promise<void> {
+  try {
+    const userName = await execGit(projectPath, ["config", "--get", "user.name"]);
+    if (userName.stdout.trim().length === 0) {
+      await execGit(projectPath, ["config", "user.name", "Wit"]);
+    }
+  } catch {
+    await execGit(projectPath, ["config", "user.name", "Wit"]);
+  }
+
+  try {
+    const userEmail = await execGit(projectPath, ["config", "--get", "user.email"]);
+    if (userEmail.stdout.trim().length === 0) {
+      await execGit(projectPath, ["config", "user.email", "wit@localhost"]);
+    }
+  } catch {
+    await execGit(projectPath, ["config", "user.email", "wit@localhost"]);
+  }
+}
+
+async function createInitialCommit(projectPath: string): Promise<void> {
+  if (await hasGitInitialCommit(projectPath)) {
+    return;
+  }
+
+  await ensureGitIdentity(projectPath);
+  await execGit(projectPath, ["add", "-A", "--", "."]);
+  await execGit(projectPath, ["commit", "--allow-empty", "-m", "Initial commit", "--quiet"]);
+}
+
+export async function initializeGitRepository(projectPath: string): Promise<void> {
+  if (!(await isGitRepository(projectPath))) {
+    await execGit(projectPath, ["init", "--quiet"]);
+  }
+
+  await createInitialCommit(projectPath);
+}
+
 export async function listGitRemotes(projectPath: string): Promise<string[]> {
   if (!(await isGitRepository(projectPath))) {
     return [];
   }
 
   try {
-    const { execFile } = await import("node:child_process");
-    const { promisify } = await import("node:util");
-    const execFileAsync = promisify(execFile);
-    const result = await execFileAsync("git", ["-C", projectPath, "remote"]);
+    const result = await execGit(projectPath, ["remote"]);
 
     return result.stdout
       .split(/\r?\n/u)

@@ -63,6 +63,8 @@ export type RendererDom = {
   defaultFileExtensionSelect: HTMLSelectElement;
   gitSnapshotsInput: HTMLInputElement;
   gitPushRemoteSelect: HTMLSelectElement;
+  initializeGitRepoCard: HTMLDivElement;
+  initializeGitRepoButton: HTMLButtonElement;
   gitSnapshotsNotice: HTMLParagraphElement;
   autosaveIntervalInput: HTMLInputElement;
   snapshotMaxSizeInput: HTMLInputElement;
@@ -165,6 +167,8 @@ export function resolveRendererDom(): RendererDom {
     defaultFileExtensionSelect: getById("default-file-extension-select"),
     gitSnapshotsInput: getById("git-snapshots-input"),
     gitPushRemoteSelect: getById("git-push-remote-select"),
+    initializeGitRepoCard: getById("initialize-git-repo-card"),
+    initializeGitRepoButton: getById("initialize-git-repo-btn"),
     gitSnapshotsNotice: getById("git-snapshots-notice"),
     autosaveIntervalInput: getById("autosave-interval-input"),
     snapshotMaxSizeInput: getById("snapshot-max-size-input"),

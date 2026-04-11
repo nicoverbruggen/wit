@@ -25,6 +25,8 @@ export function createAppShellUiController(options: {
   smartQuotesInput: HTMLInputElement;
   gitSnapshotsInput: HTMLInputElement;
   gitPushRemoteSelect: HTMLSelectElement;
+  initializeGitRepoButton: HTMLButtonElement;
+  initializeGitRepoCard: HTMLDivElement;
   gitSnapshotsNotice: HTMLParagraphElement;
   autosaveIntervalInput: HTMLInputElement;
   snapshotMaxSizeInput: HTMLInputElement;
@@ -70,15 +72,17 @@ export function createAppShellUiController(options: {
     options.showWritingTimeInput.disabled = !enabled;
     options.showCurrentFileBarInput.disabled = !enabled;
     options.smartQuotesInput.disabled = !enabled;
-    options.gitSnapshotsInput.disabled = !enabled || !project?.isGitRepository;
+    options.gitSnapshotsInput.disabled = !enabled || !project?.isGitRepository || !project?.hasGitInitialCommit;
     options.gitPushRemoteSelect.disabled = true;
+    options.initializeGitRepoButton.disabled = !enabled || Boolean(project?.isGitRepository);
+    options.initializeGitRepoCard.hidden = !enabled || Boolean(project?.isGitRepository);
     options.autosaveIntervalInput.disabled = !enabled;
     options.snapshotMaxSizeInput.disabled = !enabled;
     options.lineHeightInput.disabled = !enabled;
     options.editorWidthInput.disabled = !enabled;
     options.themeSelect.disabled = !enabled;
     options.fontSelect.disabled = !enabled;
-    options.gitSnapshotsNotice.hidden = !enabled || Boolean(project?.isGitRepository);
+    options.gitSnapshotsNotice.hidden = !enabled || Boolean(project?.isGitRepository && project?.hasGitInitialCommit);
   };
 
   const loadAboutInfo = async (): Promise<void> => {

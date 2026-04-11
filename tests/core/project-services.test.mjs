@@ -48,6 +48,7 @@ test("project initialization and metadata defaults", async () => {
     assert.equal(metadata.totalWritingSeconds, 0);
     assert.equal(metadata.latestSnapshotCreatedAt, null);
     assert.equal(metadata.isGitRepository, false);
+    assert.equal(metadata.hasGitInitialCommit, false);
     assert.deepEqual(metadata.gitRemotes, []);
     assert.equal(metadata.lastOpenedFilePath, null);
     assert.equal(metadata.hasStoredLastOpenedFilePath, false);
@@ -300,11 +301,45 @@ test("project metadata reports git repository status", async () => {
     await projectService.ensureProjectInitialized(projectPath);
     let metadata = await projectService.getProjectMetadata(projectPath);
     assert.equal(metadata.isGitRepository, false);
+    assert.equal(metadata.hasGitInitialCommit, false);
 
     await execFileAsync("git", ["init", "-q", projectPath]);
     metadata = await projectService.getProjectMetadata(projectPath);
     assert.equal(metadata.isGitRepository, true);
+    assert.equal(metadata.hasGitInitialCommit, false);
     assert.deepEqual(metadata.gitRemotes, []);
+
+    await execFileAsync("git", ["-C", projectPath, "config", "user.email", "qa@example.com"]);
+    await execFileAsync("git", ["-C", projectPath, "config", "user.name", "QA"]);
+    await execFileAsync("git", ["-C", projectPath, "add", "."]);
+    await execFileAsync("git", ["-C", projectPath, "commit", "-m", "init", "--quiet"]);
+
+    metadata = await projectService.getProjectMetadata(projectPath);
+    assert.equal(metadata.isGitRepository, true);
+    assert.equal(metadata.hasGitInitialCommit, true);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("initializeGitRepository creates a repository and initial commit", async () => {
+  const { root, projectPath } = await createTempProject();
+
+  try {
+    await projectService.ensureProjectInitialized(projectPath);
+    await projectService.createProjectFile(projectPath, "chapter.txt", "hello");
+
+    await projectService.initializeGitRepository(projectPath);
+
+    const metadata = await projectService.getProjectMetadata(projectPath);
+    assert.equal(metadata.isGitRepository, true);
+    assert.equal(metadata.hasGitInitialCommit, true);
+
+    const commitCount = await execFileAsync("git", ["-C", projectPath, "rev-list", "--count", "HEAD"]);
+    assert.equal(commitCount.stdout.trim(), "1");
+
+    const trackedFiles = await execFileAsync("git", ["-C", projectPath, "ls-files"]);
+    assert.match(trackedFiles.stdout, /chapter\.txt/);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

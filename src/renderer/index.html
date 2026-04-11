@@ -339,6 +339,11 @@
                   <span class="setting-card-description">Choose a remote to push snapshot commits to automatically, or select `Don't push`.</span>
                   <select id="git-push-remote-select"></select>
                 </label>
+                <div id="initialize-git-repo-card" class="setting-card setting-card--action" hidden>
+                  <span class="setting-card-title">Initialize Git repository</span>
+                  <span class="setting-card-description">Creates a new Git repository for this project and records an initial commit so automatic snapshot commits can be enabled.</span>
+                  <button id="initialize-git-repo-btn" type="button" class="ghost-button primary-button">Initialize Git</button>
+                </div>
                 <p id="git-snapshots-notice" class="settings-notice" hidden>
                   Git snapshots are unavailable because this project is not a Git repository.
                 </p>

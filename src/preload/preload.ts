@@ -8,6 +8,7 @@ const IPC_CHANNELS = {
   project: {
     select: "project:select",
     getActive: "project:get-active",
+    initializeGitRepository: "project:initialize-git-repository",
     close: "project:close",
     exitSnapshot: "project:exit-snapshot",
     openPath: "project:open-path",
@@ -58,6 +59,7 @@ const api: WitApi = {
   getPlatform: (): NodePlatform => process.platform,
   selectProject: () => ipcRenderer.invoke(IPC_CHANNELS.project.select),
   getActiveProject: () => ipcRenderer.invoke(IPC_CHANNELS.project.getActive),
+  initializeGitRepository: () => ipcRenderer.invoke(IPC_CHANNELS.project.initializeGitRepository),
   closeProject: () => ipcRenderer.invoke(IPC_CHANNELS.project.close),
   exitSnapshot: () => ipcRenderer.invoke(IPC_CHANNELS.project.exitSnapshot),
   toggleFullscreen: () => ipcRenderer.invoke(IPC_CHANNELS.window.toggleFullscreen),

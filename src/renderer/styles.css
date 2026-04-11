@@ -1555,6 +1555,10 @@ body.platform-linux .toolbar {
   cursor: pointer;
 }
 
+.setting-card--action {
+  align-items: flex-start;
+}
+
 .setting-card-toggle {
   display: inline-flex;
   align-items: center;
@@ -1691,6 +1695,7 @@ body.platform-linux .toolbar {
   margin: -2px 0 0;
   color: var(--muted);
   font-size: 0.78rem;
+  line-height: 1.45;
   grid-column: 1 / -1;
   padding: 0 2px;
 }

@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { gzip, gunzip } from "node:zlib";
+import { hasGitInitialCommit } from "./project-service/project-git";
 
 const execFileAsync = promisify(execFile);
 const gzipAsync = promisify(gzip);
@@ -168,14 +169,7 @@ async function commitSnapshotToGit(
   commitMessage: string,
   filePaths: string[]
 ): Promise<boolean> {
-  const gitDirectoryPath = path.join(projectPath, ".git");
-
-  try {
-    const directoryStat = await fs.stat(gitDirectoryPath);
-    if (!directoryStat.isDirectory()) {
-      return false;
-    }
-  } catch {
+  if (!(await hasGitInitialCommit(projectPath))) {
     return false;
   }
 

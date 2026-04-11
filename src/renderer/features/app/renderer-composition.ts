@@ -23,7 +23,9 @@ import { createProjectStateApplicationController } from "../project/project-stat
 import { createEmptyEditorStateController } from "../project/empty-editor-state-controller.js";
 
 type WitApiForComposition = {
+  getActiveProject: () => Promise<ProjectMetadata | null>;
   getAppInfo: () => Promise<{ version: string; description: string; author: string; website: string }>;
+  initializeGitRepository: () => Promise<ProjectMetadata>;
   setLastOpenedFilePath: (relativePath: string | null) => Promise<string | null>;
   updateSettings: (nextSettings: AppSettings) => Promise<AppSettings>;
   newFile: (payload: { relativePath: string }) => Promise<string[]>;
@@ -147,6 +149,8 @@ export function createRendererComposition(options: {
     smartQuotesInput: options.dom.smartQuotesInput,
     gitSnapshotsInput: options.dom.gitSnapshotsInput,
     gitPushRemoteSelect: options.dom.gitPushRemoteSelect,
+    initializeGitRepoCard: options.dom.initializeGitRepoCard,
+    initializeGitRepoButton: options.dom.initializeGitRepoButton,
     gitSnapshotsNotice: options.dom.gitSnapshotsNotice,
     autosaveIntervalInput: options.dom.autosaveIntervalInput,
     snapshotMaxSizeInput: options.dom.snapshotMaxSizeInput,
@@ -242,47 +246,6 @@ export function createRendererComposition(options: {
     }
   });
 
-  const settingsDialogController = createSettingsDialogController({
-    dialog: options.dom.settingsDialog,
-    toggleButton: options.dom.settingsToggleButton,
-    tabs: {
-      writing: { button: options.dom.settingsTabWriting, panel: options.dom.settingsPanelWriting },
-      editor: { button: options.dom.settingsTabEditor, panel: options.dom.settingsPanelEditor },
-      autosave: { button: options.dom.settingsTabAutosave, panel: options.dom.settingsPanelAutosave },
-      about: { button: options.dom.settingsTabAbout, panel: options.dom.settingsPanelAbout }
-    },
-    inputs: {
-      showWordCountInput: options.dom.showWordCountInput,
-      showWritingTimeInput: options.dom.showWritingTimeInput,
-      showCurrentFileBarInput: options.dom.showCurrentFileBarInput,
-      smartQuotesInput: options.dom.smartQuotesInput,
-      defaultFileExtensionSelect: options.dom.defaultFileExtensionSelect,
-      gitSnapshotsInput: options.dom.gitSnapshotsInput,
-      gitPushRemoteSelect: options.dom.gitPushRemoteSelect,
-      autosaveIntervalInput: options.dom.autosaveIntervalInput,
-      snapshotMaxSizeInput: options.dom.snapshotMaxSizeInput,
-      lineHeightInput: options.dom.lineHeightInput,
-      paragraphSpacingSelect: options.dom.paragraphSpacingSelect,
-      editorWidthInput: options.dom.editorWidthInput,
-      textZoomInput: options.dom.textZoomInput,
-      themeSelect: options.dom.themeSelect,
-      fontSelect: options.dom.fontSelect
-    },
-    closeTreeContextMenu: options.callbacks.closeTreeContextMenu,
-    persistSettings: options.callbacks.persistSettings,
-    applyEditorLineHeight: options.callbacks.applyEditorLineHeight,
-    applyEditorParagraphSpacing: options.callbacks.applyEditorParagraphSpacing,
-    applyEditorMaxWidth: options.callbacks.applyEditorMaxWidth,
-    applyEditorFont: options.callbacks.applyEditorFont,
-    setEditorZoomFromPercent: options.callbacks.setEditorZoomFromPercent,
-    applyTheme: options.callbacks.applyTheme,
-    refreshEditorLayout: options.callbacks.refreshEditorLayout,
-    showEditorWidthGuides: options.callbacks.showEditorWidthGuides,
-    clearEditorWidthGuides: options.callbacks.clearEditorWidthGuides,
-    setStatus: options.callbacks.setStatus,
-    initialTab: "writing"
-  });
-
   const projectTreeStateController = createProjectTreeStateController({
     fileList: options.dom.fileList,
     maxTreeIndent: options.config.maxTreeIndent,
@@ -367,6 +330,8 @@ export function createRendererComposition(options: {
     smartQuotesInput: options.dom.smartQuotesInput,
     gitSnapshotsInput: options.dom.gitSnapshotsInput,
     gitPushRemoteSelect: options.dom.gitPushRemoteSelect,
+    initializeGitRepoCard: options.dom.initializeGitRepoCard,
+    initializeGitRepoButton: options.dom.initializeGitRepoButton,
     gitSnapshotsNotice: options.dom.gitSnapshotsNotice,
     autosaveIntervalInput: options.dom.autosaveIntervalInput,
     snapshotMaxSizeInput: options.dom.snapshotMaxSizeInput,
@@ -446,6 +411,63 @@ export function createRendererComposition(options: {
     applyProjectMetadata: (metadata) => projectStateApplicationController.applyProjectMetadata(metadata),
     openFile: options.callbacks.openFile,
     setStatus: options.callbacks.setStatus
+  });
+
+  const settingsDialogController = createSettingsDialogController({
+    dialog: options.dom.settingsDialog,
+    toggleButton: options.dom.settingsToggleButton,
+    tabs: {
+      writing: { button: options.dom.settingsTabWriting, panel: options.dom.settingsPanelWriting },
+      editor: { button: options.dom.settingsTabEditor, panel: options.dom.settingsPanelEditor },
+      autosave: { button: options.dom.settingsTabAutosave, panel: options.dom.settingsPanelAutosave },
+      about: { button: options.dom.settingsTabAbout, panel: options.dom.settingsPanelAbout }
+    },
+    inputs: {
+      showWordCountInput: options.dom.showWordCountInput,
+      showWritingTimeInput: options.dom.showWritingTimeInput,
+      showCurrentFileBarInput: options.dom.showCurrentFileBarInput,
+      smartQuotesInput: options.dom.smartQuotesInput,
+      defaultFileExtensionSelect: options.dom.defaultFileExtensionSelect,
+      gitSnapshotsInput: options.dom.gitSnapshotsInput,
+      gitPushRemoteSelect: options.dom.gitPushRemoteSelect,
+      initializeGitRepoButton: options.dom.initializeGitRepoButton,
+      autosaveIntervalInput: options.dom.autosaveIntervalInput,
+      snapshotMaxSizeInput: options.dom.snapshotMaxSizeInput,
+      lineHeightInput: options.dom.lineHeightInput,
+      paragraphSpacingSelect: options.dom.paragraphSpacingSelect,
+      editorWidthInput: options.dom.editorWidthInput,
+      textZoomInput: options.dom.textZoomInput,
+      themeSelect: options.dom.themeSelect,
+      fontSelect: options.dom.fontSelect
+    },
+    closeTreeContextMenu: options.callbacks.closeTreeContextMenu,
+    persistSettings: options.callbacks.persistSettings,
+    applyEditorLineHeight: options.callbacks.applyEditorLineHeight,
+    applyEditorParagraphSpacing: options.callbacks.applyEditorParagraphSpacing,
+    applyEditorMaxWidth: options.callbacks.applyEditorMaxWidth,
+    applyEditorFont: options.callbacks.applyEditorFont,
+    setEditorZoomFromPercent: options.callbacks.setEditorZoomFromPercent,
+    applyTheme: options.callbacks.applyTheme,
+    refreshEditorLayout: options.callbacks.refreshEditorLayout,
+    showEditorWidthGuides: options.callbacks.showEditorWidthGuides,
+    clearEditorWidthGuides: options.callbacks.clearEditorWidthGuides,
+    beforeOpen: async () => {
+      const metadata = await options.witApi.getActiveProject();
+      if (metadata) {
+        projectStateApplicationController.refreshProjectMetadata(metadata);
+      }
+    },
+    initializeGitRepository: async () => {
+      try {
+        const metadata = await options.witApi.initializeGitRepository();
+        projectStateApplicationController.refreshProjectMetadata(metadata);
+        options.callbacks.setStatus("Git repository initialized.", 1800);
+      } catch {
+        options.callbacks.setStatus("Could not initialize Git repository.");
+      }
+    },
+    setStatus: options.callbacks.setStatus,
+    initialTab: "writing"
   });
 
   const emptyEditorStateController = createEmptyEditorStateController({

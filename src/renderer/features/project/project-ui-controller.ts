@@ -25,6 +25,8 @@ export function createProjectUiController(options: {
   smartQuotesInput: HTMLInputElement;
   gitSnapshotsInput: HTMLInputElement;
   gitPushRemoteSelect: HTMLSelectElement;
+  initializeGitRepoCard: HTMLDivElement;
+  initializeGitRepoButton: HTMLButtonElement;
   gitSnapshotsNotice: HTMLParagraphElement;
   autosaveIntervalInput: HTMLInputElement;
   snapshotMaxSizeInput: HTMLInputElement;
@@ -86,11 +88,24 @@ export function createProjectUiController(options: {
 
   const syncGitSnapshotsAvailability = (project: ProjectMetadata | null): void => {
     const repositoryAvailable = Boolean(project?.isGitRepository);
+    const gitSnapshotsReady = Boolean(project?.isGitRepository && project?.hasGitInitialCommit);
     const remotes = project?.gitRemotes ?? [];
 
-    options.gitSnapshotsInput.disabled = !project || !repositoryAvailable;
-    options.gitSnapshotsNotice.hidden = !project || repositoryAvailable;
-    options.gitPushRemoteSelect.disabled = !project || !repositoryAvailable;
+    options.gitSnapshotsInput.disabled = !project || !gitSnapshotsReady;
+    options.gitSnapshotsNotice.hidden = !project || gitSnapshotsReady;
+    options.gitPushRemoteSelect.disabled = !project || !gitSnapshotsReady;
+    options.initializeGitRepoCard.hidden = !project || repositoryAvailable;
+    options.initializeGitRepoButton.disabled = !project || repositoryAvailable;
+
+    if (!project) {
+      options.gitSnapshotsNotice.textContent = "";
+    } else if (!repositoryAvailable) {
+      options.gitSnapshotsNotice.textContent =
+        "Git snapshots are unavailable because this project is not a Git repository.";
+    } else if (!project.hasGitInitialCommit) {
+      options.gitSnapshotsNotice.textContent =
+        "Git snapshots are unavailable because this repository does not have an initial commit yet.";
+    }
 
     if (!repositoryAvailable) {
       options.gitSnapshotsInput.checked = false;
@@ -120,7 +135,8 @@ export function createProjectUiController(options: {
     options.showWritingTimeInput.checked = settings.showWritingTime;
     options.showCurrentFileBarInput.checked = settings.showCurrentFileBar;
     options.smartQuotesInput.checked = settings.smartQuotes;
-    options.gitSnapshotsInput.checked = settings.gitSnapshots && Boolean(project?.isGitRepository);
+    options.gitSnapshotsInput.checked =
+      settings.gitSnapshots && Boolean(project?.isGitRepository && project?.hasGitInitialCommit);
     options.autosaveIntervalInput.value = String(settings.autosaveIntervalSec);
     options.snapshotMaxSizeInput.value = String(settings.snapshotMaxSizeMb);
     options.applyEditorLineHeight(settings.editorLineHeight);

@@ -3,7 +3,7 @@ import { getLatestSnapshotName } from "../snapshot-service";
 import type { ProjectMetadata } from "../../shared/types";
 import { countWordsInFilesUsingSystemTool } from "../word-count-service";
 import { getLastOpenedFilePath, hasStoredLastOpenedFilePath, loadSettings } from "./project-config";
-import { listGitRemotes, isGitRepository } from "./project-git";
+import { hasGitInitialCommit, listGitRemotes, isGitRepository } from "./project-git";
 import { ensureProjectInitialized } from "./project-init";
 import { listProjectFiles, listProjectFolders } from "./project-files";
 import { getSnapshotDirectory } from "./project-paths";
@@ -27,6 +27,7 @@ export async function getProjectMetadata(projectPath: string): Promise<ProjectMe
     wordCount,
     stats,
     gitRepository,
+    gitInitialCommit,
     gitRemotes,
     latestSnapshotCreatedAt
   ] = await Promise.all([
@@ -38,6 +39,7 @@ export async function getProjectMetadata(projectPath: string): Promise<ProjectMe
     calculateTotalWordCount(projectPath),
     getProjectStats(projectPath),
     isGitRepository(projectPath),
+    hasGitInitialCommit(projectPath),
     listGitRemotes(projectPath),
     getLatestSnapshotName(getSnapshotDirectory(projectPath))
   ]);
@@ -50,6 +52,7 @@ export async function getProjectMetadata(projectPath: string): Promise<ProjectMe
     totalWritingSeconds: stats.totalWritingSeconds,
     latestSnapshotCreatedAt,
     isGitRepository: gitRepository,
+    hasGitInitialCommit: gitInitialCommit,
     gitRemotes,
     settings,
     lastOpenedFilePath,

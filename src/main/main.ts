@@ -15,6 +15,7 @@ import {
   createProjectFolder,
   deleteProjectEntry,
   getProjectMetadata,
+  initializeGitRepository,
   listProjectFiles,
   listProjectFolders,
   moveProjectFile,
@@ -283,6 +284,12 @@ function setupIpcHandlers(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.project.getActive, async () => projectSession.getActiveProject());
+
+  ipcMain.handle(IPC_CHANNELS.project.initializeGitRepository, async () => {
+    const projectPath = projectSession.requireActiveProjectPath();
+    await initializeGitRepository(projectPath);
+    return getProjectMetadata(projectPath);
+  });
 
   ipcMain.handle(IPC_CHANNELS.project.close, async () => projectSession.closeProject());
 
