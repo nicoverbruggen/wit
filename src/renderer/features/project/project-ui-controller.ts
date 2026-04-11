@@ -1,5 +1,14 @@
+/**
+ * Owns: project-scoped UI synchronization for labels, footer stats, and settings availability.
+ * Out of scope: project metadata fetching and editor file session logic.
+ * Inputs/Outputs: DOM nodes plus project/settings data in, sync/render helpers out.
+ * Side effects: mutates visible labels, notice text, and settings control availability.
+ */
 import type { AppSettings, ProjectMetadata } from "../../../shared/types";
 
+/**
+ * Exposes project UI synchronization helpers used across the renderer.
+ */
 export type ProjectUiController = {
   syncProjectPathLabels: (projectPath: string, project: ProjectMetadata | null) => void;
   renderStatusFooter: (project: ProjectMetadata | null) => void;
@@ -8,6 +17,12 @@ export type ProjectUiController = {
   syncSettingsInputs: (settings: AppSettings, project: ProjectMetadata | null) => void;
 };
 
+/**
+ * Creates the controller that maps project metadata into sidebar, footer, and settings UI.
+ *
+ * @param options Project-related DOM nodes and formatting/render hooks.
+ * @returns UI synchronization methods for the active project.
+ */
 export function createProjectUiController(options: {
   sidebarProjectTitle: HTMLHeadingElement;
   projectPathLabel: HTMLSpanElement;

@@ -114,6 +114,20 @@ async function getEditorPlaceholder(page: Page): Promise<string> {
   });
 }
 
+async function getEditorSyntaxState(page: Page): Promise<{ syntax: string; highlightedSpanCount: number }> {
+  return page.evaluate(() => {
+    const editor = document.querySelector("#editor");
+    if (!(editor instanceof HTMLDivElement)) {
+      throw new Error("Editor host is missing.");
+    }
+
+    return {
+      syntax: editor.dataset.syntax ?? "",
+      highlightedSpanCount: editor.querySelectorAll(".cm-line span[class]").length
+    };
+  });
+}
+
 async function getEditorTypography(page: Page): Promise<{ fontSize: number; lineHeight: number }> {
   return page.evaluate(() => {
     const content = document.querySelector("#editor .cm-content");
@@ -1167,6 +1181,28 @@ test.describe("Wit core app flow", () => {
 
     await expect(page.locator("#sidebar-project-title")).toHaveText("No Project");
     await expect(page.locator("body")).toHaveAttribute("data-theme", "light");
+    await app.close();
+  });
+
+  test("CodeMirror enables Markdown syntax support for markdown files only", async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-markdown-editor-"));
+    await fs.writeFile(path.join(projectPath, "notes.md"), "# Heading\n\nThis is **bold** text.\n", "utf8");
+    await fs.writeFile(path.join(projectPath, "plain.txt"), "# Heading\n\nThis is **bold** text.\n", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+
+    await page.click(".file-button:has-text('notes.md')");
+    await expect(page.locator("#active-file-label")).toHaveText("notes.md");
+    const markdownState = await getEditorSyntaxState(page);
+    expect(markdownState.syntax).toBe("markdown");
+    expect(markdownState.highlightedSpanCount).toBeGreaterThan(0);
+
+    await page.click(".file-button:has-text('plain.txt')");
+    await expect(page.locator("#active-file-label")).toHaveText("plain.txt");
+    const plainState = await getEditorSyntaxState(page);
+    expect(plainState.syntax).toBe("plain");
+    expect(plainState.highlightedSpanCount).toBe(0);
+
     await app.close();
   });
 

@@ -1,3 +1,9 @@
+/**
+ * Owns: empty-editor state rendering for no-project and no-file states.
+ * Out of scope: empty-state button event handling and project lifecycle decisions.
+ * Inputs/Outputs: project/file state and DOM nodes in, empty-state render helper out.
+ * Side effects: mutates empty-state copy, buttons, and layout classes.
+ */
 import type { ProjectMetadata } from "../../../shared/types";
 import {
   renderEmptyStateShortcutRows as renderShortcutRows,
@@ -8,6 +14,12 @@ export type EmptyEditorStateController = {
   renderEmptyEditorState: () => void;
 };
 
+/**
+ * Creates the empty-editor state controller.
+ *
+ * @param options Empty-state DOM nodes and renderer state readers.
+ * @returns A renderer helper that refreshes the empty-state presentation.
+ */
 export function createEmptyEditorStateController(options: {
   editorWrap: HTMLElement;
   emptyStateScreen: HTMLDivElement;

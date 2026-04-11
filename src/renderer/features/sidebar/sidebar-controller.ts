@@ -1,3 +1,12 @@
+/**
+ * Owns: sidebar visibility, width, and resize mechanics.
+ * Out of scope: project-aware shell behavior and fullscreen policy.
+ * Inputs/Outputs: shell DOM nodes and width/visibility commands in, sidebar state helpers out.
+ * Side effects: mutates shell classes, CSS variables, window listeners, and localStorage.
+ */
+/**
+ * Exposes low-level sidebar state and resize controls.
+ */
 export type SidebarController = {
   isVisible: () => boolean;
   getWidthPx: () => number;
@@ -27,6 +36,12 @@ export type SidebarController = {
   stopResize: () => void;
 };
 
+/**
+ * Creates the low-level sidebar controller.
+ *
+ * @param options Sidebar DOM elements and sizing configuration.
+ * @returns Imperative sidebar visibility and resize helpers.
+ */
 export function createSidebarController(options: {
   appShell: HTMLElement;
   toggleButton: HTMLButtonElement;

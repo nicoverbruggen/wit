@@ -1,5 +1,14 @@
+/**
+ * Owns: the canonical default project settings used during initialization and fallback reads.
+ * Out of scope: settings validation and persistence.
+ * Inputs/Outputs: none; exports a stable default settings object.
+ * Side effects: none.
+ */
 import type { AppSettings } from "./types";
 
+/**
+ * Defines the default per-project settings used when no persisted values exist.
+ */
 export const DEFAULT_SETTINGS: AppSettings = {
   autosaveIntervalSec: 60,
   theme: "light",

@@ -9,7 +9,7 @@
   "scripts": {
     "clean": "rimraf dist release icon.png",
     "build:icon": "node build/build_icon.mjs",
-    "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js",
+    "build:renderer": "esbuild src/renderer/renderer.ts --bundle --minify --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js",
     "copy:renderer": "copyfiles -u 2 \"src/renderer/**/*.html\" \"src/renderer/**/*.css\" \"src/renderer/assets/**/*\" dist/renderer",
     "copy:font": "copyfiles -u 1 \"font/**/*\" dist/renderer/font",
     "copy:inter": "copyfiles -f \"node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-400-italic.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-500-normal.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-500-italic.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-600-italic.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2\" \"node_modules/@fontsource/inter/files/inter-latin-700-italic.woff2\" dist/renderer/vendor/inter",
@@ -74,6 +74,7 @@
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-markdown": "^6.5.0",
     "@codemirror/search": "^6.6.0",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.41.0",

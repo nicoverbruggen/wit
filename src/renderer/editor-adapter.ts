@@ -1,12 +1,25 @@
+/**
+ * Owns: the renderer-facing editor abstraction shared by CodeMirror and textarea fallbacks.
+ * Out of scope: higher-level file session workflows and project UI state.
+ * Inputs/Outputs: editor commands in, current text/selection and event subscriptions out.
+ * Side effects: mutates the bound editor DOM element.
+ */
+/**
+ * Represents the current editor selection range in document offsets.
+ */
 export type EditorSelection = {
   start: number;
   end: number;
 };
 
+/**
+ * Defines the editor operations consumed by the renderer controllers.
+ */
 export type EditorAdapter = {
   focus: () => void;
   getValue: () => string;
   setValue: (value: string) => void;
+  setSyntaxForFile: (relativePath: string | null) => void;
   setPlaceholder: (value: string) => void;
   setDisabled: (disabled: boolean) => void;
   setLineHeight: (value: number | string) => void;
@@ -22,6 +35,12 @@ export type EditorAdapter = {
   destroy: () => void;
 };
 
+/**
+ * Creates a minimal textarea-backed editor adapter.
+ *
+ * @param element Textarea host element to wrap.
+ * @returns An `EditorAdapter` with the subset of behavior supported by plain textareas.
+ */
 export function createTextareaEditor(element: HTMLTextAreaElement): EditorAdapter {
   return {
     focus: () => {
@@ -31,6 +50,7 @@ export function createTextareaEditor(element: HTMLTextAreaElement): EditorAdapte
     setValue: (value) => {
       element.value = value;
     },
+    setSyntaxForFile: () => {},
     setPlaceholder: (value) => {
       element.placeholder = value;
     },

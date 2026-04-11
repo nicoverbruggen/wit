@@ -1,3 +1,9 @@
+/**
+ * Owns: creation and wiring of the renderer's controller graph.
+ * Out of scope: initial bootstrap sequencing and raw DOM resolution.
+ * Inputs/Outputs: DOM nodes, editor adapter, renderer state hooks, and callbacks in, composed controllers out.
+ * Side effects: constructs controller instances that bind timers, DOM state, and persistence callbacks together.
+ */
 import type { AppSettings, ProjectMetadata } from "../../../shared/types";
 import type { RendererDom } from "./renderer-dom.js";
 import type { EditorAdapter } from "../../editor-adapter.js";
@@ -55,6 +61,12 @@ type WitApiForComposition = {
   getPlatform: () => string;
 };
 
+/**
+ * Creates the full renderer controller composition.
+ *
+ * @param options DOM references, editor adapter, renderer state hooks, and formatting callbacks.
+ * @returns The composed controller graph used by renderer actions and bootstrap.
+ */
 export function createRendererComposition(options: {
   dom: RendererDom;
   body: HTMLElement;
@@ -357,6 +369,9 @@ export function createRendererComposition(options: {
       options.dom.activeFileLabel.textContent = "No file selected";
       options.dom.activeFileLabel.removeAttribute("title");
     },
+    setEditorSyntaxForFile: (relativePath) => {
+      options.editor.setSyntaxForFile(relativePath);
+    },
     clearEditorValueSilently: () => {
       options.state.setSuppressDirtyEvents(true);
       options.editor.setValue("");
@@ -511,6 +526,9 @@ export function createRendererComposition(options: {
     getCurrentFilePath: options.state.getCurrentFilePath,
     getDirty: () => editorDirtyStateController.getDirty(),
     getEditorValue: () => options.editor.getValue(),
+    setEditorSyntaxForFile: (relativePath) => {
+      options.editor.setSyntaxForFile(relativePath);
+    },
     setEditorValueSilently: (content) => {
       options.state.setSuppressDirtyEvents(true);
       options.editor.setValue(content);
@@ -571,6 +589,9 @@ export function createRendererComposition(options: {
   };
 }
 
+/**
+ * Groups the controller instances that make up the renderer runtime.
+ */
 export type RendererComposition = {
   appShellUiController: ReturnType<typeof createAppShellUiController>;
   projectPersistenceController: ReturnType<typeof createProjectPersistenceController>;

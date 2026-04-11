@@ -1,3 +1,9 @@
+/**
+ * Owns: top-level renderer bootstrap orchestration across event binding and first-load initialization.
+ * Out of scope: project metadata persistence and low-level editor implementation.
+ * Inputs/Outputs: composed renderer dependencies in, side-effectful bootstrap wiring out.
+ * Side effects: binds global listeners and starts renderer initialization.
+ */
 import type { AppSettings, ProjectMetadata, TreeContextAction } from "../../../shared/types";
 import type { ProjectTreeControllerState } from "../project-tree/project-tree-controller.js";
 import type { ProjectTreeSelectionKind } from "../project-tree/project-tree-view.js";
@@ -36,6 +42,11 @@ type WitApiForInitialization = {
   onFullscreenChanged: (handler: (isFullscreen: boolean) => void) => () => void;
 };
 
+/**
+ * Boots the renderer after composition and actions are available.
+ *
+ * @param options Composed renderer dependencies and callback adapters.
+ */
 export function bootstrapAppController(options: {
   body: HTMLElement;
   witApi: WitApiForBootstrap & WitApiForInitialization;

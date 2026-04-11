@@ -1,6 +1,20 @@
+/**
+ * Owns: renderer-side validation and path resolution for new files, folders, and deletions.
+ * Out of scope: filesystem writes and project tree rendering.
+ * Inputs/Outputs: project state plus raw UI input in, normalized path decisions out.
+ * Side effects: none.
+ */
 import type { ProjectMetadata } from "../shared/types";
 import { normalizeDefaultFileExtension, normalizePathInput, pathEquals } from "../shared/utils.js";
 
+/**
+ * Resolves a new file path from dialog input and current project state.
+ *
+ * @param project Active project metadata, if any.
+ * @param rawInput User-entered file path.
+ * @param selectedFolder Currently selected folder, if any.
+ * @returns A normalized relative path or a user-facing validation error.
+ */
 export function resolveNewFilePath(
   project: ProjectMetadata | null,
   rawInput: string,
@@ -41,6 +55,14 @@ export function resolveNewFilePath(
   return { relativePath, error: null };
 }
 
+/**
+ * Resolves a new folder path from dialog input and current project state.
+ *
+ * @param project Active project metadata, if any.
+ * @param rawInput User-entered folder path.
+ * @param selectedFolder Currently selected folder, if any.
+ * @returns A normalized relative path or a user-facing validation error.
+ */
 export function resolveNewFolderPath(
   project: ProjectMetadata | null,
   rawInput: string,
@@ -72,6 +94,14 @@ export function resolveNewFolderPath(
   return { relativePath, error: null };
 }
 
+/**
+ * Determines whether deleting an entry would remove the currently open file.
+ *
+ * @param currentFilePath Active file path, if any.
+ * @param relativePath Path being deleted.
+ * @param kind Whether the deletion target is a file or folder.
+ * @returns `true` when the open file would be deleted directly or via folder removal.
+ */
 export function currentFileWillBeDeleted(
   currentFilePath: string | null,
   relativePath: string,

@@ -1,10 +1,25 @@
+/**
+ * Owns: queued persistence of project settings and last-opened-file state.
+ * Out of scope: settings dialog event wiring and metadata loading.
+ * Inputs/Outputs: persistence callbacks and project state readers in, persistence actions out.
+ * Side effects: writes persisted project state and mutates the active in-memory project metadata.
+ */
 import type { AppSettings, ProjectMetadata } from "../../../shared/types";
 
+/**
+ * Exposes persistence helpers for project-bound settings state.
+ */
 export type ProjectPersistenceController = {
   persistLastOpenedFilePath: (relativePath: string | null) => Promise<void>;
   persistSettings: (update: Partial<AppSettings>) => Promise<void>;
 };
 
+/**
+ * Creates the project persistence controller.
+ *
+ * @param options Persistence APIs and renderer sync hooks.
+ * @returns Actions for persisting settings and last-opened-file state.
+ */
 export function createProjectPersistenceController(options: {
   getProject: () => ProjectMetadata | null;
   setLastOpenedFilePath: (relativePath: string | null) => Promise<string | null>;

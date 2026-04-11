@@ -1,3 +1,9 @@
+/**
+ * Owns: Git repository detection and lightweight Git setup for a project path.
+ * Out of scope: project metadata aggregation and snapshot orchestration.
+ * Inputs/Outputs: project-root paths in, repository state or remote names out.
+ * Side effects: reads `.git`, runs Git commands, and may write local Git config/commits.
+ */
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import { execFile } from "node:child_process";
@@ -18,6 +24,12 @@ export async function isGitRepository(projectPath: string): Promise<boolean> {
   }
 }
 
+/**
+ * Reports whether the repository at `projectPath` already has a reachable `HEAD`.
+ *
+ * @param projectPath Absolute project root to inspect.
+ * @returns `true` only when the path is a Git repository with at least one commit.
+ */
 export async function hasGitInitialCommit(projectPath: string): Promise<boolean> {
   if (!(await isGitRepository(projectPath))) {
     return false;
@@ -61,6 +73,12 @@ async function createInitialCommit(projectPath: string): Promise<void> {
   await execGit(projectPath, ["commit", "--allow-empty", "-m", "Initial commit", "--quiet"]);
 }
 
+/**
+ * Initializes Git for the project and ensures an initial commit exists.
+ *
+ * @param projectPath Absolute project root to initialize.
+ * @returns Resolves when the repository and initial commit are ready for snapshot commits.
+ */
 export async function initializeGitRepository(projectPath: string): Promise<void> {
   if (!(await isGitRepository(projectPath))) {
     await execGit(projectPath, ["init", "--quiet"]);
@@ -69,6 +87,12 @@ export async function initializeGitRepository(projectPath: string): Promise<void
   await createInitialCommit(projectPath);
 }
 
+/**
+ * Lists configured Git remotes for a project in stable alphabetical order.
+ *
+ * @param projectPath Absolute project root to inspect.
+ * @returns Remote names, or an empty list when Git is unavailable or unconfigured.
+ */
 export async function listGitRemotes(projectPath: string): Promise<string[]> {
   if (!(await isGitRepository(projectPath))) {
     return [];

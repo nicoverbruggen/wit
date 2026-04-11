@@ -1,11 +1,26 @@
+/**
+ * Owns: editor input/keydown/blur behavior that translates raw editor events into renderer actions.
+ * Out of scope: low-level editor implementation and file persistence internals.
+ * Inputs/Outputs: editor state accessors and callbacks in, editor event handlers out.
+ * Side effects: triggers save requests, smart-quote replacements, and sidebar fade state changes.
+ */
 import { computeSmartQuoteReplacement, isSmartQuoteCharacter } from "./smart-quotes.js";
 
+/**
+ * Exposes editor event handlers bound by the renderer bootstrap.
+ */
 export type EditorInteractionsController = {
   onEditorInput: () => void;
   onEditorBlur: () => void;
   onEditorKeydown: (event: KeyboardEvent) => void;
 };
 
+/**
+ * Creates the editor interactions controller.
+ *
+ * @param options Editor state accessors and event-side-effect hooks.
+ * @returns Stable handlers for input, blur, and keydown events.
+ */
 export function createEditorInteractionsController(options: {
   getSuppressDirtyEvents: () => boolean;
   setSuppressDirtyEvents: (value: boolean) => void;

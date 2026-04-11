@@ -1,3 +1,9 @@
+/**
+ * Owns: active-project session state, reopen-on-launch persistence, and snapshot tick orchestration.
+ * Out of scope: direct file mutation APIs and renderer UI state.
+ * Inputs/Outputs: project paths and autosave requests in, active project metadata and snapshot results out.
+ * Side effects: reads and writes user-data state, initializes projects, and creates snapshots.
+ */
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import {
@@ -74,6 +80,12 @@ function buildSnapshotOptions(
   };
 }
 
+/**
+ * Creates the main-process project session service.
+ *
+ * @param options Session storage dependencies.
+ * @returns Active-project session helpers used by IPC handlers.
+ */
 export function createProjectSessionService(options: ProjectSessionServiceOptions) {
   let activeProjectPath: string | null = null;
 

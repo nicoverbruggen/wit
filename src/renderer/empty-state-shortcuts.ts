@@ -1,8 +1,24 @@
+/**
+ * Owns: empty-state shortcut label formatting and row rendering.
+ * Out of scope: empty-state visibility rules and shortcut dispatch.
+ * Inputs/Outputs: shortcut metadata in, formatted labels and DOM rows out.
+ * Side effects: mutates the provided list element.
+ */
+/**
+ * Describes one shortcut row shown in the empty state.
+ */
 export type EmptyStateShortcut = {
   label: string;
   key: string;
 };
 
+/**
+ * Formats the primary modifier for the current platform.
+ *
+ * @param key Shortcut key without the modifier.
+ * @param platform Platform identifier from the preload API.
+ * @returns A platform-appropriate shortcut label.
+ */
 export function formatPrimaryShortcut(key: string, platform: string): string {
   return platform === "darwin" ? `Cmd+${key}` : `Ctrl+${key}`;
 }
@@ -35,6 +51,12 @@ function parseShortcutAlternatives(shortcut: string): string[][] {
   });
 }
 
+/**
+ * Renders shortcut rows into the empty-state list.
+ *
+ * @param listElement Target list element.
+ * @param shortcuts Shortcut rows to render.
+ */
 export function renderEmptyStateShortcutRows(
   listElement: HTMLUListElement,
   shortcuts: EmptyStateShortcut[]

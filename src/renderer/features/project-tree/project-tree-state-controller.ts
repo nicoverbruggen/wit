@@ -1,3 +1,9 @@
+/**
+ * Owns: project-tree selection, collapse state, drag source state, and render orchestration.
+ * Out of scope: tree DOM event binding and project mutation behavior.
+ * Inputs/Outputs: project/tree readers and callbacks in, tree state helpers out.
+ * Side effects: mutates localStorage-backed collapsed-folder state and triggers tree rendering.
+ */
 import type { ProjectMetadata } from "../../../shared/types";
 import {
   createProjectTreeRenderCallbacks,
@@ -8,6 +14,9 @@ import {
   type ProjectTreeSelectionKind
 } from "./project-tree-view.js";
 
+/**
+ * Exposes project-tree state and render helpers.
+ */
 export type ProjectTreeStateController = {
   state: ProjectTreeControllerState;
   setSelectedTree: (relativePath: string | null, kind: ProjectTreeSelectionKind | null) => void;
@@ -20,6 +29,12 @@ export type ProjectTreeStateController = {
   setDragSourceFilePath: (value: string | null) => void;
 };
 
+/**
+ * Creates the project-tree state controller.
+ *
+ * @param options Project readers and callbacks used for tree rendering and navigation.
+ * @returns Tree state helpers used by composition and event bindings.
+ */
 export function createProjectTreeStateController(options: {
   fileList: HTMLUListElement;
   maxTreeIndent: number;

@@ -1,3 +1,9 @@
+/**
+ * Owns: CodeMirror editor construction, syntax mode switching, and low-level editor events.
+ * Out of scope: file lifecycle, autosave, and project-level UI state.
+ * Inputs/Outputs: host DOM element in, `EditorAdapter` commands and subscriptions out.
+ * Side effects: creates a CodeMirror view and mutates host dataset/style state.
+ */
 import {
   Compartment,
   EditorSelection as CodeMirrorSelection,
@@ -6,6 +12,8 @@ import {
   RangeSetBuilder
 } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { markdown } from "@codemirror/lang-markdown";
+import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
 import {
   Decoration,
@@ -71,10 +79,17 @@ const paragraphSpacingField = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field)
 });
 
+/**
+ * Creates the CodeMirror-backed editor adapter used by the renderer.
+ *
+ * @param host Host element that receives the CodeMirror view.
+ * @returns An `EditorAdapter` bridged onto the CodeMirror instance.
+ */
 export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
   const placeholderCompartment = new Compartment();
   const editableCompartment = new Compartment();
   const readOnlyCompartment = new Compartment();
+  const languageCompartment = new Compartment();
   const inputListeners = new Set<() => void>();
   const keydownListeners = new Set<(event: KeyboardEvent) => void>();
   const blurListeners = new Set<() => void>();
@@ -90,7 +105,9 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
         drawSelection(),
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         paragraphSpacingField,
+        languageCompartment.of([]),
         editableCompartment.of(EditorView.editable.of(false)),
         readOnlyCompartment.of(EditorState.readOnly.of(true)),
         placeholderCompartment.of(placeholder("")),
@@ -126,6 +143,20 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
 
   host.classList.add("codemirror-editor-host");
 
+  const setSyntaxForFile = (relativePath: string | null): void => {
+    const normalizedPath = relativePath?.toLowerCase() ?? "";
+    const extension = normalizedPath.slice(normalizedPath.lastIndexOf("."));
+    const isMarkdown = extension === ".md" || extension === ".markdown";
+    const language = isMarkdown ? markdown() : [];
+
+    view.dispatch({
+      effects: languageCompartment.reconfigure(language)
+    });
+    host.dataset.syntax = isMarkdown ? "markdown" : "plain";
+  };
+
+  setSyntaxForFile(null);
+
   return {
     focus: () => {
       view.focus();
@@ -137,6 +168,7 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
         selection: CodeMirrorSelection.cursor(0)
       });
     },
+    setSyntaxForFile,
     setPlaceholder: (value) => {
       view.dispatch({
         effects: placeholderCompartment.reconfigure(placeholder(value))

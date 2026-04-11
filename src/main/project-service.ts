@@ -1,3 +1,9 @@
+/**
+ * Owns: the public barrel for main-process project service helpers.
+ * Out of scope: service implementation details.
+ * Inputs/Outputs: none; re-exports project service APIs for main-process consumers.
+ * Side effects: none.
+ */
 export { ensureProjectInitialized } from "./project-service/project-init";
 
 export {

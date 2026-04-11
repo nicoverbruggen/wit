@@ -1,3 +1,15 @@
+/**
+ * Owns: small presentation formatters for writing time and snapshot labels.
+ * Out of scope: DOM rendering and locale-specific formatting beyond simple labels.
+ * Inputs/Outputs: numeric counters or timestamp strings in, formatted labels out.
+ * Side effects: none.
+ */
+/**
+ * Formats accumulated writing time for the footer.
+ *
+ * @param totalSeconds Total tracked writing seconds.
+ * @returns A compact hours/minutes string.
+ */
 export function formatWritingTime(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -9,6 +21,12 @@ export function formatWritingTime(totalSeconds: number): string {
   return `${minutes}m`;
 }
 
+/**
+ * Formats elapsed milliseconds into a relative label for snapshot status.
+ *
+ * @param milliseconds Elapsed time since the snapshot.
+ * @returns A compact human-readable relative string.
+ */
 export function formatRelativeElapsed(milliseconds: number): string {
   const seconds = Math.max(0, Math.floor(milliseconds / 1000));
 
@@ -34,6 +52,12 @@ export function formatRelativeElapsed(milliseconds: number): string {
   return `${days}d ago`;
 }
 
+/**
+ * Parses a snapshot filename timestamp into epoch milliseconds.
+ *
+ * @param snapshotName Snapshot base name in the app's timestamp format.
+ * @returns Epoch milliseconds, or `null` when the name is invalid.
+ */
 export function parseSnapshotTimestamp(snapshotName: string): number | null {
   const matches = snapshotName.match(
     /^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})(?:-(\d{3}))?Z$/

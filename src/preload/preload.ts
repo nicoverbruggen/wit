@@ -1,3 +1,9 @@
+/**
+ * Owns: preload-side IPC bridge exposure for the sandboxed renderer.
+ * Out of scope: main-process IPC handlers and renderer state management.
+ * Inputs/Outputs: Electron IPC requests in, a typed `witApi` object on `window` out.
+ * Side effects: registers IPC listeners and exposes the preload API via `contextBridge`.
+ */
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import type { Unsubscribe, WitApi } from "../shared/ipc";

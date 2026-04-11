@@ -1,7 +1,25 @@
+/**
+ * Owns: editor font stack construction and font select population/discovery helpers.
+ * Out of scope: applying fonts to editor UI or persisting font choices.
+ * Inputs/Outputs: font family names and select elements in, resolved options and family lists out.
+ * Side effects: mutates the provided font select element.
+ */
+/**
+ * Builds the CSS font-family stack used for a selected editor font.
+ *
+ * @param fontFamily Primary editor font family.
+ * @returns A serif fallback stack prefixed with the requested family.
+ */
 export function buildEditorFontStack(fontFamily: string): string {
   return `"${fontFamily}", "Palatino", "Times New Roman", serif`;
 }
 
+/**
+ * Populates the editor font select with built-in and discovered system fonts.
+ *
+ * @param options Select population inputs and current selection state.
+ * @returns The resolved selected font after population.
+ */
 export function populateFontSelect(options: {
   select: HTMLSelectElement;
   builtInFonts: readonly string[];
@@ -60,6 +78,13 @@ type WindowWithLocalFonts = Window & {
   queryLocalFonts?: () => Promise<LocalFontData[]>;
 };
 
+/**
+ * Loads local font family names when the browser environment supports it.
+ *
+ * @param windowRef Window used to query local fonts.
+ * @param builtInFonts Built-in font names that should be excluded from the system section.
+ * @returns Sorted unique system font families, or an empty list when unavailable.
+ */
 export async function loadSystemFontFamilies(
   windowRef: Window,
   builtInFonts: readonly string[]

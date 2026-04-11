@@ -1,6 +1,15 @@
+/**
+ * Owns: project-aware sidebar UI behavior and fullscreen toggle synchronization.
+ * Out of scope: low-level resize mechanics and shell control rendering.
+ * Inputs/Outputs: sidebar controller state plus project/fullscreen readers in, sidebar UI helpers out.
+ * Side effects: mutates sidebar visibility/fade state and fullscreen button attributes.
+ */
 import type { ProjectMetadata } from "../../../shared/types";
 import type { SidebarController } from "./sidebar-controller.js";
 
+/**
+ * Exposes sidebar UI helpers used by renderer actions.
+ */
 export type SidebarUiController = {
   setSidebarFaded: (nextFaded: boolean) => void;
   loadSidebarWidthPreference: () => void;
@@ -12,6 +21,12 @@ export type SidebarUiController = {
   beginSidebarResize: (pointerClientX: number) => void;
 };
 
+/**
+ * Creates the sidebar UI controller.
+ *
+ * @param options Sidebar controller, shell buttons, and project/fullscreen state hooks.
+ * @returns Project-aware sidebar visibility and fullscreen helpers.
+ */
 export function createSidebarUiController(options: {
   sidebarController: SidebarController;
   fullscreenToggleButton: HTMLButtonElement;

@@ -1,3 +1,12 @@
+/**
+ * Owns: DOM lookup and typed element resolution for the renderer shell.
+ * Out of scope: event binding and UI state synchronization.
+ * Inputs/Outputs: document IDs/selectors in, typed DOM references out.
+ * Side effects: throws when required renderer elements are missing.
+ */
+/**
+ * Captures the required renderer DOM elements.
+ */
 export type RendererDom = {
   openProjectButton: HTMLButtonElement;
   openProjectWrap: HTMLElement;
@@ -101,6 +110,12 @@ function getBySelector<T extends HTMLElement>(selector: string): T {
   return element as T;
 }
 
+/**
+ * Resolves and validates the renderer DOM structure.
+ *
+ * @returns Typed references to all required renderer elements.
+ * @throws When any required element is missing from the document.
+ */
 export function resolveRendererDom(): RendererDom {
   return {
     openProjectButton: getById("open-project-btn"),

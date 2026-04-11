@@ -89,6 +89,7 @@ export async function openFileInEditorSession(options: {
   cancelPendingLiveWordCount: () => void;
   openFile: (relativePath: string) => Promise<string>;
   countPreviewWords: (text: string) => Promise<number>;
+  setEditorSyntaxForFile: (relativePath: string | null) => void;
   setEditorValueSilently: (content: string) => void;
   setCurrentFilePath: (relativePath: string) => void;
   setSelectedTreeToFile: (relativePath: string) => void;
@@ -117,6 +118,7 @@ export async function openFileInEditorSession(options: {
     options.cancelPendingLiveWordCount();
     const content = await options.openFile(options.relativePath);
 
+    options.setEditorSyntaxForFile(options.relativePath);
     options.setEditorValueSilently(content);
     options.setCurrentFilePath(options.relativePath);
     options.setSelectedTreeToFile(options.relativePath);

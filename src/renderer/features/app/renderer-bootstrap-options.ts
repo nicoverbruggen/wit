@@ -1,3 +1,9 @@
+/**
+ * Owns: assembly of the option bag passed into renderer bootstrap.
+ * Out of scope: bootstrap execution and event handling logic itself.
+ * Inputs/Outputs: composition, actions, and DOM subsets in, a normalized bootstrap options object out.
+ * Side effects: none.
+ */
 import type { AppSettings, ProjectMetadata, TreeContextAction } from "../../../shared/types";
 import type { ProjectTreeSelectionKind } from "../project-tree/project-tree-view.js";
 import type { EditorAdapter } from "../../editor-adapter.js";
@@ -5,6 +11,12 @@ import type { RendererComposition } from "./renderer-composition.js";
 import type { RendererActions } from "./renderer-actions.js";
 import type { RendererDom } from "./renderer-dom.js";
 
+/**
+ * Builds the normalized bootstrap options used to wire the renderer.
+ *
+ * @param options Composition, actions, DOM references, and formatting helpers.
+ * @returns A single object consumed by `bootstrapAppController`.
+ */
 export function createRendererBootstrapOptions(options: {
   body: HTMLElement;
   witApi: {

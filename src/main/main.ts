@@ -1,3 +1,9 @@
+/**
+ * Owns: Electron main-process startup, window creation, menus, and IPC handler registration.
+ * Out of scope: project service implementation details and renderer UI state.
+ * Inputs/Outputs: Electron lifecycle events and IPC requests in, app windows and IPC responses out.
+ * Side effects: creates windows, registers menus/context menus, and performs filesystem-backed project actions.
+ */
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import {

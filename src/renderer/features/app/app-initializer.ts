@@ -1,3 +1,9 @@
+/**
+ * Owns: first-load renderer initialization after composition is created.
+ * Out of scope: low-level DOM event binding and ongoing renderer action orchestration.
+ * Inputs/Outputs: preload API, DOM defaults, and renderer callbacks in, initialized UI state out.
+ * Side effects: mutates global body state, subscribes to menu events, and kicks off font discovery.
+ */
 import type { AppSettings, ProjectMetadata } from "../../../shared/types";
 
 type WitApiForInitialization = {
@@ -13,6 +19,11 @@ type WitApiForInitialization = {
   onFullscreenChanged: (handler: (isFullscreen: boolean) => void) => () => void;
 };
 
+/**
+ * Performs one-time renderer initialization after bootstrap wiring is ready.
+ *
+ * @param options Renderer defaults, preload API access, and state/application hooks.
+ */
 export async function initializeApp(options: {
   body: HTMLElement;
   witApi: WitApiForInitialization;

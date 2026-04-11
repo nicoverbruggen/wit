@@ -1,3 +1,9 @@
+/**
+ * Owns: renderer entrypoint setup after DOM load.
+ * Out of scope: controller implementation details and preload IPC internals.
+ * Inputs/Outputs: resolved DOM and preload API in, bootstrapped renderer runtime out.
+ * Side effects: creates the editor, composition, actions, and bootstrap wiring.
+ */
 import type { ProjectMetadata } from "../shared/types";
 import { normalizeEditorParagraphSpacing } from "../shared/utils.js";
 import { formatRelativeElapsed, formatWritingTime, parseSnapshotTimestamp } from "./formatting.js";

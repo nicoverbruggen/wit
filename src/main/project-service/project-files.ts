@@ -1,3 +1,9 @@
+/**
+ * Owns: project file and folder traversal plus filesystem mutations constrained to the project root.
+ * Out of scope: project settings/stats persistence and metadata aggregation.
+ * Inputs/Outputs: project-relative paths in, file contents, listings, or normalized paths out.
+ * Side effects: reads, writes, renames, and deletes project files and folders on disk.
+ */
 import path from "node:path";
 import { mkdirSync, promises as fs, writeFileSync } from "node:fs";
 import { normalizePathInput, pathEquals } from "../../shared/utils";
@@ -43,23 +49,49 @@ async function walkProjectFolders(projectPath: string, currentPath: string, resu
   }
 }
 
+/**
+ * Lists supported text files in the project.
+ *
+ * @param projectPath Absolute project root.
+ * @returns Sorted relative file paths.
+ */
 export async function listProjectFiles(projectPath: string): Promise<string[]> {
   const files: string[] = [];
   await walkTextFiles(projectPath, projectPath, files);
   return files.sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * Lists folders in the project, excluding ignored directories.
+ *
+ * @param projectPath Absolute project root.
+ * @returns Sorted relative folder paths.
+ */
 export async function listProjectFolders(projectPath: string): Promise<string[]> {
   const folders: string[] = [];
   await walkProjectFolders(projectPath, projectPath, folders);
   return folders.sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * Reads a project file as UTF-8 text.
+ *
+ * @param projectPath Absolute project root.
+ * @param relativePath Relative file path to read.
+ * @returns The file contents.
+ */
 export async function readProjectFile(projectPath: string, relativePath: string): Promise<string> {
   const absolutePath = ensureInsideProject(projectPath, relativePath);
   return fs.readFile(absolutePath, "utf8");
 }
 
+/**
+ * Saves a project file asynchronously, creating parent folders when needed.
+ *
+ * @param projectPath Absolute project root.
+ * @param relativePath Relative file path to save.
+ * @param content UTF-8 text content to write.
+ */
 export async function saveProjectFile(
   projectPath: string,
   relativePath: string,
@@ -70,6 +102,13 @@ export async function saveProjectFile(
   await fs.writeFile(absolutePath, content, "utf8");
 }
 
+/**
+ * Saves a project file synchronously during shutdown.
+ *
+ * @param projectPath Absolute project root.
+ * @param relativePath Relative file path to save.
+ * @param content UTF-8 text content to write.
+ */
 export function saveProjectFileSync(projectPath: string, relativePath: string, content: string): void {
   const absolutePath = ensureInsideProject(projectPath, relativePath);
   const parentDirectory = path.dirname(absolutePath);
@@ -82,6 +121,13 @@ export function saveProjectFileSync(projectPath: string, relativePath: string, c
   writeFileSync(absolutePath, content, "utf8");
 }
 
+/**
+ * Creates a new supported text file inside the project.
+ *
+ * @param projectPath Absolute project root.
+ * @param relativePath Relative file path to create.
+ * @param initialContent Initial file contents.
+ */
 export async function createProjectFile(
   projectPath: string,
   relativePath: string,
@@ -108,6 +154,12 @@ export async function createProjectFile(
   await fs.writeFile(absolutePath, initialContent, "utf8");
 }
 
+/**
+ * Creates a new folder inside the project.
+ *
+ * @param projectPath Absolute project root.
+ * @param relativePath Relative folder path to create.
+ */
 export async function createProjectFolder(projectPath: string, relativePath: string): Promise<void> {
   const normalized = relativePath.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
   if (!normalized) {
@@ -129,6 +181,13 @@ export async function createProjectFolder(projectPath: string, relativePath: str
   await fs.mkdir(absolutePath, { recursive: true });
 }
 
+/**
+ * Deletes a file or folder from the project.
+ *
+ * @param projectPath Absolute project root.
+ * @param relativePath Relative entry path to delete.
+ * @param kind Expected entry kind.
+ */
 export async function deleteProjectEntry(
   projectPath: string,
   relativePath: string,
@@ -169,6 +228,14 @@ export async function deleteProjectEntry(
   await fs.rm(absolutePath, { recursive: true, force: false });
 }
 
+/**
+ * Moves a file into another folder inside the project.
+ *
+ * @param projectPath Absolute project root.
+ * @param fromRelativePath Source file path.
+ * @param toFolderRelativePath Destination folder path, or empty for the project root.
+ * @returns The destination relative file path.
+ */
 export async function moveProjectFile(
   projectPath: string,
   fromRelativePath: string,
@@ -239,6 +306,15 @@ export async function moveProjectFile(
   return targetRelativePath;
 }
 
+/**
+ * Renames a file or folder inside the project.
+ *
+ * @param projectPath Absolute project root.
+ * @param relativePath Existing relative path.
+ * @param kind Expected entry kind.
+ * @param nextRelativePath New relative path.
+ * @returns The normalized final relative path.
+ */
 export async function renameProjectEntry(
   projectPath: string,
   relativePath: string,

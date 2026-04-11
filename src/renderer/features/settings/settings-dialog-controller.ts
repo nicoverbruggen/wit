@@ -1,3 +1,9 @@
+/**
+ * Owns: settings dialog tab state, input wiring, and settings-triggered side effects.
+ * Out of scope: project metadata fetching and persistence implementation details.
+ * Inputs/Outputs: dialog DOM nodes and callbacks in, dialog control methods out.
+ * Side effects: mutates dialog visibility, editor presentation settings, and persisted project settings.
+ */
 import type { AppSettings } from "../../../shared/types";
 import {
   normalizeDefaultFileExtension,
@@ -42,6 +48,12 @@ export type SettingsDialogController = {
   destroy: () => void;
 };
 
+/**
+ * Creates the settings dialog controller and binds its UI events.
+ *
+ * @param options Dialog DOM, settings inputs, and persistence/render hooks.
+ * @returns Imperative settings dialog controls used by the renderer composition.
+ */
 export function createSettingsDialogController(options: {
   dialog: HTMLDialogElement;
   toggleButton: HTMLButtonElement;

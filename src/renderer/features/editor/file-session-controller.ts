@@ -1,3 +1,9 @@
+/**
+ * Owns: editor file-session orchestration for open/save/autosave behavior.
+ * Out of scope: editor rendering internals and project metadata loading.
+ * Inputs/Outputs: session callbacks and state accessors in, file-session actions out.
+ * Side effects: updates editor state, project counters, autosave status, and persisted file selection.
+ */
 import type { ProjectMetadata } from "../../../shared/types";
 import { openFileInEditorSession, persistCurrentFileInSession, saveCurrentFileSynchronouslyInSession } from "./editor-session.js";
 
@@ -22,12 +28,19 @@ export type FileSessionController = {
   runAutosaveTick: () => Promise<void>;
 };
 
+/**
+ * Creates the file-session controller that coordinates editor persistence and file switching.
+ *
+ * @param options Session dependencies and renderer state hooks.
+ * @returns File-session actions used by the renderer composition.
+ */
 export function createFileSessionController(options: {
   liveWordCountTracker: LiveWordCountTracker;
   getProject: () => ProjectMetadata | null;
   getCurrentFilePath: () => string | null;
   getDirty: () => boolean;
   getEditorValue: () => string;
+  setEditorSyntaxForFile: (relativePath: string | null) => void;
   setEditorValueSilently: (content: string) => void;
   setCurrentFilePath: (nextPath: string | null) => void;
   setSelectedTreeToFile: (nextPath: string) => void;
@@ -145,6 +158,7 @@ export function createFileSessionController(options: {
       cancelPendingLiveWordCount,
       openFile: options.openFileApi,
       countPreviewWords: options.countPreviewWords,
+      setEditorSyntaxForFile: options.setEditorSyntaxForFile,
       setEditorValueSilently: options.setEditorValueSilently,
       setCurrentFilePath: (nextPath) => {
         options.setCurrentFilePath(nextPath);

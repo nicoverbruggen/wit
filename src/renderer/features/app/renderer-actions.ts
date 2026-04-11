@@ -1,3 +1,9 @@
+/**
+ * Owns: the renderer action surface that translates composition internals into stable operations.
+ * Out of scope: DOM event binding and controller construction.
+ * Inputs/Outputs: composition/state readers in, imperative renderer actions out.
+ * Side effects: delegates to composed controllers and mutates renderer state through them.
+ */
 import type { AppSettings, ProjectMetadata, TreeContextAction } from "../../../shared/types";
 import type { RendererComposition } from "./renderer-composition.js";
 
@@ -62,6 +68,9 @@ type RendererCompositionCallbacks = {
   persistSettings: (update: Partial<AppSettings>) => Promise<void>;
 };
 
+/**
+ * Exposes the normalized action surface used across renderer bootstrap and composition.
+ */
 export type RendererActions = {
   getProject: () => ProjectMetadata | null;
   setProjectState: (nextProject: ProjectMetadata | null) => void;
@@ -126,6 +135,12 @@ export type RendererActions = {
   compositionCallbacks: RendererCompositionCallbacks;
 };
 
+/**
+ * Creates the renderer action facade over the composed controllers.
+ *
+ * @param options Renderer state readers, composition access, and formatting helpers.
+ * @returns Stable renderer actions plus callback adapters for composition wiring.
+ */
 export function createRendererActions(options: RendererActionsOptions): RendererActions {
   const requireComposition = (): RendererComposition => {
     const composition = options.getComposition();

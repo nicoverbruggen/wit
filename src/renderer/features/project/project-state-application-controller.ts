@@ -1,11 +1,26 @@
+/**
+ * Owns: applying project metadata into renderer state and resetting file-specific editor state.
+ * Out of scope: project selection, persistence, and entry mutation workflows.
+ * Inputs/Outputs: metadata/state hooks in, project-state application actions out.
+ * Side effects: mutates renderer state, editor presentation state, and sidebar visibility.
+ */
 import type { AppSettings, ProjectMetadata } from "../../../shared/types";
 
+/**
+ * Exposes renderer actions that replace or refresh project-bound UI state.
+ */
 export type ProjectStateApplicationController = {
   resetActiveFile: () => void;
   applyProjectMetadata: (metadata: ProjectMetadata) => void;
   refreshProjectMetadata: (metadata: ProjectMetadata) => void;
 };
 
+/**
+ * Creates the controller responsible for applying project metadata to the renderer.
+ *
+ * @param options Renderer state setters and UI synchronization callbacks.
+ * @returns Actions for full project application and lighter metadata refreshes.
+ */
 export function createProjectStateApplicationController(options: {
   defaultEditorPlaceholder: string;
   getIsWindowFullscreen: () => boolean;
@@ -13,6 +28,7 @@ export function createProjectStateApplicationController(options: {
   setCurrentFilePathState: (nextFilePath: string | null) => void;
   resetCurrentFileWordCount: () => void;
   clearActiveFileLabel: () => void;
+  setEditorSyntaxForFile: (relativePath: string | null) => void;
   clearEditorValueSilently: () => void;
   setEditorPlaceholder: (value: string) => void;
   setDirty: (nextDirty: boolean) => void;
@@ -37,6 +53,7 @@ export function createProjectStateApplicationController(options: {
     options.setCurrentFilePathState(null);
     options.resetCurrentFileWordCount();
     options.clearActiveFileLabel();
+    options.setEditorSyntaxForFile(null);
     options.clearEditorValueSilently();
     options.setEditorPlaceholder(options.defaultEditorPlaceholder);
     options.setDirty(false);

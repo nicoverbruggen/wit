@@ -1,3 +1,9 @@
+/**
+ * Owns: DOM and window event binding for the renderer shell and editor host.
+ * Out of scope: event handler business logic and project state persistence internals.
+ * Inputs/Outputs: DOM nodes and callback adapters in, listener side effects out.
+ * Side effects: registers global/window listeners and renderer cleanup hooks.
+ */
 import type { TreeContextAction } from "../../../shared/types";
 import {
   bindProjectTreeContextMenuController,
@@ -12,6 +18,11 @@ type EditorEventAdapter = {
   destroy: () => void;
 };
 
+/**
+ * Binds renderer DOM events to the supplied action callbacks.
+ *
+ * @param options DOM nodes, renderer state, and action callbacks to connect.
+ */
 export function bindAppEventBindings(options: {
   openProjectButton: HTMLButtonElement;
   emptyStatePrimaryButton: HTMLButtonElement;

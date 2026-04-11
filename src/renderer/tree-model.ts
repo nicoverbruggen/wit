@@ -1,3 +1,12 @@
+/**
+ * Owns: conversion from flat project file/folder paths into a nested tree model.
+ * Out of scope: DOM rendering and tree interaction state.
+ * Inputs/Outputs: flat relative path arrays in, sorted tree nodes out.
+ * Side effects: none.
+ */
+/**
+ * Represents a folder node in the sidebar tree model.
+ */
 export type FolderNode = {
   kind: "folder";
   name: string;
@@ -5,12 +14,18 @@ export type FolderNode = {
   children: TreeNode[];
 };
 
+/**
+ * Represents a file node in the sidebar tree model.
+ */
 export type FileNode = {
   kind: "file";
   name: string;
   relativePath: string;
 };
 
+/**
+ * Represents any node in the sidebar tree model.
+ */
 export type TreeNode = FolderNode | FileNode;
 
 function compareTreeNodes(left: TreeNode, right: TreeNode): number {
@@ -107,6 +122,13 @@ function sortTree(nodes: TreeNode[]): TreeNode[] {
   });
 }
 
+/**
+ * Builds a sorted tree model from flat project file and folder paths.
+ *
+ * @param paths Relative file paths in the project.
+ * @param folders Relative folder paths in the project.
+ * @returns Root-level tree nodes with nested children for folders.
+ */
 export function buildProjectTree(paths: string[], folders: string[]): TreeNode[] {
   const root: FolderNode = {
     kind: "folder",

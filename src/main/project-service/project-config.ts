@@ -1,3 +1,9 @@
+/**
+ * Owns: loading and saving `.wit/config.json` settings and last-opened-file state.
+ * Out of scope: broader project metadata assembly and file tree mutation.
+ * Inputs/Outputs: project roots and settings values in, normalized config values out.
+ * Side effects: reads and writes the project config file.
+ */
 import { promises as fs } from "node:fs";
 import { DEFAULT_SETTINGS } from "../../shared/default-settings";
 import type { AppSettings } from "../../shared/types";
@@ -13,6 +19,12 @@ import { listGitRemotes } from "./project-git";
 import { ensureProjectInitialized } from "./project-init";
 import { getConfigPath } from "./project-paths";
 
+/**
+ * Loads normalized project settings from disk.
+ *
+ * @param projectPath Absolute project root.
+ * @returns Normalized project settings with defaults applied.
+ */
 export async function loadSettings(projectPath: string): Promise<AppSettings> {
   await ensureProjectInitialized(projectPath);
 
@@ -72,6 +84,13 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
   };
 }
 
+/**
+ * Saves normalized project settings while preserving the last-opened-file entry.
+ *
+ * @param projectPath Absolute project root.
+ * @param settings Requested settings values.
+ * @returns The normalized settings written to disk.
+ */
 export async function saveSettings(projectPath: string, settings: AppSettings): Promise<AppSettings> {
   const gitRemotes = await listGitRemotes(projectPath);
   const normalizedRemote =
@@ -118,6 +137,12 @@ export async function saveSettings(projectPath: string, settings: AppSettings): 
   return normalizedSettings;
 }
 
+/**
+ * Reads the last opened file path from config.
+ *
+ * @param projectPath Absolute project root.
+ * @returns The stored relative path, or `null` when unset.
+ */
 export async function getLastOpenedFilePath(projectPath: string): Promise<string | null> {
   await ensureProjectInitialized(projectPath);
   const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
@@ -128,6 +153,12 @@ export async function getLastOpenedFilePath(projectPath: string): Promise<string
     : null;
 }
 
+/**
+ * Reports whether config explicitly stores a last-opened-file value.
+ *
+ * @param projectPath Absolute project root.
+ * @returns `true` when the config contains the `lastOpenedFilePath` key.
+ */
 export async function hasStoredLastOpenedFilePath(projectPath: string): Promise<boolean> {
   await ensureProjectInitialized(projectPath);
   const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
@@ -135,6 +166,13 @@ export async function hasStoredLastOpenedFilePath(projectPath: string): Promise<
   return Object.prototype.hasOwnProperty.call(parsed, "lastOpenedFilePath");
 }
 
+/**
+ * Saves the last opened file path while preserving project settings.
+ *
+ * @param projectPath Absolute project root.
+ * @param relativePath Relative file path to store, or `null` to clear it.
+ * @returns The normalized stored path.
+ */
 export async function saveLastOpenedFilePath(projectPath: string, relativePath: string | null): Promise<string | null> {
   await ensureProjectInitialized(projectPath);
   const settings = await loadSettings(projectPath);

@@ -1,3 +1,9 @@
+/**
+ * Owns: shared IPC channel names and the preload-exposed renderer API contract.
+ * Out of scope: channel handler implementation and renderer state management.
+ * Inputs/Outputs: typed payload contracts in, Promise-based IPC surface definitions out.
+ * Side effects: none at runtime beyond exporting shared constants and types.
+ */
 import type {
   AppInfo,
   AppSettings,
@@ -54,8 +60,16 @@ export const IPC_CHANNELS = {
   }
 } as const;
 
+/**
+ * Removes a previously registered renderer listener.
+ */
 export type Unsubscribe = () => void;
 
+/**
+ * Declares the preload API exposed to the renderer.
+ *
+ * The renderer relies on this contract matching the preload implementation exactly.
+ */
 export type WitApi = {
   getPlatform: () => string;
   selectProject: () => Promise<ProjectMetadata | null>;

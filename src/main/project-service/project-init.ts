@@ -1,3 +1,9 @@
+/**
+ * Owns: one-time project support-file initialization under `.wit`.
+ * Out of scope: project metadata reads and file tree mutation.
+ * Inputs/Outputs: project-root paths in, initialized on-disk support files out.
+ * Side effects: creates directories and writes default config, stats, snapshot version, and `.gitignore` files.
+ */
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import { SNAPSHOT_SYSTEM_VERSION, SNAPSHOT_VERSION_FILE_NAME } from "../snapshot-service";
@@ -31,6 +37,12 @@ async function ensureGitignoreFile(projectPath: string): Promise<void> {
   }
 }
 
+/**
+ * Ensures the project contains the app's required support files and directories.
+ *
+ * @param projectPath Absolute project root to initialize.
+ * @returns Resolves once the project has the expected `.wit` structure.
+ */
 export async function ensureProjectInitialized(projectPath: string): Promise<void> {
   const normalizedProjectPath = path.resolve(projectPath);
   if (initializedProjects.has(normalizedProjectPath)) {

@@ -1,3 +1,9 @@
+/**
+ * Owns: editor presentation state such as theme, typography, width, and zoom.
+ * Out of scope: file-session state and settings persistence queuing.
+ * Inputs/Outputs: editor/panel DOM nodes and presentation callbacks in, presentation helpers out.
+ * Side effects: mutates editor styling, body theme state, width-guide timers, and font select options.
+ */
 import type { AppSettings } from "../../../shared/types";
 import {
   normalizeEditorLineHeight,
@@ -19,6 +25,9 @@ type EditorPresentationAdapter = {
   setFontSize: (fontSize: number) => void;
 };
 
+/**
+ * Exposes editor presentation helpers used by renderer actions and settings UI.
+ */
 export type EditorPresentationController = {
   showEditorWidthGuides: () => void;
   clearEditorWidthGuides: () => void;
@@ -36,6 +45,12 @@ export type EditorPresentationController = {
   resetEditorZoom: () => void;
 };
 
+/**
+ * Creates the editor presentation controller.
+ *
+ * @param options Editor styling adapters, DOM nodes, and status/persistence hooks.
+ * @returns Helpers for applying typography, zoom, width, font, and theme changes.
+ */
 export function createEditorPresentationController(options: {
   editor: EditorPresentationAdapter;
   editorWrap: HTMLElement;

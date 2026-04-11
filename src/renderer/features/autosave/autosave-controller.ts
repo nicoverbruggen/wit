@@ -1,9 +1,24 @@
+/**
+ * Owns: autosave timer scheduling and typing-aware tick gating.
+ * Out of scope: autosave persistence internals and typing-activity measurement.
+ * Inputs/Outputs: interval and typing callbacks in, autosave lifecycle controls out.
+ * Side effects: manages window interval timers.
+ */
+/**
+ * Exposes autosave timer lifecycle controls.
+ */
 export type AutosaveController = {
   restart: () => void;
   stop: () => void;
   runNow: () => Promise<void>;
 };
 
+/**
+ * Creates the autosave controller.
+ *
+ * @param options Interval, typing, and autosave tick hooks.
+ * @returns Timer controls for restarting, stopping, or forcing autosave ticks.
+ */
 export function createAutosaveController(options: {
   getIntervalSec: () => number | null;
   leniencyThresholdSec: number;

@@ -1,3 +1,9 @@
+/**
+ * Owns: file and folder creation, rename, delete, and move actions from the project tree.
+ * Out of scope: dialog UI implementation and low-level filesystem APIs.
+ * Inputs/Outputs: project state hooks and mutation APIs in, entry-action methods out.
+ * Side effects: mutates active project metadata, active-file state, and status messages.
+ */
 import type { ProjectMetadata } from "../../../shared/types";
 import { normalizePathInput, pathEquals } from "../../../shared/utils.js";
 import {
@@ -20,6 +26,9 @@ type MoveFileResult = {
   metadata: ProjectMetadata;
 };
 
+/**
+ * Exposes project-tree entry actions.
+ */
 export type ProjectEntryActionsController = {
   createNewFile: () => Promise<void>;
   createNewFolder: () => Promise<void>;
@@ -28,6 +37,12 @@ export type ProjectEntryActionsController = {
   moveFileToFolder: (fromRelativePath: string, toFolderRelativePath: string) => Promise<void>;
 };
 
+/**
+ * Creates the project entry actions controller.
+ *
+ * @param options Project state accessors, dialogs, and mutation APIs.
+ * @returns Actions for creating, deleting, renaming, and moving entries.
+ */
 export function createProjectEntryActionsController(options: {
   getProject: () => ProjectMetadata | null;
   getCurrentFilePath: () => string | null;

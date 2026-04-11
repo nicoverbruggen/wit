@@ -1,3 +1,9 @@
+/**
+ * Owns: project snapshot archive creation, pruning, and optional Git snapshot commits.
+ * Out of scope: project metadata loading and autosave scheduling decisions.
+ * Inputs/Outputs: snapshot options and filesystem paths in, snapshot timestamps out.
+ * Side effects: reads project files, writes compressed archives, prunes old snapshots, and may invoke Git.
+ */
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import { execFile } from "node:child_process";
@@ -249,6 +255,12 @@ async function getLatestSnapshotTimestamp(snapshotDirectory: string): Promise<Da
   }
 }
 
+/**
+ * Returns the latest snapshot base name from the snapshot directory.
+ *
+ * @param snapshotDirectory Absolute snapshot directory path.
+ * @returns The latest snapshot timestamp string, or `null` when none exist.
+ */
 export async function getLatestSnapshotName(snapshotDirectory: string): Promise<string | null> {
   try {
     const names = await listSnapshotNames(snapshotDirectory);
@@ -308,6 +320,12 @@ async function anyFileModifiedSince(projectPath: string, filePaths: string[], si
   return false;
 }
 
+/**
+ * Creates a snapshot archive and optional Git snapshot commit for the current project state.
+ *
+ * @param options Snapshot creation inputs including file paths and Git behavior flags.
+ * @returns The created or reused snapshot timestamp string.
+ */
 export async function createSnapshot(options: {
   projectPath: string;
   snapshotDirectory: string;

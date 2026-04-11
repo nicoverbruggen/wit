@@ -1,8 +1,20 @@
+/**
+ * Owns: new-file, new-folder, and rename dialog flows plus inline validation.
+ * Out of scope: filesystem mutations and project-tree rendering.
+ * Inputs/Outputs: dialog DOM nodes and validation helpers in, prompt-like dialog methods out.
+ * Side effects: mutates dialog fields, validation messages, and event listeners.
+ */
 import type { ProjectMetadata } from "../../../shared/types";
 import { resolveNewFilePath, resolveNewFolderPath } from "../../project-path-rules.js";
 
+/**
+ * Enumerates the supported entry dialog kinds.
+ */
 export type EntryKind = "file" | "folder";
 
+/**
+ * Exposes promise-based dialog helpers for entry creation and rename flows.
+ */
 export type EntryDialogController = {
   askForNewFilePath: (defaultPath?: string) => Promise<string | null>;
   askForNewFolderPath: (defaultPath?: string) => Promise<string | null>;
@@ -10,6 +22,12 @@ export type EntryDialogController = {
   destroy: () => void;
 };
 
+/**
+ * Creates the entry dialog controller.
+ *
+ * @param options Dialog DOM nodes, validation context, and status messaging hooks.
+ * @returns Promise-based dialog helpers plus cleanup for registered listeners.
+ */
 export function createEntryDialogController(options: {
   getProject: () => ProjectMetadata | null;
   getSelectedFolderPath: () => string | null;

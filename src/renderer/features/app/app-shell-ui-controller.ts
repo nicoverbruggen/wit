@@ -1,3 +1,9 @@
+/**
+ * Owns: top-level app-shell control enablement, status messaging, and About panel population.
+ * Out of scope: project metadata retrieval and settings dialog event handling.
+ * Inputs/Outputs: shell DOM nodes and app-info callbacks in, shell UI helpers out.
+ * Side effects: mutates control disabled states, status timers, and About panel content.
+ */
 import type { ProjectMetadata } from "../../../shared/types";
 
 type AppInfo = {
@@ -13,6 +19,12 @@ export type AppShellUiController = {
   loadAboutInfo: () => Promise<void>;
 };
 
+/**
+ * Creates the top-level shell UI controller.
+ *
+ * @param options Shell DOM nodes and app/project state readers.
+ * @returns Helpers for status messaging, control enablement, and About data loading.
+ */
 export function createAppShellUiController(options: {
   projectActions: HTMLElement;
   openProjectWrap: HTMLElement;

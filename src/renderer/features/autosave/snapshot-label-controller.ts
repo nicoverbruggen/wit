@@ -1,3 +1,12 @@
+/**
+ * Owns: snapshot footer label state and periodic relative-time refresh.
+ * Out of scope: snapshot creation and project metadata loading.
+ * Inputs/Outputs: snapshot timestamps in, label update helpers out.
+ * Side effects: mutates the provided footer element and manages a refresh timer.
+ */
+/**
+ * Exposes snapshot label update and timer controls.
+ */
 export type SnapshotLabelController = {
   update: (snapshotCreatedAtMs: number | null) => void;
   render: () => void;
@@ -5,6 +14,12 @@ export type SnapshotLabelController = {
   stop: () => void;
 };
 
+/**
+ * Creates the snapshot label controller.
+ *
+ * @param options Label element and relative-time formatting hooks.
+ * @returns Controls for updating and refreshing the snapshot label.
+ */
 export function createSnapshotLabelController(options: {
   element: HTMLElement;
   refreshMs: number;

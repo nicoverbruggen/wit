@@ -1,5 +1,14 @@
+/**
+ * Owns: project open/close lifecycle flows and active-file teardown decisions.
+ * Out of scope: project metadata fetching internals and file persistence implementation.
+ * Inputs/Outputs: lifecycle callbacks and renderer state setters in, project lifecycle actions out.
+ * Side effects: mutates project/editor state and may trigger project close/open side effects.
+ */
 import type { AppSettings, ProjectMetadata } from "../../../shared/types";
 
+/**
+ * Exposes project lifecycle actions used by renderer actions.
+ */
 export type ProjectLifecycleController = {
   closeCurrentFile: () => Promise<void>;
   clearProjectState: (showStatusMessage?: boolean) => void;
@@ -7,6 +16,12 @@ export type ProjectLifecycleController = {
   closeCurrentProject: () => Promise<void>;
 };
 
+/**
+ * Creates the project lifecycle controller.
+ *
+ * @param options Project selection, close, and renderer state hooks.
+ * @returns Lifecycle actions for opening, closing, and clearing projects.
+ */
 export function createProjectLifecycleController(options: {
   getCurrentFilePath: () => string | null;
   persistCurrentFile: (showStatus?: boolean) => Promise<boolean>;
