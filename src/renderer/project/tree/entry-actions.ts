@@ -49,6 +49,7 @@ export function createProjectEntryActionsController(options: {
   setCurrentFilePath: (nextPath: string | null) => void;
   getDirty: () => boolean;
   setSelectedTree: (relativePath: string | null, kind: ProjectTreeSelectionKind | null) => void;
+  setEditorSyntaxForFile: (relativePath: string | null) => void;
   getSelectedFolderPath: () => string | null;
   closeTreeContextMenu: () => void;
   askForNewFilePath: () => Promise<string | null>;
@@ -239,6 +240,7 @@ export function createProjectEntryActionsController(options: {
       if (previousCurrentFilePath) {
         if (kind === "file" && pathEquals(previousCurrentFilePath, relativePath)) {
           options.setCurrentFilePath(renamedPath);
+          options.setEditorSyntaxForFile(renamedPath);
         }
 
         if (

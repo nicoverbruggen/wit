@@ -263,6 +263,9 @@ export function createRendererComposition(options: {
     setCurrentFilePath: options.state.setCurrentFilePath,
     getDirty: () => editorDirtyStateController.getDirty(),
     setSelectedTree: projectTreeStateController.setSelectedTree,
+    setEditorSyntaxForFile: (relativePath) => {
+      options.editor.setSyntaxForFile(relativePath);
+    },
     getSelectedFolderPath: projectTreeStateController.getSelectedFolderPath,
     closeTreeContextMenu: options.callbacks.closeTreeContextMenu,
     askForNewFilePath: () => entryDialogController.askForNewFilePath(),

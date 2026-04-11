@@ -5,5 +5,6 @@ export default defineConfig({
   testDir: path.join(__dirname, "tests/e2e"),
   timeout: 90_000,
   fullyParallel: false,
+  workers: 1,
   reporter: "list"
 });
