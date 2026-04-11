@@ -111,6 +111,21 @@ export function createRendererActions(options: RendererActionsOptions): Renderer
     return composition;
   };
 
+  const appShellUi = () => requireComposition().appShellUiController;
+  const snapshotLabel = () => requireComposition().snapshotLabelController;
+  const editorPresentation = () => requireComposition().editorPresentationController;
+  const typingActivity = () => requireComposition().typingActivityTracker;
+  const editorDirtyState = () => requireComposition().editorDirtyStateController;
+  const projectPersistence = () => requireComposition().projectPersistenceController;
+  const sidebarUi = () => requireComposition().sidebarUiController;
+  const projectStateApplication = () => requireComposition().projectStateApplicationController;
+  const projectLifecycle = () => requireComposition().projectLifecycleController;
+  const emptyEditorState = () => requireComposition().emptyEditorStateController;
+  const projectUi = () => requireComposition().projectUiController;
+  const projectTreeState = () => requireComposition().projectTreeStateController;
+  const fileSession = () => requireComposition().fileSessionController;
+  const autosave = () => requireComposition().autosaveController;
+
   const setProjectState = (nextProject: ProjectMetadata | null): void => {
     options.setProject(nextProject);
   };
@@ -124,23 +139,23 @@ export function createRendererActions(options: RendererActionsOptions): Renderer
   };
 
   const setStatus = (message: string, clearAfterMs?: number): void => {
-    requireComposition().appShellUiController.setStatus(message, clearAfterMs);
+    appShellUi().setStatus(message, clearAfterMs);
   };
 
   const renderSnapshotLabel = (): void => {
-    requireComposition().snapshotLabelController.render();
+    snapshotLabel().render();
   };
 
   const restartSnapshotLabelTimer = (): void => {
-    requireComposition().snapshotLabelController.start();
+    snapshotLabel().start();
   };
 
   const showEditorWidthGuides = (): void => {
-    requireComposition().editorPresentationController.showEditorWidthGuides();
+    editorPresentation().showEditorWidthGuides();
   };
 
   const clearEditorWidthGuides = (): void => {
-    requireComposition().editorPresentationController.clearEditorWidthGuides();
+    editorPresentation().clearEditorWidthGuides();
   };
 
   const closeTreeContextMenu = (): void => {
@@ -155,15 +170,15 @@ export function createRendererActions(options: RendererActionsOptions): Renderer
   };
 
   const consumeActiveTypingSeconds = (): number => {
-    return requireComposition().typingActivityTracker.consumeActiveSeconds();
+    return typingActivity().consumeActiveSeconds();
   };
 
   const setDirty = (nextDirty: boolean): void => {
-    requireComposition().editorDirtyStateController.setDirty(nextDirty);
+    editorDirtyState().setDirty(nextDirty);
   };
 
   const persistLastOpenedFilePath = async (relativePath: string | null): Promise<void> => {
-    await requireComposition().projectPersistenceController.persistLastOpenedFilePath(relativePath);
+    await projectPersistence().persistLastOpenedFilePath(relativePath);
   };
 
   const refreshEditorLayout = (): void => {
@@ -173,91 +188,91 @@ export function createRendererActions(options: RendererActionsOptions): Renderer
   };
 
   const setProjectControlsEnabled = (enabled: boolean): void => {
-    requireComposition().appShellUiController.setProjectControlsEnabled(enabled);
+    appShellUi().setProjectControlsEnabled(enabled);
   };
 
   const setSidebarFaded = (nextFaded: boolean): void => {
-    requireComposition().sidebarUiController.setSidebarFaded(nextFaded);
+    sidebarUi().setSidebarFaded(nextFaded);
   };
 
   const loadSidebarWidthPreference = (): void => {
-    requireComposition().sidebarUiController.loadSidebarWidthPreference();
+    sidebarUi().loadSidebarWidthPreference();
   };
 
   const syncSidebarToggleButton = (): void => {
-    requireComposition().sidebarUiController.syncSidebarToggleButton();
+    sidebarUi().syncSidebarToggleButton();
   };
 
   const syncFullscreenToggleButton = (isFullscreen: boolean): void => {
-    requireComposition().sidebarUiController.syncFullscreenToggleButton(isFullscreen);
+    sidebarUi().syncFullscreenToggleButton(isFullscreen);
   };
 
   const setSidebarVisibility = (nextVisible: boolean, showStatus = true): void => {
-    requireComposition().sidebarUiController.setSidebarVisibility(nextVisible, showStatus);
+    sidebarUi().setSidebarVisibility(nextVisible, showStatus);
   };
 
   const toggleSidebarVisibility = (): void => {
-    requireComposition().sidebarUiController.toggleSidebarVisibility();
+    sidebarUi().toggleSidebarVisibility();
   };
 
   const stopSidebarResize = (): void => {
-    requireComposition().sidebarUiController.stopSidebarResize();
+    sidebarUi().stopSidebarResize();
   };
 
   const beginSidebarResize = (pointerClientX: number): void => {
-    requireComposition().sidebarUiController.beginSidebarResize(pointerClientX);
+    sidebarUi().beginSidebarResize(pointerClientX);
   };
 
   const loadAboutInfo = async (): Promise<void> => {
-    await requireComposition().appShellUiController.loadAboutInfo();
+    await appShellUi().loadAboutInfo();
   };
 
   const setEditorWritable = (enabled: boolean): void => {
-    requireComposition().editorPresentationController.setEditorWritable(enabled);
+    editorPresentation().setEditorWritable(enabled);
   };
 
   const applyEditorLineHeight = (lineHeight: number): void => {
-    requireComposition().editorPresentationController.applyEditorLineHeight(lineHeight);
+    editorPresentation().applyEditorLineHeight(lineHeight);
   };
 
   const applyEditorParagraphSpacing = (spacing: AppSettings["editorParagraphSpacing"]): void => {
-    requireComposition().editorPresentationController.applyEditorParagraphSpacing(spacing);
+    editorPresentation().applyEditorParagraphSpacing(spacing);
   };
 
   const applyEditorMaxWidth = (editorWidth: number): void => {
-    requireComposition().editorPresentationController.applyEditorMaxWidth(editorWidth);
+    editorPresentation().applyEditorMaxWidth(editorWidth);
   };
 
   const applyEditorFont = (fontFamily: string): void => {
-    requireComposition().editorPresentationController.applyEditorFont(fontFamily);
+    editorPresentation().applyEditorFont(fontFamily);
   };
 
   const populateFontSelect = (selectedFont: string): void => {
-    requireComposition().editorPresentationController.populateFontSelect(selectedFont);
+    editorPresentation().populateFontSelect(selectedFont);
   };
 
   const loadSystemFonts = async (): Promise<void> => {
-    await requireComposition().editorPresentationController.loadSystemFonts();
+    await editorPresentation().loadSystemFonts();
   };
 
   const applyTheme = (theme: AppSettings["theme"]): void => {
-    requireComposition().editorPresentationController.applyTheme(theme);
+    editorPresentation().applyTheme(theme);
   };
 
   const applyEditorZoom = (showStatus = true): void => {
-    requireComposition().editorPresentationController.applyEditorZoom(showStatus);
+    editorPresentation().applyEditorZoom(showStatus);
   };
 
   const setEditorZoomFromPercent = (percent: number, showStatus = true): void => {
-    requireComposition().editorPresentationController.setEditorZoomFromPercent(percent, showStatus);
+    editorPresentation().setEditorZoomFromPercent(percent, showStatus);
   };
 
   const stepEditorZoom = (direction: 1 | -1): void => {
-    requireComposition().editorPresentationController.stepEditorZoom(direction);
+    editorPresentation().stepEditorZoom(direction);
   };
 
   const resetEditorZoom = (): void => {
-    requireComposition().editorPresentationController.resetEditorZoom();
+    editorPresentation().resetEditorZoom();
   };
 
   const getProjectDisplayTitle = (projectPath: string): string => {
@@ -267,90 +282,90 @@ export function createRendererActions(options: RendererActionsOptions): Renderer
   };
 
   const resetActiveFile = (): void => {
-    requireComposition().projectStateApplicationController.resetActiveFile();
+    projectStateApplication().resetActiveFile();
   };
 
   const closeCurrentFile = async (): Promise<void> => {
-    await requireComposition().projectLifecycleController.closeCurrentFile();
+    await projectLifecycle().closeCurrentFile();
   };
 
   const renderEmptyEditorState = (): void => {
-    requireComposition().emptyEditorStateController.renderEmptyEditorState();
+    emptyEditorState().renderEmptyEditorState();
   };
 
   const syncProjectPathLabels = (projectPath: string): void => {
-    requireComposition().projectUiController.syncProjectPathLabels(projectPath, options.getProject());
+    projectUi().syncProjectPathLabels(projectPath, options.getProject());
   };
 
   const renderStatusFooter = (): void => {
-    requireComposition().projectUiController.renderStatusFooter(options.getProject());
+    projectUi().renderStatusFooter(options.getProject());
   };
 
   const renderEditorHeaderVisibility = (): void => {
-    requireComposition().projectUiController.renderEditorHeaderVisibility(options.getProject());
+    projectUi().renderEditorHeaderVisibility(options.getProject());
   };
 
   const renderFileList = (): void => {
-    requireComposition().projectTreeStateController.renderFileList();
+    projectTreeState().renderFileList();
   };
 
   const syncSettingsInputs = (settings: AppSettings): void => {
-    requireComposition().projectUiController.syncSettingsInputs(settings, options.getProject());
+    projectUi().syncSettingsInputs(settings, options.getProject());
   };
 
   const applyProjectMetadata = (metadata: ProjectMetadata): void => {
-    requireComposition().projectStateApplicationController.applyProjectMetadata(metadata);
+    projectStateApplication().applyProjectMetadata(metadata);
   };
 
   const cancelPendingLiveWordCount = (): void => {
-    requireComposition().fileSessionController.cancelPendingLiveWordCount();
+    fileSession().cancelPendingLiveWordCount();
   };
 
   const scheduleLiveWordCountRefresh = (): void => {
-    requireComposition().fileSessionController.scheduleLiveWordCountRefresh();
+    fileSession().scheduleLiveWordCountRefresh();
   };
 
   const persistCurrentFile = async (showStatus = true): Promise<boolean> => {
-    return requireComposition().fileSessionController.persistCurrentFile(showStatus);
+    return fileSession().persistCurrentFile(showStatus);
   };
 
   const saveCurrentFileSynchronously = (): void => {
-    requireComposition().fileSessionController.saveCurrentFileSynchronously();
+    fileSession().saveCurrentFileSynchronously();
   };
 
   const openFile = async (relativePath: string): Promise<void> => {
-    await requireComposition().fileSessionController.openFile(relativePath);
+    await fileSession().openFile(relativePath);
   };
 
   const isUserTyping = (): boolean => {
-    return requireComposition().typingActivityTracker.isTyping();
+    return typingActivity().isTyping();
   };
 
   const waitForTypingPause = (): Promise<void> => {
-    return requireComposition().typingActivityTracker.waitForPause({
+    return typingActivity().waitForPause({
       maxWaitMs: options.autosaveLeniencyMaxMs,
       pollMs: options.autosaveLeniencyPollMs
     });
   };
 
   const restartAutosaveTimer = (): void => {
-    requireComposition().autosaveController.restart();
+    autosave().restart();
   };
 
   const runAutosaveTick = async (): Promise<void> => {
-    await requireComposition().fileSessionController.runAutosaveTick();
+    await fileSession().runAutosaveTick();
   };
 
   const openProjectPicker = async (): Promise<void> => {
-    await requireComposition().projectLifecycleController.openProjectPicker();
+    await projectLifecycle().openProjectPicker();
   };
 
   const closeCurrentProject = async (): Promise<void> => {
-    await requireComposition().projectLifecycleController.closeCurrentProject();
+    await projectLifecycle().closeCurrentProject();
   };
 
   const persistSettings = async (update: Partial<AppSettings>): Promise<void> => {
-    return requireComposition().projectPersistenceController.persistSettings(update);
+    return projectPersistence().persistSettings(update);
   };
 
   const parseSnapshotTimestamp = (snapshotName: string): number | null => {

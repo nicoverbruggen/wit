@@ -92,6 +92,106 @@ export type RendererDom = {
   aboutWebsite: HTMLAnchorElement;
 };
 
+type ShellDom = Pick<
+  RendererDom,
+  | "openProjectButton"
+  | "openProjectWrap"
+  | "newFileButton"
+  | "newFolderButton"
+  | "projectActions"
+  | "settingsToggleButton"
+  | "fullscreenToggleButton"
+  | "appShell"
+  | "toggleSidebarButton"
+  | "sidebarResizer"
+  | "sidebar"
+  | "sidebarProjectTitle"
+  | "fileList"
+  | "projectPathLabel"
+  | "activeFileLabel"
+  | "dirtyIndicator"
+>;
+
+type EmptyStateDom = Pick<
+  RendererDom,
+  | "emptyStateScreen"
+  | "emptyStateEyebrow"
+  | "emptyStateTitle"
+  | "emptyStateDescription"
+  | "emptyStatePrimaryButton"
+  | "emptyStateSecondaryButton"
+  | "emptyStateShortcutsLabel"
+  | "emptyStateShortcutsList"
+>;
+
+type EntryDialogDom = Pick<
+  RendererDom,
+  | "newFileDialog"
+  | "newFilePathInput"
+  | "newFileCancelButton"
+  | "newFileCreateButton"
+  | "newFileError"
+  | "newFolderDialog"
+  | "newFolderPathInput"
+  | "newFolderCancelButton"
+  | "newFolderCreateButton"
+  | "newFolderError"
+  | "renameEntryDialog"
+  | "renameEntryTitle"
+  | "renameEntryInput"
+  | "renameEntryCancelButton"
+  | "renameEntryConfirmButton"
+  | "renameEntryError"
+>;
+
+type EditorDom = Pick<
+  RendererDom,
+  | "editorWrap"
+  | "editorHeader"
+  | "editorElement"
+  | "statusBar"
+  | "statusMessage"
+  | "wordCountLabel"
+  | "writingTimeLabel"
+  | "snapshotLabel"
+>;
+
+type SettingsDom = Pick<
+  RendererDom,
+  | "settingsDialog"
+  | "settingsTabWriting"
+  | "settingsTabEditor"
+  | "settingsTabAutosave"
+  | "settingsTabAbout"
+  | "settingsPanelWriting"
+  | "settingsPanelEditor"
+  | "settingsPanelAutosave"
+  | "settingsPanelAbout"
+  | "showWordCountInput"
+  | "showWritingTimeInput"
+  | "showCurrentFileBarInput"
+  | "smartQuotesInput"
+  | "defaultFileExtensionSelect"
+  | "gitSnapshotsInput"
+  | "gitPushRemoteSelect"
+  | "initializeGitRepoCard"
+  | "initializeGitRepoButton"
+  | "gitSnapshotsNotice"
+  | "autosaveIntervalInput"
+  | "snapshotMaxSizeInput"
+  | "lineHeightInput"
+  | "lineHeightValue"
+  | "paragraphSpacingSelect"
+  | "editorWidthInput"
+  | "editorWidthValue"
+  | "textZoomInput"
+  | "textZoomValue"
+  | "themeSelect"
+  | "fontSelect"
+>;
+
+type AboutDom = Pick<RendererDom, "aboutVersion" | "aboutDescription" | "aboutAuthor" | "aboutWebsite">;
+
 function getById<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
   if (!element) {
@@ -110,13 +210,7 @@ function getBySelector<T extends HTMLElement>(selector: string): T {
   return element as T;
 }
 
-/**
- * Resolves and validates the renderer DOM structure.
- *
- * @returns Typed references to all required renderer elements.
- * @throws When any required element is missing from the document.
- */
-export function resolveRendererDom(): RendererDom {
+function resolveShellDom(): ShellDom {
   return {
     openProjectButton: getById("open-project-btn"),
     openProjectWrap: getBySelector(".open-project-wrap"),
@@ -125,22 +219,20 @@ export function resolveRendererDom(): RendererDom {
     projectActions: getById("project-actions"),
     settingsToggleButton: getById("settings-toggle-btn"),
     fullscreenToggleButton: getById("toggle-fullscreen-btn"),
-    settingsDialog: getById("settings-dialog"),
-    settingsTabWriting: getById("settings-tab-writing"),
-    settingsTabEditor: getById("settings-tab-editor"),
-    settingsTabAutosave: getById("settings-tab-autosave"),
-    settingsTabAbout: getById("settings-tab-about"),
-    settingsPanelWriting: getById("settings-panel-writing"),
-    settingsPanelEditor: getById("settings-panel-editor"),
-    settingsPanelAutosave: getById("settings-panel-autosave"),
-    settingsPanelAbout: getById("settings-panel-about"),
     appShell: getById("app-shell"),
     toggleSidebarButton: getById("toggle-sidebar-btn"),
     sidebarResizer: getById("sidebar-resizer"),
     sidebar: getBySelector(".sidebar"),
-    editorWrap: getBySelector(".editor-wrap"),
-    editorHeader: getBySelector(".editor-header"),
-    statusBar: getBySelector(".status-bar"),
+    sidebarProjectTitle: getById("sidebar-project-title"),
+    fileList: getById("file-list"),
+    projectPathLabel: getById("project-path"),
+    activeFileLabel: getById("active-file-label"),
+    dirtyIndicator: getById("dirty-indicator")
+  };
+}
+
+function resolveEmptyStateDom(): EmptyStateDom {
+  return {
     emptyStateScreen: getById("empty-state-screen"),
     emptyStateEyebrow: getById("empty-state-eyebrow"),
     emptyStateTitle: getById("empty-state-title"),
@@ -148,9 +240,12 @@ export function resolveRendererDom(): RendererDom {
     emptyStatePrimaryButton: getById("empty-state-primary-btn"),
     emptyStateSecondaryButton: getById("empty-state-secondary-btn"),
     emptyStateShortcutsLabel: getBySelector(".empty-state-shortcuts-label"),
-    emptyStateShortcutsList: getById("empty-state-shortcuts-list"),
-    sidebarProjectTitle: getById("sidebar-project-title"),
-    fileList: getById("file-list"),
+    emptyStateShortcutsList: getById("empty-state-shortcuts-list")
+  };
+}
+
+function resolveEntryDialogDom(): EntryDialogDom {
+  return {
     newFileDialog: getById("new-file-dialog"),
     newFilePathInput: getById("new-file-path-input"),
     newFileCancelButton: getById("new-file-cancel-btn"),
@@ -166,15 +261,34 @@ export function resolveRendererDom(): RendererDom {
     renameEntryInput: getById("rename-entry-input"),
     renameEntryCancelButton: getById("rename-entry-cancel-btn"),
     renameEntryConfirmButton: getById("rename-entry-confirm-btn"),
-    renameEntryError: getById("rename-entry-error"),
+    renameEntryError: getById("rename-entry-error")
+  };
+}
+
+function resolveEditorDom(): EditorDom {
+  return {
+    editorWrap: getBySelector(".editor-wrap"),
+    editorHeader: getBySelector(".editor-header"),
     editorElement: getById("editor"),
-    projectPathLabel: getById("project-path"),
-    activeFileLabel: getById("active-file-label"),
-    dirtyIndicator: getById("dirty-indicator"),
+    statusBar: getBySelector(".status-bar"),
     statusMessage: getById("status-message"),
     wordCountLabel: getById("word-count"),
     writingTimeLabel: getById("writing-time"),
-    snapshotLabel: getById("snapshot-label"),
+    snapshotLabel: getById("snapshot-label")
+  };
+}
+
+function resolveSettingsDom(): SettingsDom {
+  return {
+    settingsDialog: getById("settings-dialog"),
+    settingsTabWriting: getById("settings-tab-writing"),
+    settingsTabEditor: getById("settings-tab-editor"),
+    settingsTabAutosave: getById("settings-tab-autosave"),
+    settingsTabAbout: getById("settings-tab-about"),
+    settingsPanelWriting: getById("settings-panel-writing"),
+    settingsPanelEditor: getById("settings-panel-editor"),
+    settingsPanelAutosave: getById("settings-panel-autosave"),
+    settingsPanelAbout: getById("settings-panel-about"),
     showWordCountInput: getById("show-word-count-input"),
     showWritingTimeInput: getById("show-writing-time-input"),
     showCurrentFileBarInput: getById("show-current-file-bar-input"),
@@ -195,10 +309,32 @@ export function resolveRendererDom(): RendererDom {
     textZoomInput: getById("text-zoom-input"),
     textZoomValue: getById("text-zoom-value"),
     themeSelect: getById("theme-select"),
-    fontSelect: getById("font-select"),
+    fontSelect: getById("font-select")
+  };
+}
+
+function resolveAboutDom(): AboutDom {
+  return {
     aboutVersion: getById("about-version"),
     aboutDescription: getById("about-description"),
     aboutAuthor: getById("about-author"),
     aboutWebsite: getById("about-website")
+  };
+}
+
+/**
+ * Resolves and validates the renderer DOM structure.
+ *
+ * @returns Typed references to all required renderer elements.
+ * @throws When any required element is missing from the document.
+ */
+export function resolveRendererDom(): RendererDom {
+  return {
+    ...resolveShellDom(),
+    ...resolveEmptyStateDom(),
+    ...resolveEntryDialogDom(),
+    ...resolveEditorDom(),
+    ...resolveSettingsDom(),
+    ...resolveAboutDom()
   };
 }

@@ -48,6 +48,23 @@ export function createProjectLifecycleController(options: {
   openFile: (relativePath: string) => Promise<void>;
   setStatus: (message: string, clearAfterMs?: number) => void;
 }): ProjectLifecycleController {
+  const resetUiForNoProject = (): void => {
+    options.stopSidebarResize();
+    options.resetTreeState();
+    options.resetActiveFile();
+    options.updateSnapshotLabel(null);
+    options.syncProjectPathLabels("No project selected");
+    options.setProjectControlsEnabled(false);
+    options.setSidebarVisibility(false, false);
+    options.setSidebarFaded(false);
+    options.setThemeValue("light");
+    options.applyTheme("light");
+    options.renderStatusFooter();
+    options.renderFileList();
+    options.restartAutosaveTimer();
+    options.renderEmptyEditorState();
+  };
+
   const closeCurrentFile = async (): Promise<void> => {
     if (!options.getCurrentFilePath()) {
       return;
@@ -65,20 +82,7 @@ export function createProjectLifecycleController(options: {
 
   const clearProjectState = (showStatusMessage = false): void => {
     options.setProjectState(null);
-    options.stopSidebarResize();
-    options.resetTreeState();
-    options.resetActiveFile();
-    options.updateSnapshotLabel(null);
-    options.syncProjectPathLabels("No project selected");
-    options.setProjectControlsEnabled(false);
-    options.setSidebarVisibility(false, false);
-    options.setSidebarFaded(false);
-    options.setThemeValue("light");
-    options.applyTheme("light");
-    options.renderStatusFooter();
-    options.renderFileList();
-    options.restartAutosaveTimer();
-    options.renderEmptyEditorState();
+    resetUiForNoProject();
 
     if (showStatusMessage) {
       options.setStatus("Project closed.", 2000);

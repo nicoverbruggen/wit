@@ -19,6 +19,90 @@ import { listGitRemotes } from "./project-git";
 import { ensureProjectInitialized } from "./project-init";
 import { getConfigPath } from "./project-paths";
 
+type ParsedConfig = Partial<AppSettings> & {
+  settings?: Partial<AppSettings>;
+  lastOpenedFilePath?: unknown;
+};
+
+type NormalizeAppSettingsOptions = {
+  invalidPositiveIntegerFallback: "default" | "minimum";
+};
+
+function parseConfig(raw: string): ParsedConfig {
+  return JSON.parse(raw) as ParsedConfig;
+}
+
+function extractRawSettings(parsed: ParsedConfig): Partial<AppSettings> {
+  return parsed.settings && typeof parsed.settings === "object" ? parsed.settings : parsed;
+}
+
+function normalizePositiveInteger(
+  value: unknown,
+  defaultValue: number,
+  minimumValue: number,
+  options: NormalizeAppSettingsOptions
+): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return options.invalidPositiveIntegerFallback === "minimum" ? minimumValue : defaultValue;
+  }
+
+  return Math.max(minimumValue, Math.round(value));
+}
+
+function normalizeGitPushRemote(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : DEFAULT_SETTINGS.gitPushRemote;
+}
+
+function normalizeStoredLastOpenedFilePath(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function normalizeAppSettings(
+  raw: Partial<AppSettings>,
+  options: NormalizeAppSettingsOptions = { invalidPositiveIntegerFallback: "default" }
+): AppSettings {
+  return {
+    autosaveIntervalSec: normalizePositiveInteger(
+      raw.autosaveIntervalSec,
+      DEFAULT_SETTINGS.autosaveIntervalSec,
+      5,
+      options
+    ),
+    theme: normalizeTheme(raw.theme),
+    defaultFileExtension: normalizeDefaultFileExtension(raw.defaultFileExtension),
+    showWordCount: typeof raw.showWordCount === "boolean" ? raw.showWordCount : DEFAULT_SETTINGS.showWordCount,
+    showWritingTime: typeof raw.showWritingTime === "boolean" ? raw.showWritingTime : DEFAULT_SETTINGS.showWritingTime,
+    showCurrentFileBar:
+      typeof raw.showCurrentFileBar === "boolean" ? raw.showCurrentFileBar : DEFAULT_SETTINGS.showCurrentFileBar,
+    smartQuotes: typeof raw.smartQuotes === "boolean" ? raw.smartQuotes : DEFAULT_SETTINGS.smartQuotes,
+    snapshotMaxSizeMb: normalizePositiveInteger(
+      raw.snapshotMaxSizeMb,
+      DEFAULT_SETTINGS.snapshotMaxSizeMb,
+      1,
+      options
+    ),
+    gitSnapshots: typeof raw.gitSnapshots === "boolean" ? raw.gitSnapshots : DEFAULT_SETTINGS.gitSnapshots,
+    gitPushRemote: normalizeGitPushRemote(raw.gitPushRemote),
+    editorLineHeight:
+      typeof raw.editorLineHeight === "number" && Number.isFinite(raw.editorLineHeight)
+        ? normalizeEditorLineHeight(raw.editorLineHeight)
+        : DEFAULT_SETTINGS.editorLineHeight,
+    editorParagraphSpacing: normalizeEditorParagraphSpacing(raw.editorParagraphSpacing),
+    editorMaxWidthPx:
+      typeof raw.editorMaxWidthPx === "number" && Number.isFinite(raw.editorMaxWidthPx)
+        ? normalizeEditorMaxWidth(raw.editorMaxWidthPx)
+        : DEFAULT_SETTINGS.editorMaxWidthPx,
+    editorZoomPercent:
+      typeof raw.editorZoomPercent === "number" && Number.isFinite(raw.editorZoomPercent)
+        ? normalizeEditorZoomPercent(raw.editorZoomPercent)
+        : DEFAULT_SETTINGS.editorZoomPercent,
+    editorFontFamily:
+      typeof raw.editorFontFamily === "string" && raw.editorFontFamily.length > 0
+        ? raw.editorFontFamily
+        : DEFAULT_SETTINGS.editorFontFamily
+  };
+}
+
 /**
  * Loads normalized project settings from disk.
  *
@@ -29,59 +113,7 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
   await ensureProjectInitialized(projectPath);
 
   const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
-  const parsed = JSON.parse(raw) as Partial<AppSettings> & {
-    settings?: Partial<AppSettings>;
-    lastOpenedFilePath?: unknown;
-  };
-  const rawSettings = parsed.settings && typeof parsed.settings === "object" ? parsed.settings : parsed;
-
-  return {
-    autosaveIntervalSec:
-      typeof rawSettings.autosaveIntervalSec === "number" && rawSettings.autosaveIntervalSec > 0
-        ? Math.round(rawSettings.autosaveIntervalSec)
-        : DEFAULT_SETTINGS.autosaveIntervalSec,
-    theme: normalizeTheme(rawSettings.theme),
-    defaultFileExtension: normalizeDefaultFileExtension(rawSettings.defaultFileExtension),
-    showWordCount:
-      typeof rawSettings.showWordCount === "boolean" ? rawSettings.showWordCount : DEFAULT_SETTINGS.showWordCount,
-    showWritingTime:
-      typeof rawSettings.showWritingTime === "boolean"
-        ? rawSettings.showWritingTime
-        : DEFAULT_SETTINGS.showWritingTime,
-    showCurrentFileBar:
-      typeof rawSettings.showCurrentFileBar === "boolean"
-        ? rawSettings.showCurrentFileBar
-        : DEFAULT_SETTINGS.showCurrentFileBar,
-    smartQuotes:
-      typeof rawSettings.smartQuotes === "boolean" ? rawSettings.smartQuotes : DEFAULT_SETTINGS.smartQuotes,
-    snapshotMaxSizeMb:
-      typeof rawSettings.snapshotMaxSizeMb === "number" && rawSettings.snapshotMaxSizeMb > 0
-        ? Math.round(rawSettings.snapshotMaxSizeMb)
-        : DEFAULT_SETTINGS.snapshotMaxSizeMb,
-    gitSnapshots:
-      typeof rawSettings.gitSnapshots === "boolean" ? rawSettings.gitSnapshots : DEFAULT_SETTINGS.gitSnapshots,
-    gitPushRemote:
-      typeof rawSettings.gitPushRemote === "string" && rawSettings.gitPushRemote.trim().length > 0
-        ? rawSettings.gitPushRemote.trim()
-        : DEFAULT_SETTINGS.gitPushRemote,
-    editorLineHeight:
-      typeof rawSettings.editorLineHeight === "number" && Number.isFinite(rawSettings.editorLineHeight)
-        ? normalizeEditorLineHeight(rawSettings.editorLineHeight)
-        : DEFAULT_SETTINGS.editorLineHeight,
-    editorParagraphSpacing: normalizeEditorParagraphSpacing(rawSettings.editorParagraphSpacing),
-    editorMaxWidthPx:
-      typeof rawSettings.editorMaxWidthPx === "number" && Number.isFinite(rawSettings.editorMaxWidthPx)
-        ? normalizeEditorMaxWidth(rawSettings.editorMaxWidthPx)
-        : DEFAULT_SETTINGS.editorMaxWidthPx,
-    editorZoomPercent:
-      typeof rawSettings.editorZoomPercent === "number" && Number.isFinite(rawSettings.editorZoomPercent)
-        ? normalizeEditorZoomPercent(rawSettings.editorZoomPercent)
-        : DEFAULT_SETTINGS.editorZoomPercent,
-    editorFontFamily:
-      typeof rawSettings.editorFontFamily === "string" && rawSettings.editorFontFamily.length > 0
-        ? rawSettings.editorFontFamily
-        : DEFAULT_SETTINGS.editorFontFamily
-  };
+  return normalizeAppSettings(extractRawSettings(parseConfig(raw)));
 }
 
 /**
@@ -93,39 +125,24 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
  */
 export async function saveSettings(projectPath: string, settings: AppSettings): Promise<AppSettings> {
   const gitRemotes = await listGitRemotes(projectPath);
+  const baseSettings = normalizeAppSettings(settings, { invalidPositiveIntegerFallback: "minimum" });
   const normalizedRemote =
-    typeof settings.gitPushRemote === "string" && gitRemotes.includes(settings.gitPushRemote)
-      ? settings.gitPushRemote
+    typeof baseSettings.gitPushRemote === "string" && gitRemotes.includes(baseSettings.gitPushRemote)
+      ? baseSettings.gitPushRemote
       : null;
   const normalizedSettings: AppSettings = {
-    autosaveIntervalSec: Math.max(5, Math.round(settings.autosaveIntervalSec)),
-    theme: normalizeTheme(settings.theme),
-    defaultFileExtension: normalizeDefaultFileExtension(settings.defaultFileExtension),
-    showWordCount: Boolean(settings.showWordCount),
-    showWritingTime: Boolean(settings.showWritingTime),
-    showCurrentFileBar: Boolean(settings.showCurrentFileBar),
-    smartQuotes: Boolean(settings.smartQuotes),
-    snapshotMaxSizeMb: Math.max(1, Math.round(settings.snapshotMaxSizeMb)),
-    gitSnapshots: Boolean(settings.gitSnapshots),
-    gitPushRemote: normalizedRemote,
-    editorLineHeight: normalizeEditorLineHeight(settings.editorLineHeight),
-    editorParagraphSpacing: normalizeEditorParagraphSpacing(settings.editorParagraphSpacing),
-    editorMaxWidthPx: normalizeEditorMaxWidth(settings.editorMaxWidthPx),
-    editorZoomPercent: normalizeEditorZoomPercent(settings.editorZoomPercent),
-    editorFontFamily: settings.editorFontFamily || DEFAULT_SETTINGS.editorFontFamily
+    ...baseSettings,
+    gitPushRemote: normalizedRemote
   };
 
   await ensureProjectInitialized(projectPath);
   const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
-  const parsed = JSON.parse(raw) as { lastOpenedFilePath?: unknown };
+  const parsed = parseConfig(raw);
   await fs.writeFile(
     getConfigPath(projectPath),
     `${JSON.stringify(
       {
-        lastOpenedFilePath:
-          typeof parsed.lastOpenedFilePath === "string" && parsed.lastOpenedFilePath.trim().length > 0
-            ? parsed.lastOpenedFilePath.trim()
-            : null,
+        lastOpenedFilePath: normalizeStoredLastOpenedFilePath(parsed.lastOpenedFilePath),
         settings: normalizedSettings
       },
       null,
@@ -146,11 +163,7 @@ export async function saveSettings(projectPath: string, settings: AppSettings): 
 export async function getLastOpenedFilePath(projectPath: string): Promise<string | null> {
   await ensureProjectInitialized(projectPath);
   const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
-  const parsed = JSON.parse(raw) as { lastOpenedFilePath?: unknown };
-
-  return typeof parsed.lastOpenedFilePath === "string" && parsed.lastOpenedFilePath.trim().length > 0
-    ? parsed.lastOpenedFilePath.trim()
-    : null;
+  return normalizeStoredLastOpenedFilePath(parseConfig(raw).lastOpenedFilePath);
 }
 
 /**
@@ -162,8 +175,7 @@ export async function getLastOpenedFilePath(projectPath: string): Promise<string
 export async function hasStoredLastOpenedFilePath(projectPath: string): Promise<boolean> {
   await ensureProjectInitialized(projectPath);
   const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
-  const parsed = JSON.parse(raw) as { lastOpenedFilePath?: unknown };
-  return Object.prototype.hasOwnProperty.call(parsed, "lastOpenedFilePath");
+  return Object.prototype.hasOwnProperty.call(parseConfig(raw), "lastOpenedFilePath");
 }
 
 /**

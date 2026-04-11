@@ -56,6 +56,61 @@ export function createProjectUiController(options: {
   formatWritingTime: (totalWritingSeconds: number) => string;
   defaultEditorFont: string;
 }): ProjectUiController {
+  const getGitSnapshotsNotice = (project: ProjectMetadata | null): string => {
+    if (!project) {
+      return "";
+    }
+
+    if (!project.isGitRepository) {
+      return "Git snapshots are unavailable because this project is not a Git repository.";
+    }
+
+    if (!project.hasGitInitialCommit) {
+      return "Git snapshots are unavailable because this repository does not have an initial commit yet.";
+    }
+
+    return "";
+  };
+
+  const populateGitRemoteOptions = (remotes: string[]): void => {
+    options.gitPushRemoteSelect.innerHTML = "";
+
+    const disabledOption = document.createElement("option");
+    disabledOption.value = "";
+    disabledOption.textContent = "Don't push";
+    options.gitPushRemoteSelect.appendChild(disabledOption);
+
+    for (const remoteName of remotes) {
+      const option = document.createElement("option");
+      option.value = remoteName;
+      option.textContent = remoteName;
+      options.gitPushRemoteSelect.appendChild(option);
+    }
+  };
+
+  const syncBasicSettingsInputs = (settings: AppSettings, project: ProjectMetadata | null): void => {
+    options.themeSelect.value = settings.theme;
+    options.defaultFileExtensionSelect.value = settings.defaultFileExtension ?? ".txt";
+    options.showWordCountInput.checked = settings.showWordCount;
+    options.showWritingTimeInput.checked = settings.showWritingTime;
+    options.showCurrentFileBarInput.checked = settings.showCurrentFileBar;
+    options.smartQuotesInput.checked = settings.smartQuotes;
+    options.gitSnapshotsInput.checked =
+      settings.gitSnapshots && Boolean(project?.isGitRepository && project?.hasGitInitialCommit);
+    options.autosaveIntervalInput.value = String(settings.autosaveIntervalSec);
+    options.snapshotMaxSizeInput.value = String(settings.snapshotMaxSizeMb);
+  };
+
+  const applyEditorPresentationSettings = (settings: AppSettings): void => {
+    options.applyTheme(settings.theme);
+    options.applyEditorLineHeight(settings.editorLineHeight);
+    options.applyEditorParagraphSpacing(settings.editorParagraphSpacing ?? "none");
+    options.applyEditorMaxWidth(settings.editorMaxWidthPx);
+    options.setEditorZoomFromPercent(settings.editorZoomPercent, false);
+    options.populateFontSelect(settings.editorFontFamily ?? options.defaultEditorFont);
+    options.applyEditorFont(settings.editorFontFamily ?? options.defaultEditorFont);
+  };
+
   const syncProjectPathLabels = (projectPath: string, project: ProjectMetadata | null): void => {
     if (!project) {
       options.sidebarProjectTitle.textContent = "No Project";
@@ -111,16 +166,7 @@ export function createProjectUiController(options: {
     options.gitPushRemoteSelect.disabled = !project || !gitSnapshotsReady;
     options.initializeGitRepoCard.hidden = !project || repositoryAvailable;
     options.initializeGitRepoButton.disabled = !project || repositoryAvailable;
-
-    if (!project) {
-      options.gitSnapshotsNotice.textContent = "";
-    } else if (!repositoryAvailable) {
-      options.gitSnapshotsNotice.textContent =
-        "Git snapshots are unavailable because this project is not a Git repository.";
-    } else if (!project.hasGitInitialCommit) {
-      options.gitSnapshotsNotice.textContent =
-        "Git snapshots are unavailable because this repository does not have an initial commit yet.";
-    }
+    options.gitSnapshotsNotice.textContent = getGitSnapshotsNotice(project);
 
     if (!repositoryAvailable) {
       options.gitSnapshotsInput.checked = false;
@@ -128,38 +174,12 @@ export function createProjectUiController(options: {
       return;
     }
 
-    options.gitPushRemoteSelect.innerHTML = "";
-    const disabledOption = document.createElement("option");
-    disabledOption.value = "";
-    disabledOption.textContent = "Don't push";
-    options.gitPushRemoteSelect.appendChild(disabledOption);
-
-    for (const remoteName of remotes) {
-      const option = document.createElement("option");
-      option.value = remoteName;
-      option.textContent = remoteName;
-      options.gitPushRemoteSelect.appendChild(option);
-    }
+    populateGitRemoteOptions(remotes);
   };
 
   const syncSettingsInputs = (settings: AppSettings, project: ProjectMetadata | null): void => {
-    options.themeSelect.value = settings.theme;
-    options.applyTheme(settings.theme);
-    options.defaultFileExtensionSelect.value = settings.defaultFileExtension ?? ".txt";
-    options.showWordCountInput.checked = settings.showWordCount;
-    options.showWritingTimeInput.checked = settings.showWritingTime;
-    options.showCurrentFileBarInput.checked = settings.showCurrentFileBar;
-    options.smartQuotesInput.checked = settings.smartQuotes;
-    options.gitSnapshotsInput.checked =
-      settings.gitSnapshots && Boolean(project?.isGitRepository && project?.hasGitInitialCommit);
-    options.autosaveIntervalInput.value = String(settings.autosaveIntervalSec);
-    options.snapshotMaxSizeInput.value = String(settings.snapshotMaxSizeMb);
-    options.applyEditorLineHeight(settings.editorLineHeight);
-    options.applyEditorParagraphSpacing(settings.editorParagraphSpacing ?? "none");
-    options.applyEditorMaxWidth(settings.editorMaxWidthPx);
-    options.setEditorZoomFromPercent(settings.editorZoomPercent, false);
-    options.populateFontSelect(settings.editorFontFamily ?? options.defaultEditorFont);
-    options.applyEditorFont(settings.editorFontFamily ?? options.defaultEditorFont);
+    syncBasicSettingsInputs(settings, project);
+    applyEditorPresentationSettings(settings);
     syncGitSnapshotsAvailability(project);
     options.gitPushRemoteSelect.value =
       settings.gitPushRemote && project?.gitRemotes.includes(settings.gitPushRemote) ? settings.gitPushRemote : "";

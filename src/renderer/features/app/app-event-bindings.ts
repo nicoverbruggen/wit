@@ -79,23 +79,55 @@ export function bindAppEventBindings(options: {
   setDragSourceFilePath: (value: string | null) => void;
   setStatus: (message: string, clearAfterMs?: number) => void;
 }): void {
-  options.openProjectButton.addEventListener("click", () => {
+  const controller = new AbortController();
+  const listenerOptions = { signal: controller.signal };
+
+  const bindClick = (target: HTMLElement, action: () => void): void => {
+    target.addEventListener("click", action, listenerOptions);
+  };
+
+  const bindClickClosingContextMenu = (target: HTMLElement, action: () => void): void => {
+    bindClick(target, () => {
+      options.closeTreeContextMenu();
+      action();
+    });
+  };
+
+  const bindAsyncClickClosingContextMenu = (
+    target: HTMLElement,
+    action: () => Promise<unknown>,
+    onError?: () => void
+  ): void => {
+    bindClickClosingContextMenu(target, () => {
+      if (!onError) {
+        void action();
+        return;
+      }
+
+      void (async () => {
+        try {
+          await action();
+        } catch {
+          onError();
+        }
+      })();
+    });
+  };
+
+  bindAsyncClickClosingContextMenu(options.openProjectButton, options.openProjectPicker);
+
+  bindClick(options.emptyStatePrimaryButton, () => {
     options.closeTreeContextMenu();
+
+    if (options.getProject()) {
+      void options.createNewFile();
+      return;
+    }
+
     void options.openProjectPicker();
   });
 
-  options.emptyStatePrimaryButton.addEventListener("click", () => {
-    options.closeTreeContextMenu();
-
-    if (!options.getProject()) {
-      void options.openProjectPicker();
-      return;
-    }
-
-    void options.createNewFile();
-  });
-
-  options.emptyStateSecondaryButton.addEventListener("click", () => {
+  bindClick(options.emptyStateSecondaryButton, () => {
     options.closeTreeContextMenu();
 
     if (!options.getProject()) {
@@ -105,83 +137,75 @@ export function bindAppEventBindings(options: {
     void options.createNewFolder();
   });
 
-  options.newFileButton.addEventListener("click", () => {
-    options.closeTreeContextMenu();
-    void options.createNewFile();
-  });
+  bindAsyncClickClosingContextMenu(options.newFileButton, options.createNewFile);
 
-  options.newFolderButton.addEventListener("click", () => {
-    options.closeTreeContextMenu();
-    void options.createNewFolder();
-  });
+  bindAsyncClickClosingContextMenu(options.newFolderButton, options.createNewFolder);
 
-  options.toggleSidebarButton.addEventListener("click", () => {
-    options.closeTreeContextMenu();
-    options.toggleSidebarVisibility();
-  });
+  bindClickClosingContextMenu(options.toggleSidebarButton, options.toggleSidebarVisibility);
 
-  options.sidebarResizer.addEventListener("mousedown", (event) => {
-    if (event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-    options.closeTreeContextMenu();
-    options.beginSidebarResize(event.clientX);
-  });
-
-  options.sidebarResizer.addEventListener("keydown", (event) => {
-    if (!options.getProject() || !options.isSidebarVisible()) {
-      return;
-    }
-
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
-      return;
-    }
-
-    event.preventDefault();
-    options.closeTreeContextMenu();
-    const delta = event.key === "ArrowLeft" ? -20 : 20;
-    options.adjustSidebarWidth(delta);
-  });
-
-  options.fullscreenToggleButton.addEventListener("click", () => {
-    options.closeTreeContextMenu();
-    void (async () => {
-      try {
-        const isFullscreen = await options.toggleFullscreen();
-        options.syncFullscreenToggleButton(isFullscreen);
-      } catch {
-        options.setStatus("Could not toggle fullscreen.");
+  options.sidebarResizer.addEventListener(
+    "mousedown",
+    (event) => {
+      if (event.button !== 0) {
+        return;
       }
-    })();
-  });
 
-  options.addSubscription(
-    options.editor.onInput(() => {
-      options.onEditorInput();
-    })
+      event.preventDefault();
+      options.closeTreeContextMenu();
+      options.beginSidebarResize(event.clientX);
+    },
+    listenerOptions
   );
 
-  options.addSubscription(
-    options.editor.onKeydown((event) => {
-      options.onEditorKeydown(event);
-    })
+  options.sidebarResizer.addEventListener(
+    "keydown",
+    (event) => {
+      if (!options.getProject() || !options.isSidebarVisible()) {
+        return;
+      }
+
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+        return;
+      }
+
+      event.preventDefault();
+      options.closeTreeContextMenu();
+      const delta = event.key === "ArrowLeft" ? -20 : 20;
+      options.adjustSidebarWidth(delta);
+    },
+    listenerOptions
   );
 
-  options.addSubscription(
-    options.editor.onBlur(() => {
-      options.onEditorBlur();
-    })
+  bindAsyncClickClosingContextMenu(
+    options.fullscreenToggleButton,
+    async () => {
+      const isFullscreen = await options.toggleFullscreen();
+      options.syncFullscreenToggleButton(isFullscreen);
+    },
+    () => {
+      options.setStatus("Could not toggle fullscreen.");
+    }
   );
 
-  options.sidebar.addEventListener("mouseenter", () => {
-    options.setSidebarFaded(false);
-  });
+  options.addSubscription(options.editor.onInput(options.onEditorInput));
+  options.addSubscription(options.editor.onKeydown(options.onEditorKeydown));
+  options.addSubscription(options.editor.onBlur(options.onEditorBlur));
 
-  options.sidebar.addEventListener("focusin", () => {
-    options.setSidebarFaded(false);
-  });
+  options.sidebar.addEventListener(
+    "mouseenter",
+    () => {
+      options.setSidebarFaded(false);
+    },
+    listenerOptions
+  );
+
+  options.sidebar.addEventListener(
+    "focusin",
+    () => {
+      options.setSidebarFaded(false);
+    },
+    listenerOptions
+  );
 
   options.addSubscription(
     bindProjectTreeContextMenuController({
@@ -202,26 +226,39 @@ export function bindAppEventBindings(options: {
     })
   );
 
-  document.addEventListener("keydown", (event) => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
-      event.preventDefault();
-      options.closeTreeContextMenu();
-      void options.persistCurrentFile(true);
-    }
-  });
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        options.closeTreeContextMenu();
+        void options.persistCurrentFile(true);
+      }
+    },
+    listenerOptions
+  );
 
-  document.addEventListener("dragend", () => {
-    options.setDragSourceFilePath(null);
-    options.fileList.querySelectorAll(".drop-target").forEach((element) => {
-      element.classList.remove("drop-target");
-    });
-  });
+  document.addEventListener(
+    "dragend",
+    () => {
+      options.setDragSourceFilePath(null);
+      options.fileList.querySelectorAll(".drop-target").forEach((element) => {
+        element.classList.remove("drop-target");
+      });
+    },
+    listenerOptions
+  );
 
-  document.addEventListener("drop", () => {
-    options.setDragSourceFilePath(null);
-  });
+  document.addEventListener(
+    "drop",
+    () => {
+      options.setDragSourceFilePath(null);
+    },
+    listenerOptions
+  );
 
   window.addEventListener("beforeunload", () => {
+    controller.abort();
     options.cancelPendingLiveWordCount();
     options.saveCurrentFileSynchronously();
     options.stopSidebarResize();
@@ -235,15 +272,23 @@ export function bindAppEventBindings(options: {
     options.editor.destroy();
   });
 
-  window.addEventListener("error", () => {
-    options.closeTreeContextMenu();
-    options.setStatus("A UI error occurred. Check logs.");
-  });
+  window.addEventListener(
+    "error",
+    () => {
+      options.closeTreeContextMenu();
+      options.setStatus("A UI error occurred. Check logs.");
+    },
+    listenerOptions
+  );
 
-  window.addEventListener("unhandledrejection", (event) => {
-    console.error("Unhandled renderer rejection:", event.reason);
-    options.closeTreeContextMenu();
-    options.setStatus("An unexpected async error occurred.");
-    event.preventDefault();
-  });
+  window.addEventListener(
+    "unhandledrejection",
+    (event) => {
+      console.error("Unhandled renderer rejection:", event.reason);
+      options.closeTreeContextMenu();
+      options.setStatus("An unexpected async error occurred.");
+      event.preventDefault();
+    },
+    listenerOptions
+  );
 }

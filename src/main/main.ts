@@ -11,6 +11,7 @@ import {
   BrowserWindow,
   type ContextMenuParams,
   dialog,
+  type IpcMainInvokeEvent,
   ipcMain,
   Menu,
   type MenuItemConstructorOptions
@@ -49,10 +50,35 @@ import type {
 import { IPC_CHANNELS } from "../shared/ipc";
 
 let mainWindow: BrowserWindow | null = null;
+const projectSession = createProjectSessionService({
+  getUserDataPath: () => app.getPath("userData")
+});
 
 function resetWindowZoomToDefault(browserWindow: BrowserWindow): void {
   browserWindow.webContents.setZoomLevel(0);
   browserWindow.webContents.setZoomFactor(1);
+}
+
+function emitMenuChannel(channel: string): () => void {
+  return () => {
+    mainWindow?.webContents.send(channel);
+  };
+}
+
+function withActiveProjectPath<Args extends unknown[], Result>(
+  handler: (projectPath: string, ...args: Args) => Result | Promise<Result>
+): (_event: IpcMainInvokeEvent, ...args: Args) => Result | Promise<Result> {
+  return (_event, ...args) => handler(projectSession.requireActiveProjectPath(), ...args);
+}
+
+function withActiveProjectMetadata<Args extends unknown[]>(
+  handler: (projectPath: string, ...args: Args) => Promise<void>
+): (_event: IpcMainInvokeEvent, ...args: Args) => Promise<Awaited<ReturnType<typeof getProjectMetadata>>> {
+  return async (_event, ...args) => {
+    const projectPath = projectSession.requireActiveProjectPath();
+    await handler(projectPath, ...args);
+    return getProjectMetadata(projectPath);
+  };
 }
 
 async function getAppInfo(): Promise<AppInfo> {
@@ -190,10 +216,6 @@ function createMainWindow(): BrowserWindow {
 }
 
 function setupMenu(): void {
-  const emitMenuEvent = (channel: string): void => {
-    mainWindow?.webContents.send(channel);
-  };
-
   const template: MenuItemConstructorOptions[] = [
     {
       label: "File",
@@ -201,23 +223,17 @@ function setupMenu(): void {
         {
           label: "Open Project",
           accelerator: "CmdOrCtrl+O",
-          click: () => {
-            emitMenuEvent(IPC_CHANNELS.menu.openProject);
-          }
+          click: emitMenuChannel(IPC_CHANNELS.menu.openProject)
         },
         {
           label: "New File",
           accelerator: "CmdOrCtrl+N",
-          click: () => {
-            emitMenuEvent(IPC_CHANNELS.menu.newFile);
-          }
+          click: emitMenuChannel(IPC_CHANNELS.menu.newFile)
         },
         {
           label: "Save",
           accelerator: "CmdOrCtrl+S",
-          click: () => {
-            emitMenuEvent(IPC_CHANNELS.menu.saveCurrentFile);
-          }
+          click: emitMenuChannel(IPC_CHANNELS.menu.saveCurrentFile)
         },
         { type: "separator" },
         { role: "quit" }
@@ -230,31 +246,23 @@ function setupMenu(): void {
         {
           label: "Toggle Sidebar",
           accelerator: "CmdOrCtrl+B",
-          click: () => {
-            emitMenuEvent(IPC_CHANNELS.menu.toggleSidebar);
-          }
+          click: emitMenuChannel(IPC_CHANNELS.menu.toggleSidebar)
         },
         { type: "separator" },
         {
           label: "Zoom In Editor Text",
           accelerator: "CmdOrCtrl+=",
-          click: () => {
-            emitMenuEvent(IPC_CHANNELS.menu.zoomInText);
-          }
+          click: emitMenuChannel(IPC_CHANNELS.menu.zoomInText)
         },
         {
           label: "Zoom Out Editor Text",
           accelerator: "CmdOrCtrl+-",
-          click: () => {
-            emitMenuEvent(IPC_CHANNELS.menu.zoomOutText);
-          }
+          click: emitMenuChannel(IPC_CHANNELS.menu.zoomOutText)
         },
         {
           label: "Reset Editor Text Zoom",
           accelerator: "CmdOrCtrl+0",
-          click: () => {
-            emitMenuEvent(IPC_CHANNELS.menu.zoomResetText);
-          }
+          click: emitMenuChannel(IPC_CHANNELS.menu.zoomResetText)
         },
         { type: "separator" },
         { role: "togglefullscreen" }
@@ -265,10 +273,6 @@ function setupMenu(): void {
   const appMenu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(appMenu);
 }
-
-const projectSession = createProjectSessionService({
-  getUserDataPath: () => app.getPath("userData")
-});
 
 function setupIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.project.select, async () => {
@@ -291,11 +295,12 @@ function setupIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.project.getActive, async () => projectSession.getActiveProject());
 
-  ipcMain.handle(IPC_CHANNELS.project.initializeGitRepository, async () => {
-    const projectPath = projectSession.requireActiveProjectPath();
-    await initializeGitRepository(projectPath);
-    return getProjectMetadata(projectPath);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.project.initializeGitRepository,
+    withActiveProjectMetadata(async (projectPath) => {
+      await initializeGitRepository(projectPath);
+    })
+  );
 
   ipcMain.handle(IPC_CHANNELS.project.close, async () => projectSession.closeProject());
 
@@ -321,18 +326,17 @@ function setupIpcHandlers(): void {
     return projectSession.openProject(projectPath);
   });
 
-  ipcMain.handle(IPC_CHANNELS.project.openFile, async (_event, relativePath: string) => {
-    return readProjectFile(projectSession.requireActiveProjectPath(), relativePath);
-  });
+  ipcMain.handle(IPC_CHANNELS.project.openFile, withActiveProjectPath(readProjectFile));
 
-  ipcMain.handle(IPC_CHANNELS.project.saveFile, async (_event, relativePath: string, content: string) => {
-    await saveProjectFile(projectSession.requireActiveProjectPath(), relativePath, content);
-    return true;
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.project.saveFile,
+    withActiveProjectPath(async (projectPath, relativePath: string, content: string) => {
+      await saveProjectFile(projectPath, relativePath, content);
+      return true;
+    })
+  );
 
-  ipcMain.handle(IPC_CHANNELS.project.getWordCount, async () => {
-    return calculateTotalWordCount(projectSession.requireActiveProjectPath());
-  });
+  ipcMain.handle(IPC_CHANNELS.project.getWordCount, withActiveProjectPath(calculateTotalWordCount));
 
   ipcMain.handle(IPC_CHANNELS.project.countPreviewWords, async (_event, text: string) => {
     return countWordsUsingSystemTool(text);
@@ -347,21 +351,28 @@ function setupIpcHandlers(): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.project.newFile, async (_event, payload: NewFilePayload) => {
-    await createProjectFile(projectSession.requireActiveProjectPath(), payload.relativePath, payload.initialContent ?? "");
-    return listProjectFiles(projectSession.requireActiveProjectPath());
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.project.newFile,
+    withActiveProjectPath(async (projectPath, payload: NewFilePayload) => {
+      await createProjectFile(projectPath, payload.relativePath, payload.initialContent ?? "");
+      return listProjectFiles(projectPath);
+    })
+  );
 
-  ipcMain.handle(IPC_CHANNELS.project.newFolder, async (_event, payload: NewFolderPayload) => {
-    await createProjectFolder(projectSession.requireActiveProjectPath(), payload.relativePath);
-    return listProjectFolders(projectSession.requireActiveProjectPath());
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.project.newFolder,
+    withActiveProjectPath(async (projectPath, payload: NewFolderPayload) => {
+      await createProjectFolder(projectPath, payload.relativePath);
+      return listProjectFolders(projectPath);
+    })
+  );
 
-  ipcMain.handle(IPC_CHANNELS.project.deleteEntry, async (_event, payload: DeleteEntryPayload) => {
-    const projectPath = projectSession.requireActiveProjectPath();
-    await deleteProjectEntry(projectPath, payload.relativePath, payload.kind);
-    return getProjectMetadata(projectPath);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.project.deleteEntry,
+    withActiveProjectMetadata(async (projectPath, payload: DeleteEntryPayload) => {
+      await deleteProjectEntry(projectPath, payload.relativePath, payload.kind);
+    })
+  );
 
   ipcMain.handle(IPC_CHANNELS.project.moveFile, async (_event, payload: MoveFilePayload) => {
     const projectPath = projectSession.requireActiveProjectPath();
@@ -432,14 +443,9 @@ function setupIpcHandlers(): void {
     });
   });
 
-  ipcMain.handle(IPC_CHANNELS.project.updateSettings, async (_event, settings: AppSettings) => {
-    const saved = await saveSettings(projectSession.requireActiveProjectPath(), settings);
-    return saved;
-  });
+  ipcMain.handle(IPC_CHANNELS.project.updateSettings, withActiveProjectPath(saveSettings));
 
-  ipcMain.handle(IPC_CHANNELS.project.setLastOpenedFilePath, async (_event, relativePath: string | null) => {
-    return saveLastOpenedFilePath(projectSession.requireActiveProjectPath(), relativePath);
-  });
+  ipcMain.handle(IPC_CHANNELS.project.setLastOpenedFilePath, withActiveProjectPath(saveLastOpenedFilePath));
 
   ipcMain.handle(IPC_CHANNELS.project.autosaveTick, async (_event, activeSeconds: number) => {
     return projectSession.runAutosaveTick(activeSeconds);

@@ -49,6 +49,23 @@ export function createProjectStateApplicationController(options: {
   setSidebarFaded: (nextFaded: boolean) => void;
   restartAutosaveTimer: () => void;
 }): ProjectStateApplicationController {
+  const applyCommonProjectMetadata = (metadata: ProjectMetadata): void => {
+    options.setProjectState(metadata);
+    options.restoreCollapsedFolders();
+    options.updateSnapshotLabel(
+      metadata.latestSnapshotCreatedAt ? options.parseSnapshotTimestamp(metadata.latestSnapshotCreatedAt) : null
+    );
+  };
+
+  const syncProjectMetadataUi = (metadata: ProjectMetadata): void => {
+    options.syncProjectPathLabels(metadata.projectPath);
+    options.setProjectControlsEnabled(true);
+    options.syncSettingsInputs(metadata.settings);
+    options.renderStatusFooter();
+    options.renderFileList();
+    options.restartAutosaveTimer();
+  };
+
   const resetActiveFile = (): void => {
     options.setCurrentFilePathState(null);
     options.resetCurrentFileWordCount();
@@ -66,37 +83,18 @@ export function createProjectStateApplicationController(options: {
     options.cancelPendingLiveWordCount();
     options.stopSidebarResize();
     options.resetTreeState();
-    options.setProjectState(metadata);
-    options.restoreCollapsedFolders();
-    options.updateSnapshotLabel(
-      metadata.latestSnapshotCreatedAt ? options.parseSnapshotTimestamp(metadata.latestSnapshotCreatedAt) : null
-    );
+    applyCommonProjectMetadata(metadata);
     resetActiveFile();
-
-    options.syncProjectPathLabels(metadata.projectPath);
-    options.setProjectControlsEnabled(true);
-    options.syncSettingsInputs(metadata.settings);
-    options.renderStatusFooter();
-    options.renderFileList();
+    syncProjectMetadataUi(metadata);
     options.setSidebarVisibility(!options.getIsWindowFullscreen(), false);
     options.setSidebarFaded(false);
     options.setEditorWritable(false);
-    options.restartAutosaveTimer();
     options.renderEmptyEditorState();
   };
 
   const refreshProjectMetadata = (metadata: ProjectMetadata): void => {
-    options.setProjectState(metadata);
-    options.restoreCollapsedFolders();
-    options.updateSnapshotLabel(
-      metadata.latestSnapshotCreatedAt ? options.parseSnapshotTimestamp(metadata.latestSnapshotCreatedAt) : null
-    );
-    options.syncProjectPathLabels(metadata.projectPath);
-    options.setProjectControlsEnabled(true);
-    options.syncSettingsInputs(metadata.settings);
-    options.renderStatusFooter();
-    options.renderFileList();
-    options.restartAutosaveTimer();
+    applyCommonProjectMetadata(metadata);
+    syncProjectMetadataUi(metadata);
   };
 
   return {
