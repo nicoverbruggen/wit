@@ -6,6 +6,7 @@
  */
 import type { AppSettings, ProjectMetadata, TreeContextAction } from "../../../shared/types";
 import type { RendererComposition } from "./renderer-composition.js";
+import type { RendererCompositionCallbacks } from "./renderer-composition-contracts.js";
 
 type TestWindowWithContextAction = Window & {
   __WIT_TEST_TREE_ACTION?: TreeContextAction;
@@ -24,49 +25,6 @@ type RendererActionsOptions = {
   parseSnapshotTimestamp: (snapshotName: string) => number | null;
   autosaveLeniencyMaxMs: number;
   autosaveLeniencyPollMs: number;
-};
-
-type RendererCompositionCallbacks = {
-  setStatus: (message: string, clearAfterMs?: number) => void;
-  syncSettingsInputs: (settings: AppSettings) => void;
-  renderStatusFooter: () => void;
-  renderEditorHeaderVisibility: () => void;
-  restartAutosaveTimer: () => void;
-  isUserTyping: () => boolean;
-  waitForTypingPause: () => Promise<void>;
-  runAutosaveTick: () => Promise<void>;
-  closeTreeContextMenu: () => void;
-  refreshEditorLayout: () => void;
-  showEditorWidthGuides: () => void;
-  clearEditorWidthGuides: () => void;
-  getProjectDisplayTitle: (projectPath: string) => string;
-  setSidebarFaded: (nextFaded: boolean) => void;
-  closeCurrentFile: () => Promise<void>;
-  openFile: (relativePath: string) => Promise<void>;
-  persistCurrentFile: (showStatus?: boolean) => Promise<boolean>;
-  persistLastOpenedFilePath: (relativePath: string | null) => Promise<void>;
-  resetActiveFile: () => void;
-  setDirty: (nextDirty: boolean) => void;
-  renderFileList: () => void;
-  setEditorWritable: (enabled: boolean) => void;
-  renderEmptyEditorState: () => void;
-  consumeActiveTypingSeconds: () => number;
-  stopSidebarResize: () => void;
-  syncProjectPathLabels: (projectPath: string) => void;
-  setProjectControlsEnabled: (enabled: boolean) => void;
-  setSidebarVisibility: (nextVisible: boolean, showStatus?: boolean) => void;
-  applyTheme: (theme: AppSettings["theme"]) => void;
-  applyEditorLineHeight: (lineHeight: number) => void;
-  applyEditorParagraphSpacing: (spacing: AppSettings["editorParagraphSpacing"]) => void;
-  applyEditorMaxWidth: (editorWidth: number) => void;
-  setEditorZoomFromPercent: (percent: number, showStatus?: boolean) => void;
-  populateFontSelect: (selectedFont: string) => void;
-  applyEditorFont: (fontFamily: string) => void;
-  cancelPendingLiveWordCount: () => void;
-  scheduleLiveWordCountRefresh: () => void;
-  primaryShortcutLabel: (key: string) => string;
-  parseSnapshotTimestamp: (snapshotName: string) => number | null;
-  persistSettings: (update: Partial<AppSettings>) => Promise<void>;
 };
 
 /**

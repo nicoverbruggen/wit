@@ -14,6 +14,42 @@ import {
   toProjectRelativePath
 } from "./project-paths";
 
+type PathStats = Awaited<ReturnType<typeof fs.stat>>;
+
+function requireNonEmptyRelativePath(relativePath: string, errorMessage: string): string {
+  const normalizedPath = normalizePathInput(relativePath);
+  if (!normalizedPath) {
+    throw new Error(errorMessage);
+  }
+
+  return normalizedPath;
+}
+
+async function assertPathMissing(absolutePath: string, errorMessage: string): Promise<void> {
+  try {
+    await fs.access(absolutePath);
+    throw new Error(errorMessage);
+  } catch (error) {
+    const fsError = error as NodeJS.ErrnoException;
+    if (fsError.code !== "ENOENT") {
+      throw error;
+    }
+  }
+}
+
+async function getPathStatsOrThrow(absolutePath: string, notFoundMessage: string): Promise<PathStats> {
+  try {
+    return await fs.stat(absolutePath);
+  } catch (error) {
+    const fsError = error as NodeJS.ErrnoException;
+    if (fsError.code === "ENOENT") {
+      throw new Error(notFoundMessage);
+    }
+
+    throw error;
+  }
+}
+
 async function walkTextFiles(projectPath: string, currentPath: string, results: string[]): Promise<void> {
   const entries = await fs.readdir(currentPath, { withFileTypes: true });
 
@@ -133,24 +169,15 @@ export async function createProjectFile(
   relativePath: string,
   initialContent = ""
 ): Promise<void> {
-  const absolutePath = ensureInsideProject(projectPath, relativePath);
+  const normalizedPath = requireNonEmptyRelativePath(relativePath, "File name cannot be empty.");
+  const absolutePath = ensureInsideProject(projectPath, normalizedPath);
 
   if (!isTextFile(absolutePath)) {
     throw new Error("Only plain text, Markdown, and Wit text files are supported.");
   }
 
   await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-
-  try {
-    await fs.access(absolutePath);
-    throw new Error("File already exists.");
-  } catch (error) {
-    const fsError = error as { code?: string };
-    if (fsError.code !== "ENOENT") {
-      throw error;
-    }
-  }
-
+  await assertPathMissing(absolutePath, "File already exists.");
   await fs.writeFile(absolutePath, initialContent, "utf8");
 }
 
@@ -161,23 +188,9 @@ export async function createProjectFile(
  * @param relativePath Relative folder path to create.
  */
 export async function createProjectFolder(projectPath: string, relativePath: string): Promise<void> {
-  const normalized = relativePath.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
-  if (!normalized) {
-    throw new Error("Folder name cannot be empty.");
-  }
-
-  const absolutePath = ensureInsideProject(projectPath, normalized);
-
-  try {
-    await fs.access(absolutePath);
-    throw new Error("Folder already exists.");
-  } catch (error) {
-    const fsError = error as { code?: string };
-    if (fsError.code !== "ENOENT") {
-      throw error;
-    }
-  }
-
+  const normalizedPath = requireNonEmptyRelativePath(relativePath, "Folder name cannot be empty.");
+  const absolutePath = ensureInsideProject(projectPath, normalizedPath);
+  await assertPathMissing(absolutePath, "Folder already exists.");
   await fs.mkdir(absolutePath, { recursive: true });
 }
 
@@ -193,24 +206,9 @@ export async function deleteProjectEntry(
   relativePath: string,
   kind: "file" | "folder"
 ): Promise<void> {
-  const normalized = relativePath.trim().replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
-  if (!normalized) {
-    throw new Error("Path cannot be empty.");
-  }
-
-  const absolutePath = ensureInsideProject(projectPath, normalized);
-  let entryStat: Awaited<ReturnType<typeof fs.stat>>;
-
-  try {
-    entryStat = await fs.stat(absolutePath);
-  } catch (error) {
-    const fsError = error as { code?: string };
-    if (fsError.code === "ENOENT") {
-      throw new Error("Entry does not exist.");
-    }
-
-    throw error;
-  }
+  const normalizedPath = requireNonEmptyRelativePath(relativePath, "Path cannot be empty.");
+  const absolutePath = ensureInsideProject(projectPath, normalizedPath);
+  const entryStat = await getPathStatsOrThrow(absolutePath, "Entry does not exist.");
 
   if (kind === "file") {
     if (!entryStat.isFile()) {
@@ -241,44 +239,20 @@ export async function moveProjectFile(
   fromRelativePath: string,
   toFolderRelativePath: string
 ): Promise<string> {
-  const normalizedFrom = normalizePathInput(fromRelativePath);
+  const normalizedFrom = requireNonEmptyRelativePath(fromRelativePath, "Source file path cannot be empty.");
   const normalizedToFolder = normalizePathInput(toFolderRelativePath);
-
-  if (!normalizedFrom) {
-    throw new Error("Source file path cannot be empty.");
-  }
 
   const fromAbsolutePath = ensureInsideProject(projectPath, normalizedFrom);
   const toFolderAbsolutePath =
     normalizedToFolder.length > 0 ? ensureInsideProject(projectPath, normalizedToFolder) : path.resolve(projectPath);
 
-  let sourceStats: Awaited<ReturnType<typeof fs.stat>>;
-  try {
-    sourceStats = await fs.stat(fromAbsolutePath);
-  } catch (error) {
-    const fsError = error as { code?: string };
-    if (fsError.code === "ENOENT") {
-      throw new Error("Source file does not exist.");
-    }
-
-    throw error;
-  }
+  const sourceStats = await getPathStatsOrThrow(fromAbsolutePath, "Source file does not exist.");
 
   if (!sourceStats.isFile()) {
     throw new Error("Source path is not a file.");
   }
 
-  let destinationFolderStats: Awaited<ReturnType<typeof fs.stat>>;
-  try {
-    destinationFolderStats = await fs.stat(toFolderAbsolutePath);
-  } catch (error) {
-    const fsError = error as { code?: string };
-    if (fsError.code === "ENOENT") {
-      throw new Error("Destination folder does not exist.");
-    }
-
-    throw error;
-  }
+  const destinationFolderStats = await getPathStatsOrThrow(toFolderAbsolutePath, "Destination folder does not exist.");
 
   if (!destinationFolderStats.isDirectory()) {
     throw new Error("Destination path is not a folder.");
@@ -292,16 +266,7 @@ export async function moveProjectFile(
     return targetRelativePath;
   }
 
-  try {
-    await fs.access(targetAbsolutePath);
-    throw new Error("A file with that name already exists in the destination folder.");
-  } catch (error) {
-    const fsError = error as { code?: string };
-    if (fsError.code !== "ENOENT") {
-      throw error;
-    }
-  }
-
+  await assertPathMissing(targetAbsolutePath, "A file with that name already exists in the destination folder.");
   await fs.rename(fromAbsolutePath, targetAbsolutePath);
   return targetRelativePath;
 }
@@ -321,31 +286,13 @@ export async function renameProjectEntry(
   kind: "file" | "folder",
   nextRelativePath: string
 ): Promise<string> {
-  const normalizedCurrentPath = normalizePathInput(relativePath);
-  const normalizedNextPath = normalizePathInput(nextRelativePath);
-
-  if (!normalizedCurrentPath) {
-    throw new Error("Path cannot be empty.");
-  }
-
-  if (!normalizedNextPath) {
-    throw new Error("New name cannot be empty.");
-  }
+  const normalizedCurrentPath = requireNonEmptyRelativePath(relativePath, "Path cannot be empty.");
+  const normalizedNextPath = requireNonEmptyRelativePath(nextRelativePath, "New name cannot be empty.");
 
   const currentAbsolutePath = ensureInsideProject(projectPath, normalizedCurrentPath);
   const nextAbsolutePath = ensureInsideProject(projectPath, normalizedNextPath);
 
-  let currentStats: Awaited<ReturnType<typeof fs.stat>>;
-  try {
-    currentStats = await fs.stat(currentAbsolutePath);
-  } catch (error) {
-    const fsError = error as { code?: string };
-    if (fsError.code === "ENOENT") {
-      throw new Error("Entry does not exist.");
-    }
-
-    throw error;
-  }
+  const currentStats = await getPathStatsOrThrow(currentAbsolutePath, "Entry does not exist.");
 
   if (kind === "file" && !currentStats.isFile()) {
     throw new Error("Selected path is not a file.");
@@ -359,16 +306,7 @@ export async function renameProjectEntry(
     return normalizedCurrentPath;
   }
 
-  try {
-    await fs.access(nextAbsolutePath);
-    throw new Error("An entry with that name already exists.");
-  } catch (error) {
-    const fsError = error as { code?: string };
-    if (fsError.code !== "ENOENT") {
-      throw error;
-    }
-  }
-
+  await assertPathMissing(nextAbsolutePath, "An entry with that name already exists.");
   await fs.rename(currentAbsolutePath, nextAbsolutePath);
   return normalizedNextPath;
 }
