@@ -38,7 +38,6 @@ import { buildTreeContextMenuTemplate } from "./tree-context-menu-template";
 import { countWordsUsingSystemTool } from "./word-count-service";
 import type {
   AppInfo,
-  AppSettings,
   DeleteEntryPayload,
   MoveFilePayload,
   NewFilePayload,
