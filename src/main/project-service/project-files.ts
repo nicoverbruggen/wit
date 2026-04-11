@@ -15,6 +15,7 @@ import {
 } from "./project-paths";
 
 type PathStats = Awaited<ReturnType<typeof fs.stat>>;
+type FsErrorWithCode = Error & { code?: string };
 
 function requireNonEmptyRelativePath(relativePath: string, errorMessage: string): string {
   const normalizedPath = normalizePathInput(relativePath);
@@ -30,7 +31,7 @@ async function assertPathMissing(absolutePath: string, errorMessage: string): Pr
     await fs.access(absolutePath);
     throw new Error(errorMessage);
   } catch (error) {
-    const fsError = error as NodeJS.ErrnoException;
+    const fsError = error as FsErrorWithCode;
     if (fsError.code !== "ENOENT") {
       throw error;
     }
@@ -41,7 +42,7 @@ async function getPathStatsOrThrow(absolutePath: string, notFoundMessage: string
   try {
     return await fs.stat(absolutePath);
   } catch (error) {
-    const fsError = error as NodeJS.ErrnoException;
+    const fsError = error as FsErrorWithCode;
     if (fsError.code === "ENOENT") {
       throw new Error(notFoundMessage);
     }

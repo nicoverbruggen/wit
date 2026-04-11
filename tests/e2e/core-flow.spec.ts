@@ -1061,7 +1061,11 @@ test.describe("Wit core app flow", () => {
     const modifier = process.platform === "darwin" ? "Meta" : "Control";
     await page.keyboard.press(`${modifier}+S`);
 
-    const content = await fs.readFile(path.join(projectPath, "smart.txt"), "utf8");
+    const content = await expect
+      .poll(async () => fs.readFile(path.join(projectPath, "smart.txt"), "utf8"))
+      .toContain("“curly”")
+      .then(async () => fs.readFile(path.join(projectPath, "smart.txt"), "utf8"));
+
     expect(content).toContain("“curly”");
     expect(content).toContain("\"straight\"");
 
