@@ -99,6 +99,13 @@ test("renderer markup uses material symbols for toolbar and open-project icons",
   assert.match(html, /id="open-project-btn"[\s\S]*material-symbol-icon[\s\S]*folder_open/);
 });
 
+test("renderer markup defaults to Markdown files and 5-minute autosave", async () => {
+  const html = await fs.readFile(path.join(repoRoot, "src/renderer/index.html"), "utf8");
+
+  assert.match(html, /<option value="\.md" selected>\.md \(Markdown\)<\/option>/);
+  assert.match(html, /id="autosave-interval-input"[\s\S]*value="300"/);
+});
+
 test("renderer styles include dedicated writing font configuration", async () => {
   const css = await fs.readFile(path.join(repoRoot, "src/renderer/styles.css"), "utf8");
 

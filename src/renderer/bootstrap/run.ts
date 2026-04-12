@@ -33,7 +33,10 @@ type WitApiForInitialization = {
   getPlatform: () => string;
   getActiveProject: () => Promise<ProjectMetadata | null>;
   onMenuOpenProject: (handler: () => void) => () => void;
+  onMenuCloseProject: (handler: () => void) => () => void;
   onMenuNewFile: (handler: () => void) => () => void;
+  onMenuNewFolder: (handler: () => void) => () => void;
+  onMenuProjectSettings: (handler: () => void) => () => void;
   onMenuSaveCurrentFile: (handler: () => void) => () => void;
   onMenuZoomInText: (handler: () => void) => () => void;
   onMenuZoomOutText: (handler: () => void) => () => void;
@@ -68,8 +71,10 @@ export function bootstrapAppController(options: {
   onEditorKeydown: (event: KeyboardEvent) => void;
   closeTreeContextMenu: () => void;
   openProjectPicker: () => Promise<void>;
+  closeCurrentProject: () => Promise<void>;
   createNewFile: () => Promise<void>;
   createNewFolder: () => Promise<void>;
+  openProjectSettings: () => void;
   toggleSidebarVisibility: () => void;
   beginSidebarResize: (pointerClientX: number) => void;
   isSidebarVisible: () => boolean;
@@ -77,7 +82,6 @@ export function bootstrapAppController(options: {
   syncFullscreenToggleButton: (isFullscreen: boolean) => void;
   setSidebarFaded: (nextFaded: boolean) => void;
   consumeTestTreeContextAction: () => TreeContextAction | undefined;
-  closeCurrentProject: () => Promise<void>;
   deleteEntryByPath: (relativePath: string, kind: ProjectTreeSelectionKind) => Promise<void>;
   closeCurrentFile: () => Promise<void>;
   renameEntryByPath: (relativePath: string, kind: ProjectTreeSelectionKind) => Promise<void>;
@@ -220,7 +224,10 @@ export function bootstrapAppController(options: {
     setStatus: options.setStatus,
     addSubscription,
     openProjectPicker: options.openProjectPicker,
+    closeCurrentProject: options.closeCurrentProject,
     createNewFile: options.createNewFile,
+    createNewFolder: options.createNewFolder,
+    openProjectSettings: options.openProjectSettings,
     persistCurrentFile: options.persistCurrentFile,
     stepEditorZoom: options.stepEditorZoom,
     resetEditorZoom: options.resetEditorZoom,

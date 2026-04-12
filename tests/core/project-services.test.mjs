@@ -52,9 +52,9 @@ test("project initialization and metadata defaults", async () => {
     assert.deepEqual(metadata.gitRemotes, []);
     assert.equal(metadata.lastOpenedFilePath, null);
     assert.equal(metadata.hasStoredLastOpenedFilePath, false);
-    assert.equal(metadata.settings.autosaveIntervalSec, 60);
+    assert.equal(metadata.settings.autosaveIntervalSec, 300);
     assert.equal(metadata.settings.theme, "light");
-    assert.equal(metadata.settings.defaultFileExtension, ".txt");
+    assert.equal(metadata.settings.defaultFileExtension, ".md");
     assert.equal(metadata.settings.showWordCount, false);
     assert.equal(metadata.settings.showWritingTime, false);
     assert.equal(metadata.settings.showCurrentFileBar, false);

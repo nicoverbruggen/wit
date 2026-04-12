@@ -52,6 +52,28 @@ let mainWindow: BrowserWindow | null = null;
 const projectSession = createProjectSessionService({
   getUserDataPath: () => app.getPath("userData")
 });
+let exitSnapshotPromise: Promise<void> | null = null;
+let isQuittingAfterExitSnapshot = false;
+
+function refreshApplicationMenu(): void {
+  if (app.isReady()) {
+    setupMenu();
+  }
+}
+
+function runExitSnapshotIfNeeded(): Promise<void> {
+  if (!projectSession.hasActiveProject()) {
+    return Promise.resolve();
+  }
+
+  if (!exitSnapshotPromise) {
+    exitSnapshotPromise = projectSession.runExitSnapshot().finally(() => {
+      exitSnapshotPromise = null;
+    });
+  }
+
+  return exitSnapshotPromise;
+}
 
 function resetWindowZoomToDefault(browserWindow: BrowserWindow): void {
   browserWindow.webContents.setZoomLevel(0);
@@ -172,6 +194,7 @@ function createMainWindow(): BrowserWindow {
     minHeight: 700,
     title: "Wit",
     backgroundColor: "#f7f7f8",
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
       contextIsolation: true,
@@ -207,17 +230,45 @@ function createMainWindow(): BrowserWindow {
   resetWindowZoomToDefault(browserWindow);
   browserWindow.webContents.once("did-finish-load", () => {
     resetWindowZoomToDefault(browserWindow);
+    if (!browserWindow.isDestroyed()) {
+      browserWindow.show();
+    }
+  });
+  browserWindow.on("close", (event) => {
+    if (isQuittingAfterExitSnapshot || !projectSession.hasActiveProject()) {
+      return;
+    }
+
+    event.preventDefault();
+    void runExitSnapshotIfNeeded().finally(() => {
+      if (!browserWindow.isDestroyed()) {
+        browserWindow.destroy();
+      }
+    });
   });
   setupContextMenus(browserWindow);
   setupWindowStateEvents(browserWindow);
+  browserWindow.on("closed", () => {
+    if (mainWindow === browserWindow) {
+      mainWindow = null;
+    }
+  });
 
   return browserWindow;
 }
 
 function setupMenu(): void {
-  const template: MenuItemConstructorOptions[] = [
+  const hasActiveProject = projectSession.hasActiveProject();
+  const fullscreenAccelerator = process.platform === "darwin" ? "Ctrl+Command+F" : "F11";
+  const template: MenuItemConstructorOptions[] = [];
+
+  if (process.platform === "darwin") {
+    template.push({ role: "appMenu" });
+  }
+
+  template.push(
     {
-      label: "File",
+      label: "Project",
       submenu: [
         {
           label: "Open Project",
@@ -225,17 +276,42 @@ function setupMenu(): void {
           click: emitMenuChannel(IPC_CHANNELS.menu.openProject)
         },
         {
+          label: "Close Project",
+          accelerator: "CmdOrCtrl+W",
+          enabled: hasActiveProject,
+          click: emitMenuChannel(IPC_CHANNELS.menu.closeProject)
+        },
+        { type: "separator" },
+        {
+          label: "Project Settings",
+          accelerator: "CmdOrCtrl+,",
+          enabled: hasActiveProject,
+          click: emitMenuChannel(IPC_CHANNELS.menu.projectSettings)
+        }
+      ]
+    },
+    {
+      label: "File",
+      submenu: [
+        {
           label: "New File",
           accelerator: "CmdOrCtrl+N",
+          enabled: hasActiveProject,
           click: emitMenuChannel(IPC_CHANNELS.menu.newFile)
         },
         {
-          label: "Save",
-          accelerator: "CmdOrCtrl+S",
-          click: emitMenuChannel(IPC_CHANNELS.menu.saveCurrentFile)
+          label: "New Folder",
+          accelerator: "CmdOrCtrl+Shift+N",
+          enabled: hasActiveProject,
+          click: emitMenuChannel(IPC_CHANNELS.menu.newFolder)
         },
         { type: "separator" },
-        { role: "quit" }
+        {
+          label: "Save",
+          accelerator: "CmdOrCtrl+S",
+          enabled: hasActiveProject,
+          click: emitMenuChannel(IPC_CHANNELS.menu.saveCurrentFile)
+        }
       ]
     },
     { role: "editMenu" },
@@ -264,10 +340,20 @@ function setupMenu(): void {
           click: emitMenuChannel(IPC_CHANNELS.menu.zoomResetText)
         },
         { type: "separator" },
-        { role: "togglefullscreen" }
+        {
+          label: "Toggle Full Screen",
+          accelerator: fullscreenAccelerator,
+          click: () => {
+            if (!mainWindow) {
+              return;
+            }
+
+            mainWindow.setFullScreen(!mainWindow.isFullScreen());
+          }
+        }
       ]
     }
-  ];
+  );
 
   const appMenu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(appMenu);
@@ -289,7 +375,9 @@ function setupIpcHandlers(): void {
     }
 
     const selectedPath = selection.filePaths[0];
-    return projectSession.openProject(selectedPath);
+    const metadata = await projectSession.openProject(selectedPath);
+    refreshApplicationMenu();
+    return metadata;
   });
 
   ipcMain.handle(IPC_CHANNELS.project.getActive, async () => projectSession.getActiveProject());
@@ -301,7 +389,11 @@ function setupIpcHandlers(): void {
     })
   );
 
-  ipcMain.handle(IPC_CHANNELS.project.close, async () => projectSession.closeProject());
+  ipcMain.handle(IPC_CHANNELS.project.close, async () => {
+    const result = await projectSession.closeProject();
+    refreshApplicationMenu();
+    return result;
+  });
 
   ipcMain.handle(IPC_CHANNELS.project.exitSnapshot, async () => {
     if (!projectSession.hasActiveProject()) {
@@ -322,7 +414,9 @@ function setupIpcHandlers(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.project.openPath, async (_event, projectPath: string) => {
-    return projectSession.openProject(projectPath);
+    const metadata = await projectSession.openProject(projectPath);
+    refreshApplicationMenu();
+    return metadata;
   });
 
   ipcMain.handle(IPC_CHANNELS.project.openFile, withActiveProjectPath(readProjectFile));
@@ -455,9 +549,10 @@ function setupIpcHandlers(): void {
 }
 
 app.whenReady().then(async () => {
+  app.setName("Wit");
   setupIpcHandlers();
-  setupMenu();
   await projectSession.restoreLastProjectFromDisk();
+  setupMenu();
 
   mainWindow = createMainWindow();
 
@@ -468,16 +563,14 @@ app.whenReady().then(async () => {
   });
 });
 
-let exitSnapshotDone = false;
-
 app.on("before-quit", (event) => {
-  if (exitSnapshotDone || !projectSession.hasActiveProject()) {
+  if (isQuittingAfterExitSnapshot || !projectSession.hasActiveProject()) {
     return;
   }
 
   event.preventDefault();
-  projectSession.runExitSnapshot().finally(() => {
-    exitSnapshotDone = true;
+  void runExitSnapshotIfNeeded().finally(() => {
+    isQuittingAfterExitSnapshot = true;
     app.quit();
   });
 });

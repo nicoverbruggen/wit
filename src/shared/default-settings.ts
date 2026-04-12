@@ -10,9 +10,9 @@ import type { AppSettings } from "./types";
  * Defines the default per-project settings used when no persisted values exist.
  */
 export const DEFAULT_SETTINGS: AppSettings = {
-  autosaveIntervalSec: 60,
+  autosaveIntervalSec: 300,
   theme: "light",
-  defaultFileExtension: ".txt",
+  defaultFileExtension: ".md",
   showWordCount: false,
   showWritingTime: false,
   showCurrentFileBar: false,

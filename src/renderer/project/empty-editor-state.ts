@@ -65,7 +65,10 @@ export function createEmptyEditorStateController(options: {
       options.emptyStateShortcutsLabel.hidden = false;
       renderEmptyStateShortcutRows([
         { label: "Open project", key: options.primaryShortcutLabel("O") },
-        { label: "Toggle fullscreen", key: "F11" }
+        {
+          label: "Toggle fullscreen",
+          key: navigator.platform.toLowerCase().includes("mac") ? "Ctrl+Cmd+F" : "F11"
+        }
       ]);
       return;
     }

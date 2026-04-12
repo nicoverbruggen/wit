@@ -90,7 +90,7 @@ export function createProjectUiController(options: {
 
   const syncBasicSettingsInputs = (settings: AppSettings, project: ProjectMetadata | null): void => {
     options.themeSelect.value = settings.theme;
-    options.defaultFileExtensionSelect.value = settings.defaultFileExtension ?? ".txt";
+    options.defaultFileExtensionSelect.value = settings.defaultFileExtension ?? ".md";
     options.showWordCountInput.checked = settings.showWordCount;
     options.showWritingTimeInput.checked = settings.showWritingTime;
     options.showCurrentFileBarInput.checked = settings.showCurrentFileBar;

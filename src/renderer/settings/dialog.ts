@@ -150,7 +150,7 @@ export function createSettingsDialogController(options: {
   };
 
   const openDialog = async (): Promise<void> => {
-    if (options.toggleButton.disabled) {
+    if (options.toggleButton.disabled || options.toggleButton.hidden) {
       return;
     }
 
@@ -214,7 +214,7 @@ export function createSettingsDialogController(options: {
   });
   addListener(options.inputs.autosaveIntervalInput, "change", () => {
     const parsed = parseFiniteIntegerInputValue(options.inputs.autosaveIntervalInput);
-    persistSetting("autosaveIntervalSec", parsed === null ? 60 : Math.max(5, parsed));
+    persistSetting("autosaveIntervalSec", parsed === null ? 300 : Math.max(5, parsed));
   });
   addListener(options.inputs.snapshotMaxSizeInput, "change", () => {
     const parsed = parseFiniteIntegerInputValue(options.inputs.snapshotMaxSizeInput);

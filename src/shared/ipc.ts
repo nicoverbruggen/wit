@@ -51,7 +51,10 @@ export const IPC_CHANNELS = {
   },
   menu: {
     openProject: "menu:open-project",
+    closeProject: "menu:close-project",
     newFile: "menu:new-file",
+    newFolder: "menu:new-folder",
+    projectSettings: "menu:project-settings",
     saveCurrentFile: "menu:save-current-file",
     zoomInText: "menu:zoom-in-text",
     zoomOutText: "menu:zoom-out-text",
@@ -96,7 +99,10 @@ export type WitApi = {
   getAppVersion: () => Promise<string>;
   getAppInfo: () => Promise<AppInfo>;
   onMenuOpenProject: (listener: () => void) => Unsubscribe;
+  onMenuCloseProject: (listener: () => void) => Unsubscribe;
   onMenuNewFile: (listener: () => void) => Unsubscribe;
+  onMenuNewFolder: (listener: () => void) => Unsubscribe;
+  onMenuProjectSettings: (listener: () => void) => Unsubscribe;
   onMenuSaveCurrentFile: (listener: () => void) => Unsubscribe;
   onMenuZoomInText: (listener: () => void) => Unsubscribe;
   onMenuZoomOutText: (listener: () => void) => Unsubscribe;

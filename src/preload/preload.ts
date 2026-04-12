@@ -43,7 +43,10 @@ const IPC_CHANNELS = {
   },
   menu: {
     openProject: "menu:open-project",
+    closeProject: "menu:close-project",
     newFile: "menu:new-file",
+    newFolder: "menu:new-folder",
+    projectSettings: "menu:project-settings",
     saveCurrentFile: "menu:save-current-file",
     zoomInText: "menu:zoom-in-text",
     zoomOutText: "menu:zoom-out-text",
@@ -88,7 +91,11 @@ const api: WitApi = {
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.app.version),
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.app.info),
   onMenuOpenProject: (listener: () => void): Unsubscribe => createMenuListener(IPC_CHANNELS.menu.openProject, listener),
+  onMenuCloseProject: (listener: () => void): Unsubscribe => createMenuListener(IPC_CHANNELS.menu.closeProject, listener),
   onMenuNewFile: (listener: () => void): Unsubscribe => createMenuListener(IPC_CHANNELS.menu.newFile, listener),
+  onMenuNewFolder: (listener: () => void): Unsubscribe => createMenuListener(IPC_CHANNELS.menu.newFolder, listener),
+  onMenuProjectSettings: (listener: () => void): Unsubscribe =>
+    createMenuListener(IPC_CHANNELS.menu.projectSettings, listener),
   onMenuSaveCurrentFile: (listener: () => void): Unsubscribe =>
     createMenuListener(IPC_CHANNELS.menu.saveCurrentFile, listener),
   onMenuZoomInText: (listener: () => void): Unsubscribe => createMenuListener(IPC_CHANNELS.menu.zoomInText, listener),

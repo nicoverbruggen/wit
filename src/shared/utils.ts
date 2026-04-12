@@ -97,6 +97,6 @@ export function normalizeDefaultFileExtension(value: unknown): AppSettings["defa
     case ".wxt":
       return value;
     default:
-      return ".txt";
+      return ".md";
   }
 }

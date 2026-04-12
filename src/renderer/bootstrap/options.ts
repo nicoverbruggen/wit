@@ -32,7 +32,10 @@ export function createRendererBootstrapOptions(options: {
     getPlatform: () => string;
     getActiveProject: () => Promise<ProjectMetadata | null>;
     onMenuOpenProject: (handler: () => void) => () => void;
+    onMenuCloseProject: (handler: () => void) => () => void;
     onMenuNewFile: (handler: () => void) => () => void;
+    onMenuNewFolder: (handler: () => void) => () => void;
+    onMenuProjectSettings: (handler: () => void) => () => void;
     onMenuSaveCurrentFile: (handler: () => void) => () => void;
     onMenuZoomInText: (handler: () => void) => () => void;
     onMenuZoomOutText: (handler: () => void) => () => void;
@@ -85,6 +88,7 @@ export function createRendererBootstrapOptions(options: {
     closeTreeContextMenu: options.actions.closeTreeContextMenu,
     openProjectPicker: options.actions.openProjectPicker,
     createNewFile: () => options.composition.projectEntryActionsController.createNewFile(),
+    openProjectSettings: () => options.composition.settingsDialogController.open(),
     createNewFolder: () => options.composition.projectEntryActionsController.createNewFolder(),
     toggleSidebarVisibility: options.actions.toggleSidebarVisibility,
     beginSidebarResize: options.actions.beginSidebarResize,

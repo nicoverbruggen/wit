@@ -10,7 +10,10 @@ type WitApiForInitialization = {
   getPlatform: () => string;
   getActiveProject: () => Promise<ProjectMetadata | null>;
   onMenuOpenProject: (handler: () => void) => () => void;
+  onMenuCloseProject: (handler: () => void) => () => void;
   onMenuNewFile: (handler: () => void) => () => void;
+  onMenuNewFolder: (handler: () => void) => () => void;
+  onMenuProjectSettings: (handler: () => void) => () => void;
   onMenuSaveCurrentFile: (handler: () => void) => () => void;
   onMenuZoomInText: (handler: () => void) => () => void;
   onMenuZoomOutText: (handler: () => void) => () => void;
@@ -61,7 +64,10 @@ export async function initializeApp(options: {
   setStatus: (message: string, clearAfterMs?: number) => void;
   addSubscription: (unsubscribe: () => void) => void;
   openProjectPicker: () => Promise<void>;
+  closeCurrentProject: () => Promise<void>;
   createNewFile: () => Promise<void>;
+  createNewFolder: () => Promise<void>;
+  openProjectSettings: () => void;
   persistCurrentFile: (showStatus?: boolean) => Promise<boolean>;
   stepEditorZoom: (direction: 1 | -1) => void;
   resetEditorZoom: () => void;
@@ -117,8 +123,26 @@ export async function initializeApp(options: {
   );
 
   options.addSubscription(
+    options.witApi.onMenuCloseProject(() => {
+      void options.closeCurrentProject();
+    })
+  );
+
+  options.addSubscription(
     options.witApi.onMenuNewFile(() => {
       void options.createNewFile();
+    })
+  );
+
+  options.addSubscription(
+    options.witApi.onMenuNewFolder(() => {
+      void options.createNewFolder();
+    })
+  );
+
+  options.addSubscription(
+    options.witApi.onMenuProjectSettings(() => {
+      options.openProjectSettings();
     })
   );
 
