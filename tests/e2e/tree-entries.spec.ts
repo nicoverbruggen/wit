@@ -360,4 +360,41 @@ test.describe("Wit tree entry actions", () => {
 
     await app.close();
   });
+
+  // TODO: Implement filesystem watcher to detect externally added files
+  test.skip("detects files added externally and updates the sidebar tree", async () => {
+    const projectPath = await makeTempDir("wit-e2e-external-file-");
+    await fs.writeFile(path.join(projectPath, "existing.txt"), "hello", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await expect(page.locator(".file-button", { hasText: "existing.txt" })).toBeVisible();
+
+    await fs.writeFile(path.join(projectPath, "added-externally.txt"), "external content", "utf8");
+
+    await expect(page.locator(".file-button", { hasText: "added-externally.txt" })).toBeVisible({ timeout: 5000 });
+
+    await app.close();
+  });
+
+  test("drags a file from one folder to another folder", async () => {
+    const projectPath = await makeTempDir("wit-e2e-dnd-folder-");
+    await fs.mkdir(path.join(projectPath, "alpha"), { recursive: true });
+    await fs.mkdir(path.join(projectPath, "beta"), { recursive: true });
+    await fs.writeFile(path.join(projectPath, "alpha", "note.txt"), "hello", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await expect(page.locator(".folder-button", { hasText: "alpha" })).toBeVisible();
+    await expect(page.locator(".folder-button", { hasText: "beta" })).toBeVisible();
+
+    await page.click(".folder-button:has-text('alpha')");
+    await expect(page.locator(".file-button", { hasText: "note.txt" })).toBeVisible();
+
+    await page.dragAndDrop(".file-button:has-text('note.txt')", ".folder-button:has-text('beta')");
+    await expect(page.locator("#status-message")).toContainText("Moved note.txt to beta");
+
+    await expect(fs.stat(path.join(projectPath, "alpha", "note.txt")).catch(() => null)).resolves.toBeNull();
+    await expect(fs.stat(path.join(projectPath, "beta", "note.txt"))).resolves.toBeTruthy();
+
+    await app.close();
+  });
 });

@@ -26,7 +26,7 @@ export type ProjectTreeStateController = {
   restoreCollapsedFolders: () => void;
   resetTreeState: () => void;
   renderFileList: () => void;
-  setDragSourceFilePath: (value: string | null) => void;
+  setDragSource: (path: string | null, kind: "file" | "folder" | null) => void;
 };
 
 /**
@@ -47,10 +47,12 @@ export function createProjectTreeStateController(options: {
   closeCurrentFile: () => Promise<void>;
   openFile: (relativePath: string) => Promise<void>;
   moveFileToFolder: (sourcePath: string, toFolderRelativePath: string) => Promise<void>;
+  moveFolderToFolder: (sourcePath: string, toFolderRelativePath: string) => Promise<void>;
 }): ProjectTreeStateController {
   let selectedTreePath: string | null = null;
   let selectedTreeKind: ProjectTreeSelectionKind | null = null;
-  let dragSourceFilePath: string | null = null;
+  let dragSourcePath: string | null = null;
+  let dragSourceKind: "file" | "folder" | null = null;
   const collapsedFolderPaths = new Set<string>();
 
   const collapsedFoldersStorageKey = (): string | null => {
@@ -72,9 +74,11 @@ export function createProjectTreeStateController(options: {
       selectedTreeKind = value;
     },
     getCurrentFilePath: () => options.getCurrentFilePath(),
-    getDragSourceFilePath: () => dragSourceFilePath,
-    setDragSourceFilePath: (value) => {
-      dragSourceFilePath = value;
+    getDragSourcePath: () => dragSourcePath,
+    getDragSourceKind: () => dragSourceKind,
+    setDragSource: (path, kind) => {
+      dragSourcePath = path;
+      dragSourceKind = kind;
     }
   };
 
@@ -127,7 +131,8 @@ export function createProjectTreeStateController(options: {
     collapsedFolderPaths.clear();
     selectedTreePath = null;
     selectedTreeKind = null;
-    dragSourceFilePath = null;
+    dragSourcePath = null;
+    dragSourceKind = null;
   }
 
   function renderFileList(): void {
@@ -141,7 +146,8 @@ export function createProjectTreeStateController(options: {
       collapsedFolderPaths,
       maxTreeIndent: options.maxTreeIndent,
       getProjectDisplayTitle: options.getProjectDisplayTitle,
-      getDragSourceFilePath: () => dragSourceFilePath,
+      getDragSourcePath: () => dragSourcePath,
+      getDragSourceKind: () => dragSourceKind,
       callbacks: projectTreeRenderCallbacks
     });
   }
@@ -156,7 +162,8 @@ export function createProjectTreeStateController(options: {
       saveCollapsedFolders,
       closeCurrentFile: options.closeCurrentFile,
       openFile: options.openFile,
-      moveFileToFolder: options.moveFileToFolder
+      moveFileToFolder: options.moveFileToFolder,
+      moveFolderToFolder: options.moveFolderToFolder
     }
   });
 
@@ -187,6 +194,6 @@ export function createProjectTreeStateController(options: {
     restoreCollapsedFolders,
     resetTreeState,
     renderFileList,
-    setDragSourceFilePath: state.setDragSourceFilePath
+    setDragSource: state.setDragSource
   };
 }

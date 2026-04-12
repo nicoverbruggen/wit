@@ -13,6 +13,7 @@ export {
   listProjectFiles,
   listProjectFolders,
   moveProjectFile,
+  moveProjectFolder,
   readProjectFile,
   renameProjectEntry,
   saveProjectFile,

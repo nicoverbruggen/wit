@@ -9,7 +9,7 @@ export type ProjectTreeNodeKind = "file" | "folder";
 
 export type ProjectTreeContextMenuBindings = {
   listElement: HTMLUListElement;
-  onInvalidTarget: () => void;
+  onEmptyAreaTarget: (payload: { x: number; y: number }) => void;
   onProjectTarget: (payload: { relativePath: string; x: number; y: number }) => void;
   onNodeTarget: (payload: {
     relativePath: string;
@@ -33,19 +33,17 @@ export function bindProjectTreeContextMenu(options: ProjectTreeContextMenuBindin
     const treeItem = target?.closest("button.tree-item") as HTMLButtonElement | null;
 
     if (!treeItem) {
-      options.onInvalidTarget();
+      options.onEmptyAreaTarget({ x: event.clientX, y: event.clientY });
       return;
     }
 
     const itemKind = treeItem.dataset.itemKind;
     if (itemKind !== "file" && itemKind !== "folder" && itemKind !== "project") {
-      options.onInvalidTarget();
       return;
     }
 
     const relativePath = treeItem.dataset.relativePath;
     if (relativePath === undefined) {
-      options.onInvalidTarget();
       return;
     }
 

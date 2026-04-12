@@ -272,6 +272,47 @@ export async function moveProjectFile(
   return targetRelativePath;
 }
 
+export async function moveProjectFolder(
+  projectPath: string,
+  fromRelativePath: string,
+  toFolderRelativePath: string
+): Promise<string> {
+  const normalizedFrom = requireNonEmptyRelativePath(fromRelativePath, "Source folder path cannot be empty.");
+  const normalizedToFolder = normalizePathInput(toFolderRelativePath);
+
+  const fromAbsolutePath = ensureInsideProject(projectPath, normalizedFrom);
+  const toFolderAbsolutePath =
+    normalizedToFolder.length > 0 ? ensureInsideProject(projectPath, normalizedToFolder) : path.resolve(projectPath);
+
+  const sourceStats = await getPathStatsOrThrow(fromAbsolutePath, "Source folder does not exist.");
+
+  if (!sourceStats.isDirectory()) {
+    throw new Error("Source path is not a folder.");
+  }
+
+  const destinationFolderStats = await getPathStatsOrThrow(toFolderAbsolutePath, "Destination folder does not exist.");
+
+  if (!destinationFolderStats.isDirectory()) {
+    throw new Error("Destination path is not a folder.");
+  }
+
+  const folderName = path.basename(normalizedFrom);
+  const targetRelativePath = normalizedToFolder.length > 0 ? `${normalizedToFolder}/${folderName}` : folderName;
+  const targetAbsolutePath = ensureInsideProject(projectPath, targetRelativePath);
+
+  if (pathEquals(normalizedFrom, targetRelativePath)) {
+    return targetRelativePath;
+  }
+
+  if (targetAbsolutePath.startsWith(fromAbsolutePath + path.sep)) {
+    throw new Error("Cannot move a folder into itself.");
+  }
+
+  await assertPathMissing(targetAbsolutePath, "A folder with that name already exists in the destination.");
+  await fs.rename(fromAbsolutePath, targetAbsolutePath);
+  return targetRelativePath;
+}
+
 /**
  * Renames a file or folder inside the project.
  *

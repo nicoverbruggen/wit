@@ -182,10 +182,14 @@
 
     <dialog id="rename-entry-dialog" class="new-file-dialog">
       <form method="dialog" id="rename-entry-form">
-        <h2 id="rename-entry-title">Rename</h2>
-        <p>Enter a new name.</p>
-        <label for="rename-entry-input">Name</label>
-        <input id="rename-entry-input" name="rename-entry" type="text" value="" />
+        <div class="entry-dialog-header">
+          <h2 id="rename-entry-title">Rename</h2>
+          <p>Enter a new name.</p>
+        </div>
+        <div class="entry-dialog-body">
+          <label for="rename-entry-input">Name</label>
+          <input id="rename-entry-input" name="rename-entry" type="text" value="" />
+        </div>
         <p id="rename-entry-error" class="dialog-error" aria-live="polite"></p>
         <div class="new-file-actions">
           <button id="rename-entry-cancel-btn" type="button" class="ghost-button">Cancel</button>

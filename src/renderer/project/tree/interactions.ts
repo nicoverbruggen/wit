@@ -16,8 +16,9 @@ export type ProjectTreeControllerState = {
   getSelectedTreeKind: () => ProjectTreeSelectionKind | null;
   setSelectedTreeKind: (value: ProjectTreeSelectionKind | null) => void;
   getCurrentFilePath: () => string | null;
-  getDragSourceFilePath: () => string | null;
-  setDragSourceFilePath: (value: string | null) => void;
+  getDragSourcePath: () => string | null;
+  getDragSourceKind: () => "file" | "folder" | null;
+  setDragSource: (path: string | null, kind: "file" | "folder" | null) => void;
 };
 
 export type ProjectTreeControllerActions = {
@@ -28,6 +29,7 @@ export type ProjectTreeControllerActions = {
   closeCurrentFile: () => Promise<void>;
   openFile: (relativePath: string) => Promise<void>;
   moveFileToFolder: (sourcePath: string, toFolderRelativePath: string) => Promise<void>;
+  moveFolderToFolder: (sourcePath: string, toFolderRelativePath: string) => Promise<void>;
 };
 
 /**
@@ -80,8 +82,11 @@ export function createProjectTreeRenderCallbacks(options: {
     onMoveFileToFolder: (sourcePath, toFolderRelativePath) => {
       void options.actions.moveFileToFolder(sourcePath, toFolderRelativePath);
     },
-    onDragSourceChange: (sourcePath) => {
-      options.state.setDragSourceFilePath(sourcePath);
+    onMoveFolderToFolder: (sourcePath, toFolderRelativePath) => {
+      void options.actions.moveFolderToFolder(sourcePath, toFolderRelativePath);
+    },
+    onDragSourceChange: (sourcePath, kind) => {
+      options.state.setDragSource(sourcePath, sourcePath ? kind : null);
     }
   };
 }
@@ -121,8 +126,40 @@ export function bindProjectTreeContextMenuController(
 ): () => void {
   return bindProjectTreeContextMenu({
     listElement: options.listElement,
-    onInvalidTarget: () => {
-      options.closeTreeContextMenu();
+    onEmptyAreaTarget: ({ x, y }) => {
+      options.state.setSelectedTreePath("");
+      options.state.setSelectedTreeKind("folder");
+      options.renderFileList();
+      options.setSidebarFaded(false);
+
+      const testAction = options.consumeTestTreeContextAction();
+      void (async () => {
+        try {
+          const action = await options.showTreeContextMenu({
+            relativePath: "",
+            kind: "project",
+            x,
+            y,
+            testAction
+          });
+
+          if (action === "new-file") {
+            await options.createNewFile();
+            return;
+          }
+
+          if (action === "new-folder") {
+            await options.createNewFolder();
+            return;
+          }
+
+          if (action === "close-project") {
+            await options.closeCurrentProject();
+          }
+        } catch {
+          options.setStatus("Could not open project actions menu.");
+        }
+      })();
     },
     onProjectTarget: ({ relativePath, x, y }) => {
       options.state.setSelectedTreePath("");

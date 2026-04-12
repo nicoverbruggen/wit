@@ -43,7 +43,8 @@
     "mac": {
       "target": "dmg",
       "category": "public.app-category.productivity",
-      "icon": "icon.png"
+      "icon": "icon.png",
+      "notarize": true
     },
     "linux": {
       "target": "AppImage",

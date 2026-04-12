@@ -11,7 +11,7 @@ import {
   StateField,
   RangeSetBuilder
 } from "@codemirror/state";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
@@ -104,7 +104,7 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
         EditorView.lineWrapping,
         drawSelection(),
         history(),
-        keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+        keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         paragraphSpacingField,
         languageCompartment.of([]),

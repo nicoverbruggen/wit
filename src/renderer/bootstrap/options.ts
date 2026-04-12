@@ -113,7 +113,7 @@ export function createRendererBootstrapOptions(options: {
     stopSnapshotLabelController: () => options.composition.snapshotLabelController.stop(),
     destroySettingsDialogController: () => options.composition.settingsDialogController.destroy(),
     destroyEntryDialogController: () => options.composition.entryDialogController.destroy(),
-    setDragSourceFilePath: options.composition.projectTreeStateController.setDragSourceFilePath,
+    setDragSource: options.composition.projectTreeStateController.setDragSource,
     setStatus: options.actions.setStatus,
     defaultEditorFont: options.defaultEditorFont,
     lineHeightInput: options.dom.lineHeightInput,

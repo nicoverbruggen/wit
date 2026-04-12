@@ -95,7 +95,7 @@ export function bootstrapAppController(options: {
   stopSnapshotLabelController: () => void;
   destroySettingsDialogController: () => void;
   destroyEntryDialogController: () => void;
-  setDragSourceFilePath: (value: string | null) => void;
+  setDragSource: (path: string | null, kind: "file" | "folder" | null) => void;
   setStatus: (message: string, clearAfterMs?: number) => void;
   defaultEditorFont: string;
   lineHeightInput: HTMLInputElement;
@@ -183,7 +183,7 @@ export function bootstrapAppController(options: {
         unsubscribe();
       }
     },
-    setDragSourceFilePath: options.setDragSourceFilePath,
+    setDragSource: options.setDragSource,
     setStatus: options.setStatus
   });
 

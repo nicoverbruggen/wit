@@ -17,7 +17,8 @@ export type ProjectTreeCallbacks = {
   onFolderClick: (relativePath: string, isCollapsed: boolean) => void;
   onFileClick: (relativePath: string) => void;
   onMoveFileToFolder: (sourcePath: string, toFolderRelativePath: string) => void | Promise<void>;
-  onDragSourceChange: (sourcePath: string | null) => void;
+  onMoveFolderToFolder: (sourcePath: string, toFolderRelativePath: string) => void | Promise<void>;
+  onDragSourceChange: (sourcePath: string | null, kind: "file" | "folder") => void;
 };
 
 export type RenderProjectTreeListOptions = {
@@ -30,7 +31,8 @@ export type RenderProjectTreeListOptions = {
   collapsedFolderPaths: Set<string>;
   maxTreeIndent: number;
   getProjectDisplayTitle: (projectPath: string) => string;
-  getDragSourceFilePath: () => string | null;
+  getDragSourcePath: () => string | null;
+  getDragSourceKind: () => "file" | "folder" | null;
   callbacks: ProjectTreeCallbacks;
 };
 
@@ -44,11 +46,28 @@ function clearDropTargets(listElement: HTMLUListElement): void {
   });
 }
 
-function resolveDraggedSourcePath(
+function resolveDragSource(
   event: DragEvent,
-  getDragSourceFilePath: () => string | null
-): string | null {
-  return event.dataTransfer?.getData("text/wit-file-path") || getDragSourceFilePath();
+  getDragSourcePath: () => string | null,
+  getDragSourceKind: () => "file" | "folder" | null
+): { path: string; kind: "file" | "folder" } | null {
+  const filePath = event.dataTransfer?.getData("text/wit-file-path");
+  if (filePath) {
+    return { path: filePath, kind: "file" };
+  }
+
+  const folderPath = event.dataTransfer?.getData("text/wit-folder-path");
+  if (folderPath) {
+    return { path: folderPath, kind: "folder" };
+  }
+
+  const fallbackPath = getDragSourcePath();
+  const fallbackKind = getDragSourceKind();
+  if (fallbackPath && fallbackKind) {
+    return { path: fallbackPath, kind: fallbackKind };
+  }
+
+  return null;
 }
 
 function renderTreeNodes(options: RenderProjectTreeListOptions, nodes: TreeNode[], depth: number): void {
@@ -80,20 +99,39 @@ function renderTreeNodes(options: RenderProjectTreeListOptions, nodes: TreeNode[
       label.className = "tree-label";
       label.textContent = node.name;
 
+      button.draggable = true;
       button.append(disclosure, icon, label);
       button.addEventListener("click", () => {
         options.callbacks.onBeforeInteraction();
         options.callbacks.onFolderClick(node.relativePath, isCollapsed);
       });
+      button.addEventListener("dragstart", (event) => {
+        options.callbacks.onBeforeInteraction();
+        options.callbacks.onDragSourceChange(node.relativePath, "folder");
+        button.classList.add("dragging");
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/wit-folder-path", node.relativePath);
+        }
+      });
+      button.addEventListener("dragend", () => {
+        options.callbacks.onDragSourceChange(null, "folder");
+        button.classList.remove("dragging");
+        clearDropTargets(options.listElement);
+      });
       button.addEventListener("dragenter", () => {
-        if (!options.getDragSourceFilePath()) {
+        if (!options.getDragSourcePath()) {
           return;
         }
 
         button.classList.add("drop-target");
       });
       button.addEventListener("dragover", (event) => {
-        if (!options.getDragSourceFilePath() && !event.dataTransfer?.types.includes("text/wit-file-path")) {
+        if (
+          !options.getDragSourcePath() &&
+          !event.dataTransfer?.types.includes("text/wit-file-path") &&
+          !event.dataTransfer?.types.includes("text/wit-folder-path")
+        ) {
           return;
         }
 
@@ -109,13 +147,17 @@ function renderTreeNodes(options: RenderProjectTreeListOptions, nodes: TreeNode[
       button.addEventListener("drop", (event) => {
         event.preventDefault();
         button.classList.remove("drop-target");
-        const sourcePath = resolveDraggedSourcePath(event, options.getDragSourceFilePath);
+        const source = resolveDragSource(event, options.getDragSourcePath, options.getDragSourceKind);
 
-        if (!sourcePath) {
+        if (!source) {
           return;
         }
 
-        void options.callbacks.onMoveFileToFolder(sourcePath, node.relativePath);
+        if (source.kind === "folder") {
+          void options.callbacks.onMoveFolderToFolder(source.path, node.relativePath);
+        } else {
+          void options.callbacks.onMoveFileToFolder(source.path, node.relativePath);
+        }
       });
 
       item.appendChild(button);
@@ -174,7 +216,7 @@ function renderTreeNodes(options: RenderProjectTreeListOptions, nodes: TreeNode[
     });
     button.addEventListener("dragstart", (event) => {
       options.callbacks.onBeforeInteraction();
-      options.callbacks.onDragSourceChange(node.relativePath);
+      options.callbacks.onDragSourceChange(node.relativePath, "file");
       button.classList.add("dragging");
       if (event.dataTransfer) {
         event.dataTransfer.effectAllowed = "move";
@@ -182,7 +224,7 @@ function renderTreeNodes(options: RenderProjectTreeListOptions, nodes: TreeNode[
       }
     });
     button.addEventListener("dragend", () => {
-      options.callbacks.onDragSourceChange(null);
+      options.callbacks.onDragSourceChange(null, "file");
       button.classList.remove("dragging");
       clearDropTargets(options.listElement);
     });
@@ -242,14 +284,18 @@ export function renderProjectTreeList(options: RenderProjectTreeListOptions): vo
     options.callbacks.onProjectRootClick(closingCurrentFile);
   });
   rootButton.addEventListener("dragenter", () => {
-    if (!options.getDragSourceFilePath()) {
+    if (!options.getDragSourcePath()) {
       return;
     }
 
     rootButton.classList.add("drop-target");
   });
   rootButton.addEventListener("dragover", (event) => {
-    if (!options.getDragSourceFilePath() && !event.dataTransfer?.types.includes("text/wit-file-path")) {
+    if (
+      !options.getDragSourcePath() &&
+      !event.dataTransfer?.types.includes("text/wit-file-path") &&
+      !event.dataTransfer?.types.includes("text/wit-folder-path")
+    ) {
       return;
     }
 
@@ -266,13 +312,17 @@ export function renderProjectTreeList(options: RenderProjectTreeListOptions): vo
   rootButton.addEventListener("drop", (event) => {
     event.preventDefault();
     rootButton.classList.remove("drop-target");
-    const sourcePath = resolveDraggedSourcePath(event, options.getDragSourceFilePath);
+    const source = resolveDragSource(event, options.getDragSourcePath, options.getDragSourceKind);
 
-    if (!sourcePath) {
+    if (!source) {
       return;
     }
 
-    void options.callbacks.onMoveFileToFolder(sourcePath, "");
+    if (source.kind === "folder") {
+      void options.callbacks.onMoveFolderToFolder(source.path, "");
+    } else {
+      void options.callbacks.onMoveFileToFolder(source.path, "");
+    }
   });
 
   rootItem.appendChild(rootButton);

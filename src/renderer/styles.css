@@ -665,8 +665,8 @@ progress {
 }
 
 .folder-button.active {
-  background: transparent;
-  border-color: transparent;
+  background: color-mix(in srgb, var(--accent) 6%, #ebebef);
+  border-color: color-mix(in srgb, var(--accent) 8%, #d9d9de);
 }
 
 .tree-root-item {
@@ -687,8 +687,8 @@ progress {
 }
 
 .tree-root-item.active {
-  background: transparent;
-  border-color: transparent;
+  background: color-mix(in srgb, var(--accent) 6%, #ebebef);
+  border-color: color-mix(in srgb, var(--accent) 8%, #d9d9de);
 }
 
 .tree-root-project-name {
@@ -1864,8 +1864,8 @@ body[data-theme="dark"] .file-button.active {
 }
 
 body[data-theme="dark"] .folder-button.active {
-  background: transparent;
-  border-color: transparent;
+  background: #21262d;
+  border-color: #30363d;
 }
 
 body[data-theme="dark"] .file-button.current-file {
@@ -1889,8 +1889,8 @@ body[data-theme="dark"] .tree-root-item:hover {
 }
 
 body[data-theme="dark"] .tree-root-item.active {
-  background: transparent;
-  border-color: transparent;
+  background: #21262d;
+  border-color: #30363d;
 }
 
 body[data-theme="dark"] .folder-button.drop-target {

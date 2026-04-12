@@ -76,7 +76,7 @@ export function bindAppEventBindings(options: {
   destroySettingsDialogController: () => void;
   destroyEntryDialogController: () => void;
   cleanupSubscriptions: () => void;
-  setDragSourceFilePath: (value: string | null) => void;
+  setDragSource: (path: string | null, kind: "file" | "folder" | null) => void;
   setStatus: (message: string, clearAfterMs?: number) => void;
 }): void {
   const controller = new AbortController();
@@ -241,7 +241,7 @@ export function bindAppEventBindings(options: {
   document.addEventListener(
     "dragend",
     () => {
-      options.setDragSourceFilePath(null);
+      options.setDragSource(null, null);
       options.fileList.querySelectorAll(".drop-target").forEach((element) => {
         element.classList.remove("drop-target");
       });
@@ -252,7 +252,7 @@ export function bindAppEventBindings(options: {
   document.addEventListener(
     "drop",
     () => {
-      options.setDragSourceFilePath(null);
+      options.setDragSource(null, null);
     },
     listenerOptions
   );

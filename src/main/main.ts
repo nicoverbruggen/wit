@@ -13,6 +13,7 @@ import {
   dialog,
   type IpcMainInvokeEvent,
   ipcMain,
+  shell,
   Menu,
   type MenuItemConstructorOptions
 } from "electron";
@@ -26,6 +27,7 @@ import {
   listProjectFiles,
   listProjectFolders,
   moveProjectFile,
+  moveProjectFolder,
   renameProjectEntry,
   readProjectFile,
   saveLastOpenedFilePath,
@@ -225,6 +227,11 @@ function createMainWindow(): BrowserWindow {
 
   const entryHtml = path.join(__dirname, "../renderer/index.html");
   void browserWindow.loadFile(entryHtml);
+
+  browserWindow.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url);
+    return { action: "deny" };
+  });
 
   // Ensure app-wide webview zoom starts at 100%, independent from editor text zoom.
   resetWindowZoomToDefault(browserWindow);
@@ -477,6 +484,20 @@ function setupIpcHandlers(): void {
 
     return {
       nextFilePath,
+      metadata: await getProjectMetadata(projectPath)
+    };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.project.moveFolder, async (_event, payload: MoveFilePayload) => {
+    const projectPath = projectSession.requireActiveProjectPath();
+    const nextFolderPath = await moveProjectFolder(
+      projectPath,
+      payload.fromRelativePath,
+      payload.toFolderRelativePath
+    );
+
+    return {
+      nextFolderPath,
       metadata: await getProjectMetadata(projectPath)
     };
   });

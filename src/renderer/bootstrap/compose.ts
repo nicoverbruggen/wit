@@ -47,6 +47,10 @@ type WitApiForComposition = {
     fromRelativePath: string;
     toFolderRelativePath: string;
   }) => Promise<{ nextFilePath: string; metadata: ProjectMetadata }>;
+  moveFolder: (payload: {
+    fromRelativePath: string;
+    toFolderRelativePath: string;
+  }) => Promise<{ nextFolderPath: string; metadata: ProjectMetadata }>;
   closeProject: () => Promise<unknown>;
   selectProject: () => Promise<ProjectMetadata | null>;
   countPreviewWords: (text: string) => Promise<number>;
@@ -232,7 +236,9 @@ export function createRendererComposition(options: {
     closeCurrentFile: options.callbacks.closeCurrentFile,
     openFile: options.callbacks.openFile,
     moveFileToFolder: (sourcePath, toFolderRelativePath) =>
-      projectEntryActionsController.moveFileToFolder(sourcePath, toFolderRelativePath)
+      projectEntryActionsController.moveFileToFolder(sourcePath, toFolderRelativePath),
+    moveFolderToFolder: (sourcePath, toFolderRelativePath) =>
+      projectEntryActionsController.moveFolderToFolder(sourcePath, toFolderRelativePath)
   });
 
   const entryDialogController = createEntryDialogController({
@@ -289,7 +295,8 @@ export function createRendererComposition(options: {
     newFolder: (payload) => options.witApi.newFolder(payload),
     deleteEntry: (payload) => options.witApi.deleteEntry(payload),
     renameEntry: (payload) => options.witApi.renameEntry(payload),
-    moveFile: (payload) => options.witApi.moveFile(payload)
+    moveFile: (payload) => options.witApi.moveFile(payload),
+    moveFolder: (payload) => options.witApi.moveFolder(payload)
   });
 
   const projectUiController = createProjectUiController({

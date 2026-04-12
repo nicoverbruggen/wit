@@ -36,6 +36,7 @@ export const IPC_CHANNELS = {
     deleteEntry: "project:delete-entry",
     renameEntry: "project:rename-entry",
     moveFile: "project:move-file",
+    moveFolder: "project:move-folder",
     showTreeContextMenu: "project:show-tree-context-menu",
     updateSettings: "project:update-settings",
     setLastOpenedFilePath: "project:set-last-opened-file-path",
@@ -92,6 +93,7 @@ export type WitApi = {
   deleteEntry: (payload: DeleteEntryPayload) => Promise<ProjectMetadata>;
   renameEntry: (payload: RenameEntryPayload) => Promise<{ nextRelativePath: string; metadata: ProjectMetadata }>;
   moveFile: (payload: MoveFilePayload) => Promise<{ nextFilePath: string; metadata: ProjectMetadata }>;
+  moveFolder: (payload: MoveFilePayload) => Promise<{ nextFolderPath: string; metadata: ProjectMetadata }>;
   showTreeContextMenu: (payload: ShowTreeContextMenuPayload) => Promise<TreeContextAction | null>;
   updateSettings: (settings: AppSettings) => Promise<AppSettings>;
   setLastOpenedFilePath: (relativePath: string | null) => Promise<string | null>;

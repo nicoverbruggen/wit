@@ -26,6 +26,11 @@ type MoveFileResult = {
   metadata: ProjectMetadata;
 };
 
+type MoveFolderResult = {
+  nextFolderPath: string;
+  metadata: ProjectMetadata;
+};
+
 /**
  * Exposes project-tree entry actions.
  */
@@ -35,6 +40,7 @@ export type ProjectEntryActionsController = {
   deleteEntryByPath: (relativePath: string, kind: ProjectTreeSelectionKind) => Promise<void>;
   renameEntryByPath: (relativePath: string, kind: ProjectTreeSelectionKind) => Promise<void>;
   moveFileToFolder: (fromRelativePath: string, toFolderRelativePath: string) => Promise<void>;
+  moveFolderToFolder: (fromRelativePath: string, toFolderRelativePath: string) => Promise<void>;
 };
 
 /**
@@ -76,6 +82,10 @@ export function createProjectEntryActionsController(options: {
     fromRelativePath: string;
     toFolderRelativePath: string;
   }) => Promise<MoveFileResult>;
+  moveFolder: (payload: {
+    fromRelativePath: string;
+    toFolderRelativePath: string;
+  }) => Promise<MoveFolderResult>;
 }): ProjectEntryActionsController {
   const applyProjectMetadataAfterMutation = (metadata: ProjectMetadata): void => {
     const project = options.getProject();
@@ -343,11 +353,50 @@ export function createProjectEntryActionsController(options: {
     }
   };
 
+  const moveFolderToFolder = async (fromRelativePath: string, toFolderRelativePath: string): Promise<void> => {
+    const project = options.getProject();
+    if (!project) {
+      return;
+    }
+    options.closeTreeContextMenu();
+
+    const normalizedFrom = normalizePathInput(fromRelativePath);
+    const normalizedToFolder = normalizePathInput(toFolderRelativePath);
+    if (!normalizedFrom) {
+      return;
+    }
+
+    const sourceParentPath = getParentFolderPath(normalizedFrom);
+    if (
+      (sourceParentPath && pathEquals(sourceParentPath, normalizedToFolder)) ||
+      (!sourceParentPath && normalizedToFolder.length === 0)
+    ) {
+      options.setStatus("Folder is already in that location.", 1200);
+      return;
+    }
+
+    const folderName = getBaseName(normalizedFrom);
+
+    try {
+      const result = await options.moveFolder({
+        fromRelativePath: normalizedFrom,
+        toFolderRelativePath: normalizedToFolder
+      });
+
+      options.setSelectedTree(result.nextFolderPath, "folder");
+      applyProjectMetadataAfterMutation(result.metadata);
+      options.setStatus(`Moved ${folderName} to ${getDropDestinationLabel(normalizedToFolder)}`, 1700);
+    } catch {
+      options.setStatus("Could not move folder. Check destination and conflicts.");
+    }
+  };
+
   return {
     createNewFile,
     createNewFolder,
     deleteEntryByPath,
     renameEntryByPath,
-    moveFileToFolder
+    moveFileToFolder,
+    moveFolderToFolder
   };
 }
