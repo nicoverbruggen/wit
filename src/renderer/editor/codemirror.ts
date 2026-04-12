@@ -11,7 +11,7 @@ import {
   StateField,
   RangeSetBuilder
 } from "@codemirror/state";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentMore, insertTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
@@ -44,6 +44,10 @@ const paragraphStartDecoration = Decoration.widget({
 
 function isBlankLine(text: string): boolean {
   return text.trim().length === 0;
+}
+
+function isMarkdownListLine(text: string): boolean {
+  return /^\s*(?:[-+*]|\d+[.)])\s+/.test(text);
 }
 
 function buildParagraphDecorations(state: EditorState): DecorationSet {
@@ -93,6 +97,16 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
   const inputListeners = new Set<() => void>();
   const keydownListeners = new Set<(event: KeyboardEvent) => void>();
   const blurListeners = new Set<() => void>();
+  let markdownSyntaxEnabled = false;
+
+  const handleTabKey = (): boolean => {
+    const currentLine = view.state.doc.lineAt(view.state.selection.main.head);
+    if (markdownSyntaxEnabled && isMarkdownListLine(currentLine.text)) {
+      return indentMore(view);
+    }
+
+    return insertTab(view);
+  };
 
   host.dataset.paragraphSpacing = "none";
 
@@ -104,7 +118,7 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
         EditorView.lineWrapping,
         drawSelection(),
         history(),
-        keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+        keymap.of([{ key: "Tab", run: handleTabKey }, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         paragraphSpacingField,
         languageCompartment.of([]),
@@ -148,6 +162,7 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
     const extension = normalizedPath.slice(normalizedPath.lastIndexOf("."));
     const isMarkdown = extension === ".md" || extension === ".markdown";
     const language = isMarkdown ? markdown() : [];
+    markdownSyntaxEnabled = isMarkdown;
 
     view.dispatch({
       effects: languageCompartment.reconfigure(language)

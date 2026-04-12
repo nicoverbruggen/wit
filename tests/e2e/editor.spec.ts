@@ -327,4 +327,27 @@ test.describe("Wit editor behavior", () => {
 
     await app.close();
   });
+
+  test("Tab inserts a tab character unless the current markdown line is a list item", async () => {
+    const projectPath = await makeTempDir("wit-e2e-tab-behavior-");
+    await fs.writeFile(path.join(projectPath, "plain.txt"), "alpha", "utf8");
+    await fs.writeFile(path.join(projectPath, "notes.md"), "- item", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+
+    await page.click(".file-button:has-text('plain.txt')");
+    await page.click("#editor");
+    await page.keyboard.press("End");
+    await page.keyboard.press("Tab");
+    await expect.poll(async () => getEditorText(page)).toBe("alpha\t");
+
+    await page.click(".file-button:has-text('notes.md')");
+    await expect(page.locator("#active-file-label")).toHaveText("notes.md");
+    await page.click("#editor");
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Tab");
+    await expect.poll(async () => getEditorText(page)).toBe("  - item");
+
+    await app.close();
+  });
 });
