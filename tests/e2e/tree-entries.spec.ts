@@ -348,15 +348,15 @@ test.describe("Wit tree entry actions", () => {
 
     await page.click("#settings-toggle-btn");
     await page.click("#settings-tab-writing");
-    await page.selectOption("#default-file-extension-select", ".wxt");
+    await page.selectOption("#default-file-extension-select", ".txt");
     await page.click("#settings-close-btn");
 
     await page.click("#new-file-btn");
     await page.fill("#new-file-path-input", "chapter-03");
     await page.click("#new-file-create-btn");
 
-    await expect(page.locator("#active-file-label")).toHaveText("chapter-03.wxt");
-    await expect(fs.stat(path.join(projectPath, "chapter-03.wxt"))).resolves.toBeTruthy();
+    await expect(page.locator("#active-file-label")).toHaveText("chapter-03.txt");
+    await expect(fs.stat(path.join(projectPath, "chapter-03.txt"))).resolves.toBeTruthy();
 
     await app.close();
   });

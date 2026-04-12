@@ -167,11 +167,7 @@ function renderTreeNodes(options: RenderProjectTreeListOptions, nodes: TreeNode[
     marker.dataset.dirty = String(isCurrentFile && options.dirty);
     marker.setAttribute("aria-hidden", "true");
 
-    if (depth === 0) {
-      button.append(icon, label, marker);
-    } else {
-      button.append(disclosurePlaceholder, icon, label, marker);
-    }
+    button.append(disclosurePlaceholder, icon, label, marker);
     button.addEventListener("click", () => {
       options.callbacks.onBeforeInteraction();
       options.callbacks.onFileClick(node.relativePath);

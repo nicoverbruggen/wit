@@ -5,7 +5,7 @@ Wit is an Electron desktop app for long-form writing in local plain-text project
 ## Features
 
 - Opens a local project folder and builds a file tree for supported writing files
-- Supports `.txt`, `.md`, `.markdown`, `.text`, and `.wxt` files
+- Supports `.txt`, `.md`, `.markdown`, and `.text` files
 - Creates, renames, moves, and deletes files/folders from the UI (including context menus and drag/drop moves)
 - Saves with `Cmd/Ctrl+S` and autosaves on a configurable interval (minimum `5s`)
 - Tracks project word count and accumulated writing time

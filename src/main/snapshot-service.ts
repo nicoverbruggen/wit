@@ -221,8 +221,8 @@ async function getDeletedTrackedWritingFiles(projectPath: string): Promise<strin
       "--deleted",
       "--",
       "*.txt",
-      "*.md",
-      "*.wxt"
+      "*.md"
+      // "*.wxt"
     ]);
 
     return result.stdout

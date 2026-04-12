@@ -37,7 +37,7 @@ export function resolveNewFilePath(
     relativePath = `${selectedFolder}/${relativePath}`;
   }
 
-  if (!/\.(txt|md|markdown|text|wxt)$/i.test(relativePath)) {
+  if (!/\.(txt|md|markdown|text)$/i.test(relativePath)) {
     const defaultExtension = normalizeDefaultFileExtension(project.settings.defaultFileExtension);
     relativePath = `${relativePath}${defaultExtension}`;
   }

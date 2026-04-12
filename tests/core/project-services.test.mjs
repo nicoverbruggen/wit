@@ -95,7 +95,7 @@ test("create/list/save/read files with word count and settings", async () => {
     const savedSettings = await projectService.saveSettings(projectPath, {
       autosaveIntervalSec: 1,
       theme: "dark",
-      defaultFileExtension: ".wxt",
+      defaultFileExtension: ".txt",
       showWordCount: false,
       showWritingTime: false,
       showCurrentFileBar: false,
@@ -111,7 +111,7 @@ test("create/list/save/read files with word count and settings", async () => {
 
     assert.equal(savedSettings.autosaveIntervalSec, 5);
     assert.equal(savedSettings.theme, "dark");
-    assert.equal(savedSettings.defaultFileExtension, ".wxt");
+    assert.equal(savedSettings.defaultFileExtension, ".txt");
     assert.equal(savedSettings.showWordCount, false);
     assert.equal(savedSettings.showWritingTime, false);
     assert.equal(savedSettings.showCurrentFileBar, false);
@@ -139,7 +139,7 @@ test("create/list/save/read files with word count and settings", async () => {
 
     await assert.rejects(
       () => projectService.createProjectFile(projectPath, "invalid.bin", "x"),
-      /Only plain text, Markdown, and Wit text files are supported/
+      /Only plain text and Markdown files are supported/
     );
   } finally {
     await fs.rm(root, { recursive: true, force: true });
@@ -435,7 +435,6 @@ test("listProjectFiles filters by supported text extensions and ignores system d
     await fs.writeFile(path.join(projectPath, "chapter.md"), "chapter", "utf8");
     await fs.writeFile(path.join(projectPath, "notes.markdown"), "notes", "utf8");
     await fs.writeFile(path.join(projectPath, "scene.text"), "scene", "utf8");
-    await fs.writeFile(path.join(projectPath, "world.wxt"), "world", "utf8");
     await fs.writeFile(path.join(projectPath, "binary.bin"), "bin", "utf8");
     await fs.writeFile(path.join(projectPath, ".git", "ignored.txt"), "ignored", "utf8");
     await fs.writeFile(path.join(projectPath, "node_modules", "ignored.md"), "ignored", "utf8");
@@ -447,8 +446,7 @@ test("listProjectFiles filters by supported text extensions and ignores system d
       "chapter.md",
       "nested/nested.txt",
       "notes.markdown",
-      "scene.text",
-      "world.wxt"
+      "scene.text"
     ]);
   } finally {
     await fs.rm(root, { recursive: true, force: true });

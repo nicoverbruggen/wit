@@ -128,8 +128,8 @@ test.describe("Wit sidebar and shell chrome", () => {
     await expect(toggleButton).toHaveAttribute("aria-pressed", "true");
 
     const activeStylesAfter = await readStyles();
-    expect(activeStylesAfter.backgroundColor).toBe(activeStylesBefore.backgroundColor);
-    expect(activeStylesAfter.borderColor).toBe(activeStylesBefore.borderColor);
+    expect(activeStylesAfter.backgroundColor).not.toBe(inactiveStyles.backgroundColor);
+    expect(activeStylesAfter.borderColor).not.toBe(inactiveStyles.borderColor);
 
     await app.close();
   });

@@ -43,11 +43,13 @@ export type RendererDom = {
   fileList: HTMLUListElement;
   newFileDialog: HTMLDialogElement;
   newFilePathInput: HTMLInputElement;
+  newFilePreview: HTMLParagraphElement;
   newFileCancelButton: HTMLButtonElement;
   newFileCreateButton: HTMLButtonElement;
   newFileError: HTMLParagraphElement;
   newFolderDialog: HTMLDialogElement;
   newFolderPathInput: HTMLInputElement;
+  newFolderPreview: HTMLParagraphElement;
   newFolderCancelButton: HTMLButtonElement;
   newFolderCreateButton: HTMLButtonElement;
   newFolderError: HTMLParagraphElement;
@@ -128,11 +130,13 @@ type EntryDialogDom = Pick<
   RendererDom,
   | "newFileDialog"
   | "newFilePathInput"
+  | "newFilePreview"
   | "newFileCancelButton"
   | "newFileCreateButton"
   | "newFileError"
   | "newFolderDialog"
   | "newFolderPathInput"
+  | "newFolderPreview"
   | "newFolderCancelButton"
   | "newFolderCreateButton"
   | "newFolderError"
@@ -248,11 +252,13 @@ function resolveEntryDialogDom(): EntryDialogDom {
   return {
     newFileDialog: getById("new-file-dialog"),
     newFilePathInput: getById("new-file-path-input"),
+    newFilePreview: getById("new-file-preview"),
     newFileCancelButton: getById("new-file-cancel-btn"),
     newFileCreateButton: getById("new-file-create-btn"),
     newFileError: getById("new-file-error"),
     newFolderDialog: getById("new-folder-dialog"),
     newFolderPathInput: getById("new-folder-path-input"),
+    newFolderPreview: getById("new-folder-preview"),
     newFolderCancelButton: getById("new-folder-cancel-btn"),
     newFolderCreateButton: getById("new-folder-create-btn"),
     newFolderError: getById("new-folder-error"),

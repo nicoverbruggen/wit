@@ -13,7 +13,13 @@ const CONFIG_FILE_NAME = "config.json";
 const STATS_FILE_NAME = "stats.json";
 export const SNAPSHOT_DIR_NAME = "snapshots";
 const GITIGNORE_FILE_NAME = ".gitignore";
-const TEXT_FILE_EXTENSIONS = new Set([".txt", ".md", ".markdown", ".text", ".wxt"]);
+const TEXT_FILE_EXTENSIONS = new Set([
+  ".txt",
+  ".md",
+  ".markdown",
+  ".text"
+  // ".wxt"
+]);
 
 /**
  * Tracks cumulative writing-time statistics for a project.

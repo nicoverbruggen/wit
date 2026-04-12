@@ -34,11 +34,13 @@ export function createEntryDialogController(options: {
   setStatus: (message: string, clearAfterMs?: number) => void;
   newFileDialog: HTMLDialogElement;
   newFilePathInput: HTMLInputElement;
+  newFilePreview: HTMLParagraphElement;
   newFileCancelButton: HTMLButtonElement;
   newFileCreateButton: HTMLButtonElement;
   newFileError: HTMLParagraphElement;
   newFolderDialog: HTMLDialogElement;
   newFolderPathInput: HTMLInputElement;
+  newFolderPreview: HTMLParagraphElement;
   newFolderCancelButton: HTMLButtonElement;
   newFolderCreateButton: HTMLButtonElement;
   newFolderError: HTMLParagraphElement;
@@ -69,6 +71,8 @@ export function createEntryDialogController(options: {
       options.getSelectedFolderPath()
     );
     options.newFileError.textContent = validation.error ?? "";
+    options.newFilePreview.hidden = validation.relativePath === null;
+    options.newFilePreview.textContent = validation.relativePath ? `Will create ${validation.relativePath}` : "";
     options.newFileCreateButton.disabled = validation.relativePath === null;
   };
 
@@ -79,6 +83,8 @@ export function createEntryDialogController(options: {
       options.getSelectedFolderPath()
     );
     options.newFolderError.textContent = validation.error ?? "";
+    options.newFolderPreview.hidden = validation.relativePath === null;
+    options.newFolderPreview.textContent = validation.relativePath ? `Will create ${validation.relativePath}` : "";
     options.newFolderCreateButton.disabled = validation.relativePath === null;
   };
 
@@ -133,6 +139,8 @@ export function createEntryDialogController(options: {
         () => {
           options.newFilePathInput.removeEventListener("input", handleInput);
           options.newFileError.textContent = "";
+          options.newFilePreview.textContent = "";
+          options.newFilePreview.hidden = true;
           options.newFileCreateButton.disabled = false;
 
           if (options.newFileDialog.returnValue === "create") {
@@ -180,6 +188,8 @@ export function createEntryDialogController(options: {
         () => {
           options.newFolderPathInput.removeEventListener("input", handleInput);
           options.newFolderError.textContent = "";
+          options.newFolderPreview.textContent = "";
+          options.newFolderPreview.hidden = true;
           options.newFolderCreateButton.disabled = false;
 
           if (options.newFolderDialog.returnValue === "create") {

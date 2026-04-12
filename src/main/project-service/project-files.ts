@@ -174,7 +174,7 @@ export async function createProjectFile(
   const absolutePath = ensureInsideProject(projectPath, normalizedPath);
 
   if (!isTextFile(absolutePath)) {
-    throw new Error("Only plain text, Markdown, and Wit text files are supported.");
+    throw new Error("Only plain text and Markdown files are supported.");
   }
 
   await fs.mkdir(path.dirname(absolutePath), { recursive: true });

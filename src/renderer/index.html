@@ -128,10 +128,23 @@
 
     <dialog id="new-file-dialog" class="new-file-dialog">
       <form method="dialog" id="new-file-form">
-        <h2>Create New File</h2>
-        <p>Enter a relative path for a plain text, Markdown, or Wit text file.</p>
-        <label for="new-file-path-input">File path</label>
-        <input id="new-file-path-input" name="new-file-path" type="text" value="" />
+        <div class="entry-dialog-header">
+          <h2>Create New File</h2>
+          <p>Enter a relative path for a plain text or Markdown file.</p>
+        </div>
+        <div class="entry-dialog-body">
+          <label for="new-file-path-input">File path</label>
+          <input
+            id="new-file-path-input"
+            name="new-file-path"
+            type="text"
+            value=""
+            placeholder="drafts/chapter-01.md"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <p id="new-file-preview" class="entry-dialog-preview" aria-live="polite" hidden></p>
+        </div>
         <p id="new-file-error" class="dialog-error" aria-live="polite"></p>
         <div class="new-file-actions">
           <button id="new-file-cancel-btn" type="button" class="ghost-button">Cancel</button>
@@ -142,10 +155,23 @@
 
     <dialog id="new-folder-dialog" class="new-file-dialog">
       <form method="dialog" id="new-folder-form">
-        <h2>Create New Folder</h2>
-        <p>Enter a relative path for a folder inside this project.</p>
-        <label for="new-folder-path-input">Folder path</label>
-        <input id="new-folder-path-input" name="new-folder-path" type="text" value="" />
+        <div class="entry-dialog-header">
+          <h2>Create New Folder</h2>
+          <p>Enter a relative path for a folder inside this project.</p>
+        </div>
+        <div class="entry-dialog-body">
+          <label for="new-folder-path-input">Folder path</label>
+          <input
+            id="new-folder-path-input"
+            name="new-folder-path"
+            type="text"
+            value=""
+            placeholder="drafts/chapter-01"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <p id="new-folder-preview" class="entry-dialog-preview" aria-live="polite" hidden></p>
+        </div>
         <p id="new-folder-error" class="dialog-error" aria-live="polite"></p>
         <div class="new-file-actions">
           <button id="new-folder-cancel-btn" type="button" class="ghost-button">Cancel</button>
@@ -230,7 +256,7 @@
                   <select id="default-file-extension-select">
                     <option value=".txt">.txt</option>
                     <option value=".md" selected>.md (Markdown)</option>
-                    <option value=".wxt">.wxt (Wit text)</option>
+                    <!-- <option value=".wxt">.wxt (Wit text)</option> -->
                   </select>
                 </label>
               </div>

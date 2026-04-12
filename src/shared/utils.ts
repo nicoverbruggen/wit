@@ -93,8 +93,8 @@ export function normalizeTheme(value: unknown): AppSettings["theme"] {
  */
 export function normalizeDefaultFileExtension(value: unknown): AppSettings["defaultFileExtension"] {
   switch (value) {
+    case ".txt":
     case ".md":
-    case ".wxt":
       return value;
     default:
       return ".md";

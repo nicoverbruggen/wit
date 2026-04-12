@@ -10,7 +10,7 @@
 export type AppSettings = {
   autosaveIntervalSec: number;
   theme: "light" | "dark";
-  defaultFileExtension: ".txt" | ".md" | ".wxt";
+  defaultFileExtension: ".txt" | ".md";
   showWordCount: boolean;
   showWritingTime: boolean;
   showCurrentFileBar: boolean;
