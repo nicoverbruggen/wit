@@ -61,6 +61,7 @@ export type RendererActions = {
   setEditorWritable: (enabled: boolean) => void;
   applyEditorLineHeight: (lineHeight: number) => void;
   applyEditorParagraphSpacing: (spacing: AppSettings["editorParagraphSpacing"]) => void;
+  applyEditorCursorStyle: (cursorStyle: AppSettings["editorCursorStyle"]) => void;
   applyEditorMaxWidth: (editorWidth: number) => void;
   applyEditorFont: (fontFamily: string) => void;
   populateFontSelect: (selectedFont: string) => void;
@@ -239,6 +240,10 @@ export function createRendererActions(options: RendererActionsOptions): Renderer
     editorPresentation().applyEditorParagraphSpacing(spacing);
   };
 
+  const applyEditorCursorStyle = (cursorStyle: AppSettings["editorCursorStyle"]): void => {
+    editorPresentation().applyEditorCursorStyle(cursorStyle);
+  };
+
   const applyEditorMaxWidth = (editorWidth: number): void => {
     editorPresentation().applyEditorMaxWidth(editorWidth);
   };
@@ -404,6 +409,7 @@ export function createRendererActions(options: RendererActionsOptions): Renderer
     applyTheme,
     applyEditorLineHeight,
     applyEditorParagraphSpacing,
+    applyEditorCursorStyle,
     applyEditorMaxWidth,
     setEditorZoomFromPercent,
     populateFontSelect,
@@ -446,6 +452,7 @@ export function createRendererActions(options: RendererActionsOptions): Renderer
     setEditorWritable,
     applyEditorLineHeight,
     applyEditorParagraphSpacing,
+    applyEditorCursorStyle,
     applyEditorMaxWidth,
     applyEditorFont,
     populateFontSelect,

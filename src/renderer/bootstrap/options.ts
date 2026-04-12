@@ -59,6 +59,7 @@ export function createRendererBootstrapOptions(options: {
     | "fileList"
     | "lineHeightInput"
     | "paragraphSpacingSelect"
+    | "cursorStyleSelect"
     | "editorWidthInput"
     | "fontSelect"
   >;
@@ -122,6 +123,7 @@ export function createRendererBootstrapOptions(options: {
     defaultEditorFont: options.defaultEditorFont,
     lineHeightInput: options.dom.lineHeightInput,
     paragraphSpacingSelect: options.dom.paragraphSpacingSelect,
+    cursorStyleSelect: options.dom.cursorStyleSelect,
     editorWidthInput: options.dom.editorWidthInput,
     fontSelect: options.dom.fontSelect,
     loadAboutInfo: options.actions.loadAboutInfo,
@@ -136,6 +138,7 @@ export function createRendererBootstrapOptions(options: {
     applyEditorLineHeight: options.actions.applyEditorLineHeight,
     normalizeEditorParagraphSpacing: options.normalizeEditorParagraphSpacing,
     applyEditorParagraphSpacing: options.actions.applyEditorParagraphSpacing,
+    applyEditorCursorStyle: options.actions.applyEditorCursorStyle,
     applyEditorMaxWidth: options.actions.applyEditorMaxWidth,
     applyEditorZoom: options.actions.applyEditorZoom,
     applyEditorFont: options.actions.applyEditorFont,

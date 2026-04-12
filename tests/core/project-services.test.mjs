@@ -63,6 +63,7 @@ test("project initialization and metadata defaults", async () => {
     assert.equal(metadata.settings.gitPushRemote, null);
     assert.equal(metadata.settings.editorLineHeight, 1.68);
     assert.equal(metadata.settings.editorParagraphSpacing, "none");
+    assert.equal(metadata.settings.editorCursorStyle, "wit-default");
     assert.equal(metadata.settings.editorMaxWidthPx, 750);
     assert.equal(metadata.settings.editorZoomPercent, 100);
     assert.equal(metadata.settings.editorFontFamily, "iA Writer Mono");
@@ -104,6 +105,7 @@ test("create/list/save/read files with word count and settings", async () => {
       gitPushRemote: "origin",
       editorLineHeight: 9,
       editorParagraphSpacing: "very-loose",
+      editorCursorStyle: "system-wide",
       editorMaxWidthPx: 9999,
       editorZoomPercent: 999,
       editorFontFamily: ""
@@ -120,6 +122,7 @@ test("create/list/save/read files with word count and settings", async () => {
     assert.equal(savedSettings.gitPushRemote, null);
     assert.equal(savedSettings.editorLineHeight, 2.4);
     assert.equal(savedSettings.editorParagraphSpacing, "very-loose");
+    assert.equal(savedSettings.editorCursorStyle, "system-wide");
     assert.equal(savedSettings.editorMaxWidthPx, 1200);
     assert.equal(savedSettings.editorZoomPercent, 250);
 
@@ -368,6 +371,7 @@ test("settings normalize git auto-push remote against configured remotes", async
       gitPushRemote: "origin",
       editorLineHeight: 1.68,
       editorParagraphSpacing: "tight",
+      editorCursorStyle: "system-default",
       editorMaxWidthPx: 750,
       editorZoomPercent: 100,
       editorFontFamily: "Readerly"
@@ -406,6 +410,7 @@ test("settings keep git push remote disabled by default even when remotes exist"
       gitPushRemote: null,
       editorLineHeight: 1.68,
       editorParagraphSpacing: "none",
+      editorCursorStyle: "wit-default",
       editorMaxWidthPx: 750,
       editorZoomPercent: 100,
       editorFontFamily: "Readerly"

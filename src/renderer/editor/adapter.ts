@@ -24,6 +24,7 @@ export type EditorAdapter = {
   setDisabled: (disabled: boolean) => void;
   setLineHeight: (value: number | string) => void;
   setParagraphSpacing: (value: "none" | "tight" | "loose" | "very-loose") => void;
+  setCursorStyle: (value: "wit-default" | "system-default" | "system-wide") => void;
   setFontFamily: (value: string) => void;
   setFontSize: (value: number) => void;
   getComputedFontSize: () => number;
@@ -61,6 +62,7 @@ export function createTextareaEditor(element: HTMLTextAreaElement): EditorAdapte
       element.style.lineHeight = String(value);
     },
     setParagraphSpacing: () => {},
+    setCursorStyle: () => {},
     setFontFamily: (value) => {
       element.style.fontFamily = value;
     },

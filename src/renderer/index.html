@@ -308,14 +308,23 @@
                     <span id="line-height-value">1.68</span>
                   </div>
                 </label>
-                <label class="setting-card" title="Adjust paragraph spacing">
-                  <span class="setting-card-title">Paragraph spacing</span>
-                  <span class="setting-card-description">Adds visual breathing room to paragraph breaks while keeping your raw Markdown text unchanged.</span>
+                <label class="setting-card" title="Adjust new-line spacing">
+                  <span class="setting-card-title">New-line spacing</span>
+                  <span class="setting-card-description">Adds extra spacing at line breaks in the editor for plain text and Markdown files without changing the file contents.</span>
                   <select id="paragraph-spacing-select">
                     <option value="none" selected>None</option>
                     <option value="tight">Tight</option>
                     <option value="loose">Loose</option>
                     <option value="very-loose">Very Loose</option>
+                  </select>
+                </label>
+                <label class="setting-card" title="Choose caret style">
+                  <span class="setting-card-title">Caret style</span>
+                  <span class="setting-card-description">Switch between Wit’s accent caret, the normal system-style caret, or a thicker system-style caret.</span>
+                  <select id="cursor-style-select">
+                    <option value="wit-default" selected>Wit default</option>
+                    <option value="system-default">System default</option>
+                    <option value="system-wide">System wide</option>
                   </select>
                 </label>
                 <label class="setting-card slider-control" title="Limit editor column width for readability">
@@ -339,7 +348,7 @@
               <div class="settings-grid">
                 <label class="setting-card interval-control" title="Autosave interval in seconds">
                   <span class="setting-card-title">Autosave interval</span>
-                  <span class="setting-card-description">Each interval writes the current editor contents to disk for the active file.</span>
+                  <span class="setting-card-description">Each interval writes the active file to disk and creates a project snapshot.</span>
                   <div class="inline-input-row">
                     <input id="autosave-interval-input" type="number" min="5" step="5" value="300" />
                     <span class="input-suffix">seconds</span>

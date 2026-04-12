@@ -20,6 +20,7 @@ export type AppSettings = {
   gitPushRemote: string | null;
   editorLineHeight: number;
   editorParagraphSpacing: "none" | "tight" | "loose" | "very-loose";
+  editorCursorStyle: "wit-default" | "system-default" | "system-wide";
   editorMaxWidthPx: number;
   editorZoomPercent: number;
   editorFontFamily: string;

@@ -167,4 +167,48 @@ test.describe("Wit sidebar and shell chrome", () => {
     await expect(page.locator("#app-shell")).not.toHaveClass(/sidebar-faded/);
     await app.close();
   });
+
+  test("sidebar remains navigable for a project with many files and folders", async () => {
+    test.slow();
+
+    const projectPath = await makeTempDir("wit-e2e-many-files-");
+    const folderCount = 30;
+    const filesPerFolder = 30;
+    const rootFiles = 80;
+
+    for (let folderIndex = 0; folderIndex < folderCount; folderIndex += 1) {
+      const folderName = `section-${String(folderIndex).padStart(2, "0")}`;
+      const folderPath = path.join(projectPath, folderName);
+      await fs.mkdir(folderPath, { recursive: true });
+
+      for (let fileIndex = 0; fileIndex < filesPerFolder; fileIndex += 1) {
+        const fileName = `chapter-${String(fileIndex).padStart(2, "0")}.txt`;
+        await fs.writeFile(path.join(folderPath, fileName), `${folderName}/${fileName}\n`, "utf8");
+      }
+    }
+
+    for (let fileIndex = 0; fileIndex < rootFiles; fileIndex += 1) {
+      const fileName = `root-${String(fileIndex).padStart(3, "0")}.txt`;
+      await fs.writeFile(path.join(projectPath, fileName), `${fileName}\n`, "utf8");
+    }
+
+    const expectedFileCount = (folderCount * filesPerFolder) + rootFiles;
+    const expectedFolderCount = folderCount + 1; // includes the project root row
+
+    const { app, page } = await launchWithProject(projectPath);
+
+    await expect(page.locator("#sidebar-project-title")).toHaveText(path.basename(projectPath));
+    await expect
+      .poll(async () => page.locator(".file-button").count(), { timeout: 20_000 })
+      .toBe(expectedFileCount);
+    await expect(page.locator(".folder-button")).toHaveCount(expectedFolderCount);
+
+    await page.click(".file-button:has-text('root-079.txt')");
+    await expect(page.locator("#active-file-label")).toHaveText("root-079.txt");
+
+    await page.click(".file-button[title='section-29/chapter-29.txt']");
+    await expect(page.locator("#active-file-label")).toHaveText("section-29/chapter-29.txt");
+
+    await app.close();
+  });
 });

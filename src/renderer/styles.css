@@ -1209,9 +1209,8 @@ body.platform-linux .toolbar {
   padding: 0;
 }
 
-#editor .cm-wit-paragraph-spacer {
-  height: var(--editor-paragraph-spacing);
-  pointer-events: none;
+#editor .cm-line.cm-wit-newline-spaced {
+  padding-top: var(--editor-paragraph-spacing);
 }
 
 #editor .cm-focused {
@@ -1221,6 +1220,25 @@ body.platform-linux .toolbar {
 #editor .cm-cursor,
 #editor .cm-dropCursor {
   border-left-color: var(--text);
+  border-left-width: 1px;
+}
+
+#editor[data-cursor-style="wit-default"] .cm-cursor,
+#editor[data-cursor-style="wit-default"] .cm-dropCursor {
+  border-left-color: var(--accent);
+  border-left-width: 3px;
+}
+
+#editor[data-cursor-style="system-default"] .cm-cursor,
+#editor[data-cursor-style="system-default"] .cm-dropCursor {
+  border-left-color: var(--text);
+  border-left-width: 1px;
+}
+
+#editor[data-cursor-style="system-wide"] .cm-cursor,
+#editor[data-cursor-style="system-wide"] .cm-dropCursor {
+  border-left-color: var(--text);
+  border-left-width: 2px;
 }
 
 #editor .cm-selectionBackground {

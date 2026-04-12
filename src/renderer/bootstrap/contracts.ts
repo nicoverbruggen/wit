@@ -41,6 +41,7 @@ export type RendererCompositionCallbacks = {
   applyTheme: (theme: AppSettings["theme"]) => void;
   applyEditorLineHeight: (lineHeight: number) => void;
   applyEditorParagraphSpacing: (spacing: AppSettings["editorParagraphSpacing"]) => void;
+  applyEditorCursorStyle: (cursorStyle: AppSettings["editorCursorStyle"]) => void;
   applyEditorMaxWidth: (editorWidth: number) => void;
   setEditorZoomFromPercent: (percent: number, showStatus?: boolean) => void;
   populateFontSelect: (selectedFont: string) => void;

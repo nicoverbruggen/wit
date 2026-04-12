@@ -350,4 +350,72 @@ test.describe("Wit editor behavior", () => {
 
     await app.close();
   });
+
+  test("new-line spacing adds spacing at every line break when enabled", async () => {
+    const projectPath = await makeTempDir("wit-e2e-paragraph-spacing-");
+    await fs.writeFile(
+      path.join(projectPath, "paragraphs.txt"),
+      "line one\nline two\n\nline three\nline four",
+      "utf8"
+    );
+
+    const { app, page } = await launchWithProject(projectPath);
+    await page.click(".file-button:has-text('paragraphs.txt')");
+    await setSelectValueWithoutMovingFocus(page, "#paragraph-spacing-select", "loose");
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.querySelectorAll("#editor .cm-line.cm-wit-newline-spaced").length)
+      )
+      .toBe(4);
+
+    await app.close();
+  });
+
+  test("editor opens and saves very large files in the same project", async () => {
+    test.slow();
+
+    const projectPath = await makeTempDir("wit-e2e-large-files-");
+    const buildLargeContent = (label: string, repeatCount: number): string =>
+      Array.from({ length: repeatCount }, (_, index) => `${label} line ${index} alpha beta gamma delta epsilon`)
+        .join("\n");
+
+    const largeMarkdown = buildLargeContent("large-markdown", 24_000);
+    const largePlainText = buildLargeContent("large-plain", 30_000);
+
+    await fs.writeFile(path.join(projectPath, "large-notes.md"), largeMarkdown, "utf8");
+    await fs.writeFile(path.join(projectPath, "large-draft.txt"), largePlainText, "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    const modifier = process.platform === "darwin" ? "Meta" : "Control";
+
+    await page.click(".file-button:has-text('large-notes.md')");
+    await expect(page.locator("#active-file-label")).toHaveText("large-notes.md");
+    await expect
+      .poll(async () => getEditorSyntaxState(page), { timeout: 20_000 })
+      .toMatchObject({ syntax: "markdown" });
+
+    await page.click(".file-button:has-text('large-draft.txt')");
+    await expect(page.locator("#active-file-label")).toHaveText("large-draft.txt");
+    await expect
+      .poll(async () => getEditorSyntaxState(page), { timeout: 20_000 })
+      .toMatchObject({ syntax: "plain" });
+
+    await page.click("#editor");
+    await page.keyboard.type("PREFIX ");
+    await page.keyboard.press(`${modifier}+S`);
+
+    await expect(page.locator("#status-message")).toContainText("Saved large-draft.txt");
+    await expect
+      .poll(async () => fs.readFile(path.join(projectPath, "large-draft.txt"), "utf8"))
+      .toContain("PREFIX ");
+    await expect
+      .poll(async () => fs.readFile(path.join(projectPath, "large-draft.txt"), "utf8"))
+      .toContain("large-plain line 0 alpha beta gamma delta epsilon");
+    await expect
+      .poll(async () => (await fs.stat(path.join(projectPath, "large-draft.txt"))).size)
+      .toBe(Buffer.byteLength(largePlainText, "utf8") + Buffer.byteLength("PREFIX ", "utf8"));
+
+    await app.close();
+  });
 });

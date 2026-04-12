@@ -66,7 +66,16 @@ export async function afterEachCleanup(): Promise<void> {
 
 export async function waitForAppReady(page: Page): Promise<void> {
   await page.waitForLoadState("domcontentloaded");
-  await page.waitForFunction(() => document.body.dataset.appReady === "true");
+  try {
+    await page.waitForFunction(() => document.body.dataset.appReady === "true");
+  } catch (error) {
+    const pageErrors = getPageErrors(page);
+    if (pageErrors.length > 0) {
+      throw new Error(`App did not become ready.\nPage errors:\n${pageErrors.join("\n")}`);
+    }
+
+    throw error;
+  }
 }
 
 export async function launchApp(): Promise<{ app: ElectronApplication; page: Page }> {

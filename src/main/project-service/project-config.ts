@@ -9,6 +9,7 @@ import { DEFAULT_SETTINGS } from "../../shared/default-settings";
 import type { AppSettings } from "../../shared/types";
 import {
   normalizeDefaultFileExtension,
+  normalizeEditorCursorStyle,
   normalizeEditorLineHeight,
   normalizeEditorMaxWidth,
   normalizeEditorParagraphSpacing,
@@ -99,6 +100,7 @@ function normalizeAppSettings(
         ? normalizeEditorLineHeight(raw.editorLineHeight)
         : DEFAULT_SETTINGS.editorLineHeight,
     editorParagraphSpacing: normalizeEditorParagraphSpacing(raw.editorParagraphSpacing),
+    editorCursorStyle: normalizeEditorCursorStyle(raw.editorCursorStyle),
     editorMaxWidthPx:
       typeof raw.editorMaxWidthPx === "number" && Number.isFinite(raw.editorMaxWidthPx)
         ? normalizeEditorMaxWidth(raw.editorMaxWidthPx)

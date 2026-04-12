@@ -7,6 +7,7 @@
 import type { AppSettings } from "../../shared/types";
 import {
   normalizeDefaultFileExtension,
+  normalizeEditorCursorStyle,
   normalizeEditorLineHeight,
   normalizeEditorMaxWidth,
   normalizeEditorParagraphSpacing,
@@ -35,6 +36,7 @@ type SettingsInputs = {
   snapshotMaxSizeInput: HTMLInputElement;
   lineHeightInput: HTMLInputElement;
   paragraphSpacingSelect: HTMLSelectElement;
+  cursorStyleSelect: HTMLSelectElement;
   editorWidthInput: HTMLInputElement;
   textZoomInput: HTMLInputElement;
   themeSelect: HTMLSelectElement;
@@ -76,6 +78,7 @@ export function createSettingsDialogController(options: {
   persistSettings: (update: Partial<AppSettings>) => Promise<void>;
   applyEditorLineHeight: (lineHeight: number) => void;
   applyEditorParagraphSpacing: (spacing: AppSettings["editorParagraphSpacing"]) => void;
+  applyEditorCursorStyle: (cursorStyle: AppSettings["editorCursorStyle"]) => void;
   applyEditorMaxWidth: (editorWidth: number) => void;
   applyEditorFont: (fontFamily: string) => void;
   setEditorZoomFromPercent: (percent: number) => void;
@@ -244,6 +247,12 @@ export function createSettingsDialogController(options: {
     options.applyEditorParagraphSpacing(selectedSpacing);
     options.refreshEditorLayout();
     persistSetting("editorParagraphSpacing", selectedSpacing);
+  });
+
+  addListener(options.inputs.cursorStyleSelect, "change", () => {
+    const selectedCursorStyle = normalizeEditorCursorStyle(options.inputs.cursorStyleSelect.value);
+    options.applyEditorCursorStyle(selectedCursorStyle);
+    persistSetting("editorCursorStyle", selectedCursorStyle);
   });
 
   addListener(options.inputs.editorWidthInput, "input", () => {

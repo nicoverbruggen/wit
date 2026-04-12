@@ -84,6 +84,7 @@ export type RendererDom = {
   lineHeightInput: HTMLInputElement;
   lineHeightValue: HTMLSpanElement;
   paragraphSpacingSelect: HTMLSelectElement;
+  cursorStyleSelect: HTMLSelectElement;
   editorWidthInput: HTMLInputElement;
   editorWidthValue: HTMLSpanElement;
   textZoomInput: HTMLInputElement;
@@ -190,6 +191,7 @@ type SettingsDom = Pick<
   | "lineHeightInput"
   | "lineHeightValue"
   | "paragraphSpacingSelect"
+  | "cursorStyleSelect"
   | "editorWidthInput"
   | "editorWidthValue"
   | "textZoomInput"
@@ -316,6 +318,7 @@ function resolveSettingsDom(): SettingsDom {
     lineHeightInput: getById("line-height-input"),
     lineHeightValue: getById("line-height-value"),
     paragraphSpacingSelect: getById("paragraph-spacing-select"),
+    cursorStyleSelect: getById("cursor-style-select"),
     editorWidthInput: getById("editor-width-input"),
     editorWidthValue: getById("editor-width-value"),
     textZoomInput: getById("text-zoom-input"),

@@ -8,6 +8,7 @@ import {
   Compartment,
   EditorSelection as CodeMirrorSelection,
   EditorState,
+  type Range,
   StateField,
   RangeSetBuilder
 } from "@codemirror/state";
@@ -21,64 +22,143 @@ import {
   EditorView,
   keymap,
   placeholder,
-  WidgetType,
   type DecorationSet
 } from "@codemirror/view";
 import type { AppSettings } from "../../shared/types";
 import type { EditorAdapter } from "./adapter";
 
-class ParagraphSpacerWidget extends WidgetType {
-  toDOM(): HTMLElement {
-    const spacer = document.createElement("div");
-    spacer.className = "cm-wit-paragraph-spacer";
-    spacer.setAttribute("aria-hidden", "true");
-    return spacer;
+const newlineSpacingDecoration = Decoration.line({
+  attributes: {
+    class: "cm-wit-newline-spaced"
   }
-}
-
-const paragraphStartDecoration = Decoration.widget({
-  widget: new ParagraphSpacerWidget(),
-  block: true,
-  side: -1
 });
-
-function isBlankLine(text: string): boolean {
-  return text.trim().length === 0;
-}
 
 function isMarkdownListLine(text: string): boolean {
   return /^\s*(?:[-+*]|\d+[.)])\s+/.test(text);
 }
 
-function buildParagraphDecorations(state: EditorState): DecorationSet {
+type LineRange = {
+  startLine: number;
+  endLine: number;
+};
+
+type PositionRange = {
+  from: number;
+  to: number;
+};
+
+function shouldDecorateLineBreak(state: EditorState, lineNumber: number): boolean {
+  return lineNumber >= 2 && lineNumber <= state.doc.lines;
+}
+
+function buildLineSpacingDecorationRanges(
+  state: EditorState,
+  startLine = 2,
+  endLine = state.doc.lines
+): Range<Decoration>[] {
+  const ranges: Range<Decoration>[] = [];
+
+  const safeStartLine = Math.max(2, startLine);
+  const safeEndLine = Math.min(state.doc.lines, endLine);
+  for (let lineNumber = safeStartLine; lineNumber <= safeEndLine; lineNumber += 1) {
+    if (!shouldDecorateLineBreak(state, lineNumber)) {
+      continue;
+    }
+
+    ranges.push(newlineSpacingDecoration.range(state.doc.line(lineNumber).from));
+  }
+
+  return ranges;
+}
+
+function buildLineSpacingDecorations(state: EditorState): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  for (let lineNumber = 2; lineNumber <= state.doc.lines; lineNumber += 1) {
-    const line = state.doc.line(lineNumber);
-    if (isBlankLine(line.text)) {
-      continue;
-    }
-
-    const previousLine = state.doc.line(lineNumber - 1);
-    if (isBlankLine(previousLine.text)) {
-      continue;
-    }
-
-    builder.add(line.from, line.from, paragraphStartDecoration);
+  for (const range of buildLineSpacingDecorationRanges(state)) {
+    builder.add(range.from, range.to, range.value);
   }
 
   return builder.finish();
 }
 
-const paragraphSpacingField = StateField.define<DecorationSet>({
+function mergeLineRanges(ranges: LineRange[]): LineRange[] {
+  if (ranges.length <= 1) {
+    return ranges;
+  }
+
+  const sorted = [...ranges].sort((left, right) => left.startLine - right.startLine);
+  const merged: LineRange[] = [sorted[0]];
+
+  for (let index = 1; index < sorted.length; index += 1) {
+    const currentRange = sorted[index];
+    const previousRange = merged[merged.length - 1];
+
+    if (currentRange.startLine <= previousRange.endLine + 1) {
+      previousRange.endLine = Math.max(previousRange.endLine, currentRange.endLine);
+      continue;
+    }
+
+    merged.push(currentRange);
+  }
+
+  return merged;
+}
+
+function getAffectedLineRanges(state: EditorState, transaction: Parameters<NonNullable<typeof lineSpacingField.spec.update>>[1]): LineRange[] {
+  const ranges: LineRange[] = [];
+
+  transaction.changes.iterChangedRanges((_fromA, _toA, fromB, toB) => {
+    if (state.doc.lines < 2) {
+      return;
+    }
+
+    const startPosition = Math.min(fromB, state.doc.length);
+    const endPosition = Math.min(Math.max(fromB, toB), state.doc.length);
+    const startLine = state.doc.lineAt(startPosition).number;
+    const endLine = state.doc.lineAt(endPosition).number;
+    const affectedStartLine = Math.max(2, startLine);
+    const affectedEndLine = Math.min(state.doc.lines, Math.max(2, endLine + 1));
+
+    if (affectedStartLine <= affectedEndLine) {
+      ranges.push({ startLine: affectedStartLine, endLine: affectedEndLine });
+    }
+  });
+
+  return mergeLineRanges(ranges);
+}
+
+function toPositionRanges(state: EditorState, ranges: LineRange[]): PositionRange[] {
+  return ranges.map(({ startLine, endLine }) => ({
+    from: state.doc.line(startLine).from,
+    to: state.doc.line(endLine).from
+  }));
+}
+
+function isOutsidePositionRanges(position: number, ranges: PositionRange[]): boolean {
+  return !ranges.some(({ from, to }) => position >= from && position <= to);
+}
+
+const lineSpacingField = StateField.define<DecorationSet>({
   create(state) {
-    return buildParagraphDecorations(state);
+    return buildLineSpacingDecorations(state);
   },
   update(decorations, transaction) {
     if (!transaction.docChanged) {
       return decorations;
     }
 
-    return buildParagraphDecorations(transaction.state);
+    const affectedLineRanges = getAffectedLineRanges(transaction.state, transaction);
+    if (affectedLineRanges.length === 0) {
+      return decorations.map(transaction.changes);
+    }
+
+    const affectedPositionRanges = toPositionRanges(transaction.state, affectedLineRanges);
+    return decorations.map(transaction.changes).update({
+      filter: (from) => isOutsidePositionRanges(from, affectedPositionRanges),
+      add: affectedLineRanges.flatMap(({ startLine, endLine }) =>
+        buildLineSpacingDecorationRanges(transaction.state, startLine, endLine)
+      ),
+      sort: true
+    });
   },
   provide: (field) => EditorView.decorations.from(field)
 });
@@ -94,6 +174,7 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
   const editableCompartment = new Compartment();
   const readOnlyCompartment = new Compartment();
   const languageCompartment = new Compartment();
+  const lineSpacingCompartment = new Compartment();
   const inputListeners = new Set<() => void>();
   const keydownListeners = new Set<(event: KeyboardEvent) => void>();
   const blurListeners = new Set<() => void>();
@@ -109,6 +190,7 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
   };
 
   host.dataset.paragraphSpacing = "none";
+  host.dataset.cursorStyle = "wit-default";
 
   const view = new EditorView({
     parent: host,
@@ -120,7 +202,7 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
         history(),
         keymap.of([{ key: "Tab", run: handleTabKey }, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        paragraphSpacingField,
+        lineSpacingCompartment.of([]),
         languageCompartment.of([]),
         editableCompartment.of(EditorView.editable.of(false)),
         readOnlyCompartment.of(EditorState.readOnly.of(true)),
@@ -203,6 +285,12 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
     },
     setParagraphSpacing: (value: AppSettings["editorParagraphSpacing"]) => {
       host.dataset.paragraphSpacing = value;
+      view.dispatch({
+        effects: lineSpacingCompartment.reconfigure(value === "none" ? [] : lineSpacingField)
+      });
+    },
+    setCursorStyle: (value: AppSettings["editorCursorStyle"]) => {
+      host.dataset.cursorStyle = value;
     },
     setFontFamily: (value) => {
       host.style.setProperty("--editor-font-family", value);

@@ -102,6 +102,7 @@ export function bootstrapAppController(options: {
   defaultEditorFont: string;
   lineHeightInput: HTMLInputElement;
   paragraphSpacingSelect: HTMLSelectElement;
+  cursorStyleSelect: HTMLSelectElement;
   editorWidthInput: HTMLInputElement;
   fontSelect: HTMLSelectElement;
   loadAboutInfo: () => Promise<void>;
@@ -116,6 +117,7 @@ export function bootstrapAppController(options: {
   applyEditorLineHeight: (lineHeight: number) => void;
   normalizeEditorParagraphSpacing: (value: string) => AppSettings["editorParagraphSpacing"];
   applyEditorParagraphSpacing: (spacing: AppSettings["editorParagraphSpacing"]) => void;
+  applyEditorCursorStyle: (cursorStyle: AppSettings["editorCursorStyle"]) => void;
   applyEditorMaxWidth: (editorWidth: number) => void;
   applyEditorZoom: (showStatus?: boolean) => void;
   applyEditorFont: (fontFamily: string) => void;
@@ -197,6 +199,7 @@ export function bootstrapAppController(options: {
     defaultEditorFont: options.defaultEditorFont,
     lineHeightInput: options.lineHeightInput,
     paragraphSpacingSelect: options.paragraphSpacingSelect,
+    cursorStyleSelect: options.cursorStyleSelect,
     editorWidthInput: options.editorWidthInput,
     fontSelect: options.fontSelect,
     getProject: options.getProject,
@@ -214,6 +217,7 @@ export function bootstrapAppController(options: {
     applyEditorLineHeight: options.applyEditorLineHeight,
     normalizeEditorParagraphSpacing: options.normalizeEditorParagraphSpacing,
     applyEditorParagraphSpacing: options.applyEditorParagraphSpacing,
+    applyEditorCursorStyle: options.applyEditorCursorStyle,
     applyEditorMaxWidth: options.applyEditorMaxWidth,
     applyEditorZoom: options.applyEditorZoom,
     applyEditorFont: options.applyEditorFont,

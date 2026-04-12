@@ -33,6 +33,7 @@ export async function initializeApp(options: {
   defaultEditorFont: string;
   lineHeightInput: HTMLInputElement;
   paragraphSpacingSelect: HTMLSelectElement;
+  cursorStyleSelect: HTMLSelectElement;
   editorWidthInput: HTMLInputElement;
   fontSelect: HTMLSelectElement;
   getProject: () => ProjectMetadata | null;
@@ -50,6 +51,7 @@ export async function initializeApp(options: {
   applyEditorLineHeight: (lineHeight: number) => void;
   normalizeEditorParagraphSpacing: (value: string) => AppSettings["editorParagraphSpacing"];
   applyEditorParagraphSpacing: (spacing: AppSettings["editorParagraphSpacing"]) => void;
+  applyEditorCursorStyle: (cursorStyle: AppSettings["editorCursorStyle"]) => void;
   applyEditorMaxWidth: (editorWidth: number) => void;
   applyEditorZoom: (showStatus?: boolean) => void;
   applyEditorFont: (fontFamily: string) => void;
@@ -91,6 +93,7 @@ export async function initializeApp(options: {
   options.applyTheme("light");
   options.applyEditorLineHeight(Number.parseFloat(options.lineHeightInput.value));
   options.applyEditorParagraphSpacing(options.normalizeEditorParagraphSpacing(options.paragraphSpacingSelect.value));
+  options.applyEditorCursorStyle(options.cursorStyleSelect.value as AppSettings["editorCursorStyle"]);
   options.applyEditorMaxWidth(Number.parseInt(options.editorWidthInput.value, 10));
   options.applyEditorZoom(false);
   options.applyEditorFont(options.defaultEditorFont);

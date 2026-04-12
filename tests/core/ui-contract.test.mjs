@@ -40,6 +40,7 @@ test("renderer markup contains core writing controls", async () => {
     "line-height-input",
     "line-height-value",
     "paragraph-spacing-select",
+    "cursor-style-select",
     "editor-width-input",
     "editor-width-value",
     "theme-select",

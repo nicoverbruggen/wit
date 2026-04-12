@@ -32,6 +32,7 @@ const {
   fileList,
   lineHeightInput,
   paragraphSpacingSelect,
+  cursorStyleSelect,
   editorWidthInput,
   fontSelect
 } = dom;
@@ -140,6 +141,7 @@ bootstrapAppController(
       fileList,
       lineHeightInput,
       paragraphSpacingSelect,
+      cursorStyleSelect,
       editorWidthInput,
       fontSelect
     },

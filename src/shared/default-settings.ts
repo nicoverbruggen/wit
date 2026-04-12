@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   gitPushRemote: null,
   editorLineHeight: 1.68,
   editorParagraphSpacing: "none",
+  editorCursorStyle: "wit-default",
   editorMaxWidthPx: 750,
   editorZoomPercent: 100,
   editorFontFamily: "iA Writer Mono"

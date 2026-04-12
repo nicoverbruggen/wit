@@ -48,6 +48,7 @@ export function createProjectUiController(options: {
   applyTheme: (theme: AppSettings["theme"]) => void;
   applyEditorLineHeight: (lineHeight: number) => void;
   applyEditorParagraphSpacing: (spacing: AppSettings["editorParagraphSpacing"]) => void;
+  applyEditorCursorStyle: (cursorStyle: AppSettings["editorCursorStyle"]) => void;
   applyEditorMaxWidth: (editorWidth: number) => void;
   setEditorZoomFromPercent: (percent: number, showStatus?: boolean) => void;
   populateFontSelect: (selectedFont: string) => void;
@@ -105,6 +106,7 @@ export function createProjectUiController(options: {
     options.applyTheme(settings.theme);
     options.applyEditorLineHeight(settings.editorLineHeight);
     options.applyEditorParagraphSpacing(settings.editorParagraphSpacing ?? "none");
+    options.applyEditorCursorStyle(settings.editorCursorStyle ?? "wit-default");
     options.applyEditorMaxWidth(settings.editorMaxWidthPx);
     options.setEditorZoomFromPercent(settings.editorZoomPercent, false);
     options.populateFontSelect(settings.editorFontFamily ?? options.defaultEditorFont);

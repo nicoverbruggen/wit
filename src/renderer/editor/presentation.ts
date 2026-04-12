@@ -20,6 +20,7 @@ type EditorPresentationAdapter = {
   setDisabled: (disabled: boolean) => void;
   setLineHeight: (lineHeight: number) => void;
   setParagraphSpacing: (spacing: AppSettings["editorParagraphSpacing"]) => void;
+  setCursorStyle: (cursorStyle: AppSettings["editorCursorStyle"]) => void;
   setFontFamily: (fontFamily: string) => void;
   getComputedFontSize: () => number;
   setFontSize: (fontSize: number) => void;
@@ -34,6 +35,7 @@ export type EditorPresentationController = {
   setEditorWritable: (enabled: boolean) => void;
   applyEditorLineHeight: (lineHeight: number) => void;
   applyEditorParagraphSpacing: (spacing: AppSettings["editorParagraphSpacing"]) => void;
+  applyEditorCursorStyle: (cursorStyle: AppSettings["editorCursorStyle"]) => void;
   applyEditorMaxWidth: (editorWidth: number) => void;
   applyEditorFont: (fontFamily: string) => void;
   populateFontSelect: (selectedFont: string) => void;
@@ -57,6 +59,7 @@ export function createEditorPresentationController(options: {
   lineHeightInput: HTMLInputElement;
   lineHeightValue: HTMLSpanElement;
   paragraphSpacingSelect: HTMLSelectElement;
+  cursorStyleSelect: HTMLSelectElement;
   editorWidthInput: HTMLInputElement;
   editorWidthValue: HTMLSpanElement;
   textZoomInput: HTMLInputElement;
@@ -111,6 +114,11 @@ export function createEditorPresentationController(options: {
   const applyEditorParagraphSpacing = (spacing: AppSettings["editorParagraphSpacing"]): void => {
     options.paragraphSpacingSelect.value = spacing;
     options.editor.setParagraphSpacing(spacing);
+  };
+
+  const applyEditorCursorStyle = (cursorStyle: AppSettings["editorCursorStyle"]): void => {
+    options.cursorStyleSelect.value = cursorStyle;
+    options.editor.setCursorStyle(cursorStyle);
   };
 
   const applyEditorMaxWidth = (editorWidth: number): void => {
@@ -205,6 +213,7 @@ export function createEditorPresentationController(options: {
     setEditorWritable,
     applyEditorLineHeight,
     applyEditorParagraphSpacing,
+    applyEditorCursorStyle,
     applyEditorMaxWidth,
     applyEditorFont,
     populateFontSelect,

@@ -76,6 +76,22 @@ export function normalizeEditorParagraphSpacing(value: unknown): AppSettings["ed
 }
 
 /**
+ * Normalizes editor cursor styling to one of the supported presets.
+ *
+ * @param value Raw cursor-style value from persisted settings or UI.
+ * @returns A valid editor cursor-style preset.
+ */
+export function normalizeEditorCursorStyle(value: unknown): AppSettings["editorCursorStyle"] {
+  switch (value) {
+    case "system-default":
+    case "system-wide":
+      return value;
+    default:
+      return "wit-default";
+  }
+}
+
+/**
  * Normalizes the app theme to a supported value.
  *
  * @param value Raw theme candidate.

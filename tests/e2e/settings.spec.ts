@@ -101,6 +101,7 @@ test.describe("Wit settings dialog", () => {
     await openSettingsTab(firstRun.page, "editor");
     await firstRun.page.selectOption("#theme-select", "dark");
     await firstRun.page.selectOption("#paragraph-spacing-select", "loose");
+    await firstRun.page.selectOption("#cursor-style-select", "system-wide");
     await firstRun.page.evaluate(() => {
       const input = document.querySelector("#line-height-input");
       if (!input) {
@@ -125,14 +126,17 @@ test.describe("Wit settings dialog", () => {
     });
     await expect(firstRun.page.locator(".editor-wrap")).toHaveClass(/show-width-guides/);
     await closeSettingsDialog(firstRun.page);
+    await expect(firstRun.page.locator("#status-message")).toContainText("Settings saved.");
     const lineHeightAfter = (await getEditorTypography(firstRun.page)).lineHeight;
     expect(lineHeightAfter).toBeGreaterThan(lineHeightBefore);
     await firstRun.app.close();
+    await clearLastProjectState();
 
     const secondRun = await launchWithProject(projectPath);
     await openSettingsTab(secondRun.page, "editor");
     await expect(secondRun.page.locator("#theme-select")).toHaveValue("dark");
     await expect(secondRun.page.locator("#paragraph-spacing-select")).toHaveValue("loose");
+    await expect(secondRun.page.locator("#cursor-style-select")).toHaveValue("system-wide");
     await expect(secondRun.page.locator("#line-height-value")).toHaveText("1.90");
     await expect(secondRun.page.locator("#editor-width-value")).toHaveText("740px");
 
