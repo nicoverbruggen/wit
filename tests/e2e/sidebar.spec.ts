@@ -80,11 +80,19 @@ test.describe("Wit sidebar and shell chrome", () => {
     const centerY = box.y + (box.height / 2);
     await page.mouse.move(centerX, centerY);
     await page.mouse.down();
-    await page.mouse.move(centerX - 100, centerY, { steps: 8 });
+    await page.mouse.move(centerX + 100, centerY, { steps: 8 });
+    await page.mouse.up();
+
+    const widthExpanded = await readSidebarWidth();
+    expect(widthExpanded).toBeGreaterThan(widthBefore);
+
+    await page.mouse.move(centerX + 100, centerY);
+    await page.mouse.down();
+    await page.mouse.move(centerX, centerY, { steps: 8 });
     await page.mouse.up();
 
     const widthAfter = await readSidebarWidth();
-    expect(widthAfter).toBeLessThan(widthBefore);
+    expect(widthAfter).toBeLessThan(widthExpanded);
 
     await app.close();
   });
