@@ -45,6 +45,8 @@ export function createRendererBootstrapOptions(options: {
   };
   dom: Pick<
     RendererDom,
+    | "configCorruptedBanner"
+    | "configCorruptedDismissButton"
     | "openProjectButton"
     | "emptyStatePrimaryButton"
     | "emptyStateSecondaryButton"
@@ -69,6 +71,8 @@ export function createRendererBootstrapOptions(options: {
   return {
     body: options.body,
     witApi: options.witApi,
+    configCorruptedBanner: options.dom.configCorruptedBanner,
+    configCorruptedDismissButton: options.dom.configCorruptedDismissButton,
     openProjectButton: options.dom.openProjectButton,
     emptyStatePrimaryButton: options.dom.emptyStatePrimaryButton,
     emptyStateSecondaryButton: options.dom.emptyStateSecondaryButton,

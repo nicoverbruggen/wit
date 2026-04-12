@@ -28,6 +28,8 @@ export type RendererDom = {
   toggleSidebarButton: HTMLButtonElement;
   sidebarResizer: HTMLDivElement;
   sidebar: HTMLElement;
+  configCorruptedBanner: HTMLDivElement;
+  configCorruptedDismissButton: HTMLButtonElement;
   editorWrap: HTMLElement;
   editorHeader: HTMLElement;
   statusBar: HTMLElement;
@@ -150,6 +152,8 @@ type EntryDialogDom = Pick<
 
 type EditorDom = Pick<
   RendererDom,
+  | "configCorruptedBanner"
+  | "configCorruptedDismissButton"
   | "editorWrap"
   | "editorHeader"
   | "editorElement"
@@ -273,6 +277,8 @@ function resolveEntryDialogDom(): EntryDialogDom {
 
 function resolveEditorDom(): EditorDom {
   return {
+    configCorruptedBanner: getById("config-corrupted-banner"),
+    configCorruptedDismissButton: getById("config-corrupted-dismiss-btn"),
     editorWrap: getBySelector(".editor-wrap"),
     editorHeader: getBySelector(".editor-header"),
     editorElement: getById("editor"),

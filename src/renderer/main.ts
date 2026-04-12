@@ -18,6 +18,8 @@ import { resolveRendererDom } from "./bootstrap/dom.js";
 const dom = resolveRendererDom();
 const editor = createCodeMirrorEditor(dom.editorElement);
 const {
+  configCorruptedBanner,
+  configCorruptedDismissButton,
   openProjectButton,
   newFileButton,
   newFolderButton,
@@ -124,6 +126,8 @@ bootstrapAppController(
     body: document.body,
     witApi: window.witApi,
     dom: {
+      configCorruptedBanner,
+      configCorruptedDismissButton,
       openProjectButton,
       emptyStatePrimaryButton,
       emptyStateSecondaryButton,

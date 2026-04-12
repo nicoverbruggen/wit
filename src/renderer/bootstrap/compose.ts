@@ -370,7 +370,13 @@ export function createRendererComposition(options: {
     renderStatusFooter: options.callbacks.renderStatusFooter,
     setSidebarVisibility: options.callbacks.setSidebarVisibility,
     setSidebarFaded: options.callbacks.setSidebarFaded,
-    restartAutosaveTimer: options.callbacks.restartAutosaveTimer
+    restartAutosaveTimer: options.callbacks.restartAutosaveTimer,
+    showConfigCorruptedBanner: () => {
+      options.dom.configCorruptedBanner.hidden = false;
+    },
+    hideConfigCorruptedBanner: () => {
+      options.dom.configCorruptedBanner.hidden = true;
+    }
   });
 
   const projectLifecycleController = createProjectLifecycleController({
@@ -399,7 +405,10 @@ export function createRendererComposition(options: {
     selectProject: () => options.witApi.selectProject(),
     applyProjectMetadata: (metadata) => projectStateApplicationController.applyProjectMetadata(metadata),
     openFile: options.callbacks.openFile,
-    setStatus: options.callbacks.setStatus
+    setStatus: options.callbacks.setStatus,
+    hideConfigCorruptedBanner: () => {
+      options.dom.configCorruptedBanner.hidden = true;
+    }
   });
 
   const settingsDialogController = createSettingsDialogController({

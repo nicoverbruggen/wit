@@ -41,6 +41,7 @@ export type ProjectMetadata = {
   settings: AppSettings;
   lastOpenedFilePath: string | null;
   hasStoredLastOpenedFilePath: boolean;
+  configCorrupted: boolean;
 };
 
 /**

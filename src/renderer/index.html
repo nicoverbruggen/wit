@@ -84,6 +84,11 @@
 
       <main class="editor-pane">
         <section class="editor-wrap">
+          <div id="config-corrupted-banner" class="config-corrupted-banner" role="alert" hidden>
+            <span class="material-symbol-icon config-corrupted-icon" aria-hidden="true">error</span>
+            <span>Project settings were corrupted and have been reset to defaults.</span>
+            <button id="config-corrupted-dismiss-btn" class="config-corrupted-dismiss" type="button" aria-label="Dismiss">&times;</button>
+          </div>
           <div id="empty-state-screen" class="empty-state-screen" hidden>
             <div class="empty-state-mark" aria-hidden="true">W</div>
             <div class="empty-state-card">

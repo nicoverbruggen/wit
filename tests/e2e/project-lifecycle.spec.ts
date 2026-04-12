@@ -196,4 +196,54 @@ test.describe("Wit project lifecycle", () => {
     const content = await fs.readFile(path.join(projectPath, "close.txt"), "utf8");
     expect(content).toContain("unsaved text");
   });
+
+  test("exit snapshot creates a snapshot archive on app close", async () => {
+    const projectPath = await makeTempDir("wit-e2e-exit-snapshot-");
+    await fs.writeFile(path.join(projectPath, "draft.txt"), "snapshot content", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await page.click(".file-button:has-text('draft.txt')");
+    await page.click("#editor");
+    await page.keyboard.type(" edited");
+    await app.close();
+
+    const snapshotsDir = path.join(projectPath, ".wit", "snapshots");
+    const entries = await fs.readdir(snapshotsDir);
+    expect(entries.some((entry) => entry.endsWith(".json.gz"))).toBe(true);
+  });
+
+  test("recovers gracefully when config.json contains invalid JSON", async () => {
+    const projectPath = await makeTempDir("wit-e2e-corrupt-config-");
+    await fs.writeFile(path.join(projectPath, "draft.txt"), "hello", "utf8");
+
+    const firstRun = await launchWithProject(projectPath);
+    await firstRun.app.close();
+
+    await fs.writeFile(path.join(projectPath, ".wit", "config.json"), "{invalid json!!", "utf8");
+
+    const secondRun = await launchWithProject(projectPath);
+    await expect(secondRun.page.locator(".file-button", { hasText: "draft.txt" })).toBeVisible();
+    await expect(secondRun.page.locator("#sidebar-project-title")).toHaveText(path.basename(projectPath));
+    await expect(secondRun.page.locator("#config-corrupted-banner")).toBeVisible();
+    await secondRun.app.close();
+  });
+
+  test("falls back to first file when last-opened file was deleted externally", async () => {
+    const projectPath = await makeTempDir("wit-e2e-deleted-last-file-");
+    await fs.writeFile(path.join(projectPath, "alpha.txt"), "alpha", "utf8");
+    await fs.writeFile(path.join(projectPath, "beta.txt"), "beta", "utf8");
+
+    const firstRun = await launchWithProject(projectPath);
+    await firstRun.page.click(".file-button:has-text('beta.txt')");
+    await expect(firstRun.page.locator("#active-file-label")).toHaveText("beta.txt");
+    await firstRun.app.close();
+
+    await fs.rm(path.join(projectPath, "beta.txt"));
+
+    const secondRun = await launchApp();
+    await expect(secondRun.page.locator("#sidebar-project-title")).toHaveText(path.basename(projectPath));
+    await expect(secondRun.page.locator(".file-button", { hasText: "beta.txt" })).toHaveCount(0);
+    await expect(secondRun.page.locator("#active-file-label")).toHaveText("alpha.txt");
+    await secondRun.app.close();
+  });
 });

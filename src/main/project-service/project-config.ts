@@ -28,8 +28,19 @@ type NormalizeAppSettingsOptions = {
   invalidPositiveIntegerFallback: "default" | "minimum";
 };
 
-function parseConfig(raw: string): ParsedConfig {
-  return JSON.parse(raw) as ParsedConfig;
+const corruptedProjects = new Set<string>();
+
+function parseConfig(projectPath: string, raw: string): ParsedConfig {
+  try {
+    return JSON.parse(raw) as ParsedConfig;
+  } catch {
+    corruptedProjects.add(projectPath);
+    return {};
+  }
+}
+
+export function isConfigCorrupted(projectPath: string): boolean {
+  return corruptedProjects.has(projectPath);
 }
 
 function extractRawSettings(parsed: ParsedConfig): Partial<AppSettings> {
@@ -113,7 +124,7 @@ export async function loadSettings(projectPath: string): Promise<AppSettings> {
   await ensureProjectInitialized(projectPath);
 
   const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
-  return normalizeAppSettings(extractRawSettings(parseConfig(raw)));
+  return normalizeAppSettings(extractRawSettings(parseConfig(projectPath, raw)));
 }
 
 /**
@@ -137,7 +148,7 @@ export async function saveSettings(projectPath: string, settings: AppSettings): 
 
   await ensureProjectInitialized(projectPath);
   const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
-  const parsed = parseConfig(raw);
+  const parsed = parseConfig(projectPath, raw);
   await fs.writeFile(
     getConfigPath(projectPath),
     `${JSON.stringify(
@@ -163,7 +174,7 @@ export async function saveSettings(projectPath: string, settings: AppSettings): 
 export async function getLastOpenedFilePath(projectPath: string): Promise<string | null> {
   await ensureProjectInitialized(projectPath);
   const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
-  return normalizeStoredLastOpenedFilePath(parseConfig(raw).lastOpenedFilePath);
+  return normalizeStoredLastOpenedFilePath(parseConfig(projectPath, raw).lastOpenedFilePath);
 }
 
 /**
@@ -175,7 +186,7 @@ export async function getLastOpenedFilePath(projectPath: string): Promise<string
 export async function hasStoredLastOpenedFilePath(projectPath: string): Promise<boolean> {
   await ensureProjectInitialized(projectPath);
   const raw = await fs.readFile(getConfigPath(projectPath), "utf8");
-  return Object.prototype.hasOwnProperty.call(parseConfig(raw), "lastOpenedFilePath");
+  return Object.prototype.hasOwnProperty.call(parseConfig(projectPath, raw), "lastOpenedFilePath");
 }
 
 /**

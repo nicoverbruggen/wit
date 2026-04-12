@@ -24,6 +24,8 @@ type EditorEventAdapter = {
  * @param options DOM nodes, renderer state, and action callbacks to connect.
  */
 export function bindAppEventBindings(options: {
+  configCorruptedDismissButton: HTMLButtonElement;
+  configCorruptedBanner: HTMLDivElement;
   openProjectButton: HTMLButtonElement;
   emptyStatePrimaryButton: HTMLButtonElement;
   emptyStateSecondaryButton: HTMLButtonElement;
@@ -113,6 +115,10 @@ export function bindAppEventBindings(options: {
       })();
     });
   };
+
+  bindClick(options.configCorruptedDismissButton, () => {
+    options.configCorruptedBanner.hidden = true;
+  });
 
   bindAsyncClickClosingContextMenu(options.openProjectButton, options.openProjectPicker);
 

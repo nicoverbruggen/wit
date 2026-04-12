@@ -8,7 +8,7 @@ import path from "node:path";
 import { getLatestSnapshotName } from "../snapshot-service";
 import type { ProjectMetadata } from "../../shared/types";
 import { countWordsInFilesUsingSystemTool } from "../word-count-service";
-import { getLastOpenedFilePath, hasStoredLastOpenedFilePath, loadSettings } from "./project-config";
+import { getLastOpenedFilePath, hasStoredLastOpenedFilePath, isConfigCorrupted, loadSettings } from "./project-config";
 import { hasGitInitialCommit, listGitRemotes, isGitRepository } from "./project-git";
 import { ensureProjectInitialized } from "./project-init";
 import { listProjectFiles, listProjectFolders } from "./project-files";
@@ -68,7 +68,8 @@ export async function getProjectMetadata(projectPath: string): Promise<ProjectMe
     gitRemotes,
     settings,
     lastOpenedFilePath,
-    hasStoredLastOpenedFilePath: hasStoredPath
+    hasStoredLastOpenedFilePath: hasStoredPath,
+    configCorrupted: isConfigCorrupted(projectPath)
   };
 }
 

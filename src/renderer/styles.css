@@ -930,6 +930,44 @@ progress {
   overflow: hidden;
 }
 
+.config-corrupted-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: #fde8e8;
+  border-bottom: 1px solid #f5c6c6;
+  color: #991b1b;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.config-corrupted-banner[hidden] {
+  display: none;
+}
+
+.config-corrupted-icon {
+  font-size: 16px;
+  color: #dc2626;
+  flex-shrink: 0;
+}
+
+.config-corrupted-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #991b1b;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.6;
+}
+
+.config-corrupted-dismiss:hover {
+  opacity: 1;
+}
+
 .toolbar {
   grid-area: toolbar;
   border-bottom: 1px solid var(--line);
@@ -2050,6 +2088,20 @@ body[data-theme="dark"] .about-version-badge {
 body[data-theme="dark"] .about-details,
 body[data-theme="dark"] .about-detail-row {
   border-color: #30363d;
+}
+
+body[data-theme="dark"] .config-corrupted-banner {
+  background: #3b1111;
+  border-bottom-color: #5c1a1a;
+  color: #fca5a5;
+}
+
+body[data-theme="dark"] .config-corrupted-icon {
+  color: #ef4444;
+}
+
+body[data-theme="dark"] .config-corrupted-dismiss {
+  color: #fca5a5;
 }
 
 @media (max-width: 700px) {

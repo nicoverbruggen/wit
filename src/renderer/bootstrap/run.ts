@@ -53,6 +53,8 @@ type WitApiForInitialization = {
 export function bootstrapAppController(options: {
   body: HTMLElement;
   witApi: WitApiForBootstrap & WitApiForInitialization;
+  configCorruptedBanner: HTMLDivElement;
+  configCorruptedDismissButton: HTMLButtonElement;
   openProjectButton: HTMLButtonElement;
   emptyStatePrimaryButton: HTMLButtonElement;
   emptyStateSecondaryButton: HTMLButtonElement;
@@ -134,6 +136,8 @@ export function bootstrapAppController(options: {
   };
 
   bindAppEventBindings({
+    configCorruptedDismissButton: options.configCorruptedDismissButton,
+    configCorruptedBanner: options.configCorruptedBanner,
     openProjectButton: options.openProjectButton,
     emptyStatePrimaryButton: options.emptyStatePrimaryButton,
     emptyStateSecondaryButton: options.emptyStateSecondaryButton,

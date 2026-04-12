@@ -47,6 +47,7 @@ export function createProjectLifecycleController(options: {
   applyProjectMetadata: (metadata: ProjectMetadata) => void;
   openFile: (relativePath: string) => Promise<void>;
   setStatus: (message: string, clearAfterMs?: number) => void;
+  hideConfigCorruptedBanner: () => void;
 }): ProjectLifecycleController {
   const resetUiForNoProject = (): void => {
     options.stopSidebarResize();
@@ -82,6 +83,7 @@ export function createProjectLifecycleController(options: {
 
   const clearProjectState = (showStatusMessage = false): void => {
     options.setProjectState(null);
+    options.hideConfigCorruptedBanner();
     resetUiForNoProject();
 
     if (showStatusMessage) {

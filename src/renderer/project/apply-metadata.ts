@@ -48,6 +48,8 @@ export function createProjectStateApplicationController(options: {
   setSidebarVisibility: (nextVisible: boolean, showStatus?: boolean) => void;
   setSidebarFaded: (nextFaded: boolean) => void;
   restartAutosaveTimer: () => void;
+  showConfigCorruptedBanner: () => void;
+  hideConfigCorruptedBanner: () => void;
 }): ProjectStateApplicationController {
   const applyCommonProjectMetadata = (metadata: ProjectMetadata): void => {
     options.setProjectState(metadata);
@@ -90,6 +92,12 @@ export function createProjectStateApplicationController(options: {
     options.setSidebarFaded(false);
     options.setEditorWritable(false);
     options.renderEmptyEditorState();
+
+    if (metadata.configCorrupted) {
+      options.showConfigCorruptedBanner();
+    } else {
+      options.hideConfigCorruptedBanner();
+    }
   };
 
   const refreshProjectMetadata = (metadata: ProjectMetadata): void => {

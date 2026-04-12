@@ -111,7 +111,11 @@ export async function initializeApp(options: {
 
     if (preferredFile) {
       await options.openFile(preferredFile);
-    } else if (!activeProject.hasStoredLastOpenedFilePath && activeProject.files.length > 0) {
+    } else if (activeProject.files.length > 0 && activeProject.lastOpenedFilePath) {
+      // Stored file was deleted externally — fall back to first available file.
+      await options.openFile(activeProject.files[0]);
+    } else if (activeProject.files.length > 0 && !activeProject.hasStoredLastOpenedFilePath) {
+      // Fresh project with no history — auto-open first file.
       await options.openFile(activeProject.files[0]);
     }
   }
