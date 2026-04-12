@@ -57,19 +57,21 @@ export function createProjectTreeRenderCallbacks(options: {
 
       options.actions.renderFileList();
     },
-    onFolderClick: (relativePath, isCollapsed) => {
-      if (
-        options.state.getSelectedTreePath() === relativePath &&
-        options.state.getSelectedTreeKind() === "folder" &&
-        !isCollapsed
-      ) {
-        options.collapsedFolderPaths.add(relativePath);
-      } else {
-        options.collapsedFolderPaths.delete(relativePath);
-      }
-
+    onFolderClick: (relativePath) => {
+      options.collapsedFolderPaths.delete(relativePath);
       options.state.setSelectedTreePath(relativePath);
       options.state.setSelectedTreeKind("folder");
+      options.actions.saveCollapsedFolders();
+      options.actions.setSidebarFaded(false);
+      options.actions.renderFileList();
+    },
+    onFolderDisclosureClick: (relativePath, isCollapsed) => {
+      if (isCollapsed) {
+        options.collapsedFolderPaths.delete(relativePath);
+      } else {
+        options.collapsedFolderPaths.add(relativePath);
+      }
+
       options.actions.saveCollapsedFolders();
       options.actions.setSidebarFaded(false);
       options.actions.renderFileList();

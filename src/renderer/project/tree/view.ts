@@ -14,7 +14,8 @@ export type ProjectTreeSelectionKind = "file" | "folder";
 export type ProjectTreeCallbacks = {
   onBeforeInteraction: () => void;
   onProjectRootClick: (closingCurrentFile: boolean) => void;
-  onFolderClick: (relativePath: string, isCollapsed: boolean) => void;
+  onFolderClick: (relativePath: string) => void;
+  onFolderDisclosureClick: (relativePath: string, isCollapsed: boolean) => void;
   onFileClick: (relativePath: string) => void;
   onMoveFileToFolder: (sourcePath: string, toFolderRelativePath: string) => void | Promise<void>;
   onMoveFolderToFolder: (sourcePath: string, toFolderRelativePath: string) => void | Promise<void>;
@@ -91,8 +92,9 @@ function renderTreeNodes(options: RenderProjectTreeListOptions, nodes: TreeNode[
       button.title = node.relativePath;
       button.setAttribute("aria-expanded", String(!isCollapsed));
       disclosure.className = "material-symbol-icon tree-disclosure";
-      disclosure.textContent = isCollapsed ? "chevron_right" : "expand_more";
+      disclosure.setAttribute("role", "presentation");
       disclosure.setAttribute("aria-hidden", "true");
+      disclosure.textContent = isCollapsed ? "chevron_right" : "expand_more";
       icon.className = "material-symbol-icon folder-icon";
       icon.textContent = isCollapsed ? "folder" : "folder_open";
       icon.setAttribute("aria-hidden", "true");
@@ -101,9 +103,15 @@ function renderTreeNodes(options: RenderProjectTreeListOptions, nodes: TreeNode[
 
       button.draggable = true;
       button.append(disclosure, icon, label);
+      disclosure.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        options.callbacks.onBeforeInteraction();
+        options.callbacks.onFolderDisclosureClick(node.relativePath, isCollapsed);
+      });
       button.addEventListener("click", () => {
         options.callbacks.onBeforeInteraction();
-        options.callbacks.onFolderClick(node.relativePath, isCollapsed);
+        options.callbacks.onFolderClick(node.relativePath);
       });
       button.addEventListener("dragstart", (event) => {
         options.callbacks.onBeforeInteraction();

@@ -296,6 +296,30 @@ test.describe("Wit tree entry actions", () => {
     await app.close();
   });
 
+  test("toggles a folder from the chevron without selecting the folder first", async () => {
+    const projectPath = await makeTempDir("wit-e2e-folder-chevron-");
+    await fs.mkdir(path.join(projectPath, "drafts"), { recursive: true });
+    await fs.writeFile(path.join(projectPath, "drafts", "scene.txt"), "hello", "utf8");
+    await fs.writeFile(path.join(projectPath, "root.txt"), "root", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+
+    await page.click(".file-button:has-text('root.txt')");
+    await expect(page.locator(".file-button:has-text('root.txt')")).toHaveClass(/active/);
+    await expect(page.locator(".folder-button:has-text('drafts')")).not.toHaveClass(/active/);
+    await expect(page.locator(".file-button:has-text('scene.txt')")).toBeVisible();
+
+    await page.click(".folder-button:has-text('drafts') .tree-disclosure");
+    await expect(page.locator(".file-button:has-text('scene.txt')")).toBeHidden();
+    await expect(page.locator(".folder-button:has-text('drafts')")).not.toHaveClass(/active/);
+    await expect(page.locator(".file-button:has-text('root.txt')")).toHaveClass(/active/);
+
+    await page.click(".folder-button:has-text('drafts') .tree-disclosure");
+    await expect(page.locator(".file-button:has-text('scene.txt')")).toBeVisible();
+
+    await app.close();
+  });
+
   test("creates a new file from the in-app dialog", async () => {
     const projectPath = await makeTempDir("wit-e2e-");
     await fs.writeFile(path.join(projectPath, "start.txt"), "Opening chapter", "utf8");
