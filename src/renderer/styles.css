@@ -287,7 +287,7 @@ progress {
 
 .app-shell {
   display: grid;
-  grid-template-columns: clamp(220px, var(--sidebar-width), 420px) 10px 1fr;
+  grid-template-columns: clamp(220px, var(--sidebar-width), 480px) 10px 1fr;
   grid-template-rows: auto 1fr;
   grid-template-areas:
     "toolbar toolbar toolbar"

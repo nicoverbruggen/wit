@@ -65,6 +65,8 @@ test.describe("Wit sidebar and shell chrome", () => {
     await fs.writeFile(path.join(projectPath, "draft.txt"), "hello world", "utf8");
 
     const { app, page } = await launchWithProject(projectPath);
+    await page.evaluate(() => localStorage.removeItem("wit.sidebar-width"));
+    await page.reload();
     const resizer = page.locator("#sidebar-resizer");
 
     const readSidebarWidth = async () =>
