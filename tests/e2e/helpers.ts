@@ -76,6 +76,8 @@ export async function launchApp(): Promise<{ app: ElectronApplication; page: Pag
   });
 
   const page = await app.firstWindow();
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
   trackPage(page);
   await waitForAppReady(page);
 
