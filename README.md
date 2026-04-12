@@ -82,6 +82,38 @@ npm run dist:linux
 npm run dist:win
 ```
 
+### macOS notarization
+
+To prepare macOS notarization credentials with Apple's `notarytool`, store a reusable Keychain profile on the machine that performs the release build:
+
+```bash
+xcrun notarytool store-credentials "wit-notary" \
+  --apple-id "you@example.com" \
+  --team-id "YOUR_TEAM_ID" \
+  --password "abcd-efgh-ijkl-mnop"
+```
+
+After that succeeds, export the profile name before building:
+
+```bash
+export APPLE_KEYCHAIN_PROFILE="wit-notary"
+```
+
+You can verify that the saved profile is available with:
+
+```bash
+xcrun notarytool history --keychain-profile "wit-notary"
+```
+
+After building, validate the signed and notarized app bundle:
+
+```bash
+spctl -a -vvv -t exec "release/mac-arm64/Wit.app"
+xcrun stapler validate "release/mac-arm64/Wit.app"
+```
+
+`spctl` should report `accepted` with `source=Notarized Developer ID`, and `stapler validate` should succeed.
+
 Helper scripts:
 
 - `build/build_macos.sh`
