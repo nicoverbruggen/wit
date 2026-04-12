@@ -158,7 +158,7 @@ function renderTreeNodes(options: RenderProjectTreeListOptions, nodes: TreeNode[
     disclosurePlaceholder.className = "tree-disclosure-placeholder";
     disclosurePlaceholder.setAttribute("aria-hidden", "true");
     icon.className = "material-symbol-icon file-icon";
-    icon.textContent = "description";
+    icon.textContent = node.name.endsWith(".md") ? "markdown" : "description";
     icon.setAttribute("aria-hidden", "true");
     label.className = "tree-label";
     label.textContent = node.name;
@@ -220,12 +220,20 @@ export function renderProjectTreeList(options: RenderProjectTreeListOptions): vo
   rootButton.dataset.itemKind = "project";
   rootButton.title = options.project.projectPath;
   rootIcon.className = "material-symbol-icon folder-icon";
-  rootIcon.textContent = "work";
+  rootIcon.textContent = "workspaces";
   rootIcon.setAttribute("aria-hidden", "true");
   rootLabel.className = "tree-label";
-  rootLabel.textContent = options.getProjectDisplayTitle(options.project.projectPath);
+  const rootLabelTitle = document.createElement("strong");
+  rootLabelTitle.textContent = "Project";
+  const rootLabelName = document.createElement("span");
+  rootLabelName.className = "tree-root-project-name";
+  rootLabelName.textContent = ` (${options.getProjectDisplayTitle(options.project.projectPath)})`;
+  rootLabel.append(rootLabelTitle, rootLabelName);
 
-  rootButton.append(rootIcon, rootLabel);
+  const rootSpacer = document.createElement("span");
+  rootSpacer.setAttribute("aria-hidden", "true");
+  rootButton.append(rootSpacer, rootIcon, rootLabel);
+
   rootButton.addEventListener("click", () => {
     const closingCurrentFile =
       options.selectedTreePath === "" && options.selectedTreeKind === "folder" && options.currentFilePath !== null;
@@ -269,6 +277,11 @@ export function renderProjectTreeList(options: RenderProjectTreeListOptions): vo
 
   rootItem.appendChild(rootButton);
   options.listElement.appendChild(rootItem);
+
+  const separator = document.createElement("li");
+  separator.className = "tree-root-separator";
+  separator.setAttribute("aria-hidden", "true");
+  options.listElement.appendChild(separator);
 
   if (options.project.files.length === 0 && options.project.folders.length === 0) {
     const emptyItem = document.createElement("li");
