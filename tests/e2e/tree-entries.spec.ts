@@ -67,10 +67,10 @@ test.describe("Wit tree entry actions", () => {
 
     await page.click("#new-file-btn");
     await expect(page.locator("#new-file-dialog")).toBeVisible();
-    await page.fill("#new-file-path-input", "chapter-01");
+    await page.fill("#new-file-path-input", "chapter-01.txt");
     await expect(page.locator("#new-file-error")).toContainText("already exists");
     await expect(page.locator("#new-file-create-btn")).toBeDisabled();
-    await page.fill("#new-file-path-input", "chapter-02");
+    await page.fill("#new-file-path-input", "chapter-02.txt");
     await expect(page.locator("#new-file-create-btn")).toBeEnabled();
     await page.click("#new-file-cancel-btn");
 
@@ -99,7 +99,7 @@ test.describe("Wit tree entry actions", () => {
     await page.click(".folder-button:has-text('drafts')");
     await page.click("#new-file-btn");
     await expect(page.locator("#new-file-dialog")).toBeVisible();
-    await page.fill("#new-file-path-input", "chapter-01");
+    await page.fill("#new-file-path-input", "chapter-01.txt");
     await page.press("#new-file-path-input", "Enter");
 
     await expect(page.locator("#active-file-label")).toHaveText("drafts/chapter-01.txt");
@@ -179,7 +179,7 @@ test.describe("Wit tree entry actions", () => {
       clientY: 82
     });
     await expect(page.locator("#new-file-dialog")).toBeVisible();
-    await page.fill("#new-file-path-input", "root-note");
+    await page.fill("#new-file-path-input", "root-note.txt");
     await page.click("#new-file-create-btn");
     await expect(page.locator("#active-file-label")).toHaveText("root-note.txt");
     await expect(fs.stat(path.join(projectPath, "root-note.txt"))).resolves.toBeTruthy();
@@ -195,7 +195,7 @@ test.describe("Wit tree entry actions", () => {
       clientY: 110
     });
     await expect(page.locator("#new-file-dialog")).toBeVisible();
-    await page.fill("#new-file-path-input", "scene");
+    await page.fill("#new-file-path-input", "scene.txt");
     await page.click("#new-file-create-btn");
     await expect(page.locator("#active-file-label")).toHaveText("drafts/scene.txt");
     await expect(fs.stat(path.join(projectPath, "drafts", "scene.txt"))).resolves.toBeTruthy();
@@ -285,7 +285,7 @@ test.describe("Wit tree entry actions", () => {
     await page.click(".folder-button:has-text('drafts')");
     await page.click("#new-file-btn");
     await expect(page.locator("#new-file-dialog")).toBeVisible();
-    await page.fill("#new-file-path-input", "scene");
+    await page.fill("#new-file-path-input", "scene.txt");
     await page.click("#new-file-create-btn");
 
     await expect(page.locator(".file-button", { hasText: "scene.txt" })).toBeVisible();
@@ -319,6 +319,23 @@ test.describe("Wit tree entry actions", () => {
     const createdContent = await fs.readFile(path.join(projectPath, "chapter-02.txt"), "utf8");
     expect(createdContent).toBe("");
     expect(getPageErrors(page)).toEqual([]);
+
+    await app.close();
+  });
+
+  test("adds the default Markdown extension when a new file is created without one", async () => {
+    const projectPath = await makeTempDir("wit-e2e-default-markdown-ext-");
+    await fs.writeFile(path.join(projectPath, "start.txt"), "Opening chapter", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+
+    await page.click("#new-file-btn");
+    await page.fill("#new-file-path-input", "chapter-three");
+    await page.click("#new-file-create-btn");
+
+    await expect(page.locator("#active-file-label")).toHaveText("chapter-three.md");
+    await expect(page.locator(".file-button", { hasText: "chapter-three.md" })).toBeVisible();
+    await expect(fs.stat(path.join(projectPath, "chapter-three.md"))).resolves.toBeTruthy();
 
     await app.close();
   });
