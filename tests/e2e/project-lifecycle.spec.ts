@@ -34,7 +34,7 @@ test.describe("Wit project lifecycle", () => {
     await expect(page.locator("#open-project-btn")).toBeHidden();
     await expect(page.locator("#sidebar-project-title")).toHaveText(path.basename(projectPath));
     await expect(page.locator("#project-path")).toHaveAttribute("title", projectPath);
-    await expect(page.locator("#word-count")).toContainText("Words: 5");
+    await expect(page.locator("#word-count")).toContainText("Words: 2 / 5");
 
     await app.close();
   });
