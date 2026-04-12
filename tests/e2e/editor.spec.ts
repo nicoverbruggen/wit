@@ -54,7 +54,7 @@ test.describe("Wit editor behavior", () => {
     await page.click("#editor");
     await page.keyboard.type(" typing for autosave");
 
-    await expect(page.locator("#snapshot-label")).not.toHaveText("✓ --", {
+    await expect(page.locator("#snapshot-label")).not.toContainText("--", {
       timeout: 20_000
     });
 
@@ -66,7 +66,7 @@ test.describe("Wit editor behavior", () => {
     const snapshotsDir = path.join(projectPath, ".wit", "snapshots");
     const snapshotEntries = await fs.readdir(snapshotsDir);
     expect(snapshotEntries).toContain("version.json");
-    expect(snapshotEntries.some((entry) => entry.endsWith(".json.gz"))).toBe(true);
+    expect(snapshotEntries.some((entry) => entry.endsWith(".zip"))).toBe(true);
 
     await app.close();
   });

@@ -534,6 +534,17 @@ progress {
   border-color: color-mix(in srgb, var(--line) 70%, #c5ccd6);
 }
 
+#snapshot-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.snapshot-label-icon {
+  font-size: 1em;
+  line-height: 1;
+}
+
 .material-symbol-icon {
   font-family: "Material Symbols Outlined";
   font-weight: normal;

@@ -150,7 +150,7 @@ test.describe("Wit git integration", () => {
 
     await page.click("#editor");
     await page.keyboard.type(" first autosave");
-    await expect(page.locator("#snapshot-label")).not.toHaveText("✓ --", { timeout: 20_000 });
+    await expect(page.locator("#snapshot-label")).not.toContainText("--", { timeout: 20_000 });
 
     const commitsWhenDisabled = await gitCommitCount(projectPath);
     expect(commitsWhenDisabled).toBe(1);
@@ -184,14 +184,14 @@ test.describe("Wit git integration", () => {
     await firstRun.page.click(".file-button:has-text('draft.txt')");
     await firstRun.page.click("#editor");
     await firstRun.page.keyboard.type(" typing for snapshot");
-    await expect(firstRun.page.locator("#snapshot-label")).not.toHaveText("✓ --", {
+    await expect(firstRun.page.locator("#snapshot-label")).not.toContainText("--", {
       timeout: 20_000
     });
     const firstSnapshotLabel = await firstRun.page.locator("#snapshot-label").textContent();
     await firstRun.app.close();
 
     const secondRun = await launchWithProject(projectPath);
-    await expect(secondRun.page.locator("#snapshot-label")).not.toHaveText("✓ --");
+    await expect(secondRun.page.locator("#snapshot-label")).not.toContainText("--");
     await expect(secondRun.page.locator("#snapshot-label")).toHaveText(firstSnapshotLabel ?? "");
     await secondRun.app.close();
   });

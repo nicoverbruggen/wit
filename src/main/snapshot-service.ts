@@ -5,23 +5,22 @@
  * Side effects: reads project files, writes compressed archives, prunes old snapshots, and may invoke Git.
  */
 import path from "node:path";
-import { promises as fs } from "node:fs";
+import { createWriteStream, promises as fs } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { gzip, gunzip } from "node:zlib";
+import archiver from "archiver";
 import { hasGitInitialCommit } from "./project-service/project-git";
 
 const execFileAsync = promisify(execFile);
-const gzipAsync = promisify(gzip);
-const gunzipAsync = promisify(gunzip);
-const SNAPSHOT_FILE_EXTENSION = ".json.gz";
+const SNAPSHOT_FILE_EXTENSION = ".zip";
+const LATEST_MANIFEST_FILE_NAME = "latest.json";
 export const SNAPSHOT_VERSION_FILE_NAME = "version.json";
-export const SNAPSHOT_SYSTEM_VERSION = 2;
+export const SNAPSHOT_SYSTEM_VERSION = 3;
 
-type SnapshotPayload = {
+type LatestSnapshotManifest = {
   version: 1;
-  createdAt: string;
-  files: Record<string, string>;
+  snapshot: string;
+  files: string[];
 };
 
 function timestampForFilename(date: Date): string {
@@ -74,32 +73,70 @@ function parseSnapshotTimestamp(snapshotName: string): Date | null {
   return Number.isFinite(date.getTime()) ? date : null;
 }
 
-async function buildSnapshotPayload(
+async function writeSnapshotArchive(
   projectPath: string,
+  snapshotDirectory: string,
   snapshotTimestamp: string,
   filePaths: string[]
-): Promise<SnapshotPayload> {
-  const files: Record<string, string> = {};
+): Promise<void> {
+  const snapshotPath = path.join(snapshotDirectory, `${snapshotTimestamp}${SNAPSHOT_FILE_EXTENSION}`);
 
-  for (const relativePath of filePaths) {
-    try {
-      files[relativePath] = await fs.readFile(path.resolve(projectPath, relativePath), "utf8");
-    } catch {
-      // A file could have been removed between listing and snapshot creation.
+  await new Promise<void>((resolve, reject) => {
+    const output = createWriteStream(snapshotPath);
+    const archive = archiver("zip", { zlib: { level: 9 } });
+
+    output.on("close", () => resolve());
+    output.on("error", reject);
+    archive.on("warning", (err) => {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+        reject(err);
+      }
+    });
+    archive.on("error", reject);
+    archive.pipe(output);
+
+    for (const relativePath of filePaths) {
+      const absolutePath = path.resolve(projectPath, relativePath);
+      archive.file(absolutePath, { name: relativePath });
     }
-  }
 
-  return {
+    archive.finalize().catch(reject);
+  });
+
+  const manifest: LatestSnapshotManifest = {
     version: 1,
-    createdAt: snapshotTimestamp,
-    files
+    snapshot: snapshotTimestamp,
+    files: [...filePaths].sort()
   };
+  await fs.writeFile(
+    path.join(snapshotDirectory, LATEST_MANIFEST_FILE_NAME),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    "utf8"
+  );
 }
 
-async function writeSnapshotArchive(snapshotDirectory: string, snapshotTimestamp: string, payload: SnapshotPayload) {
-  const snapshotPath = path.join(snapshotDirectory, `${snapshotTimestamp}${SNAPSHOT_FILE_EXTENSION}`);
-  const compressed = await gzipAsync(Buffer.from(JSON.stringify(payload), "utf8"));
-  await fs.writeFile(snapshotPath, compressed);
+async function readLatestManifestFiles(snapshotDirectory: string): Promise<string[] | null> {
+  try {
+    const raw = await fs.readFile(path.join(snapshotDirectory, LATEST_MANIFEST_FILE_NAME), "utf8");
+    const manifest: LatestSnapshotManifest = JSON.parse(raw);
+    return [...manifest.files].sort();
+  } catch {
+    return null;
+  }
+}
+
+async function hasFileListChanged(snapshotDirectory: string, currentFilePaths: string[]): Promise<boolean> {
+  const previousPaths = await readLatestManifestFiles(snapshotDirectory);
+  if (previousPaths === null) {
+    return false;
+  }
+
+  const sorted = [...currentFilePaths].sort();
+  if (sorted.length !== previousPaths.length) {
+    return true;
+  }
+
+  return sorted.some((p, i) => p !== previousPaths[i]);
 }
 
 async function listSnapshotNames(snapshotDirectory: string): Promise<string[]> {
@@ -274,36 +311,6 @@ export async function getLatestSnapshotName(snapshotDirectory: string): Promise<
   }
 }
 
-async function getLatestSnapshotFilePaths(snapshotDirectory: string): Promise<string[] | null> {
-  try {
-    const names = await listSnapshotNames(snapshotDirectory);
-    if (names.length === 0) {
-      return null;
-    }
-
-    const latestPath = path.join(snapshotDirectory, names[names.length - 1]);
-    const compressed = await fs.readFile(latestPath);
-    const payload: SnapshotPayload = JSON.parse((await gunzipAsync(compressed)).toString("utf8"));
-    return Object.keys(payload.files).sort();
-  } catch {
-    return null;
-  }
-}
-
-async function hasFileListChanged(snapshotDirectory: string, currentFilePaths: string[]): Promise<boolean> {
-  const previousPaths = await getLatestSnapshotFilePaths(snapshotDirectory);
-  if (previousPaths === null) {
-    return false;
-  }
-
-  const sorted = [...currentFilePaths].sort();
-  if (sorted.length !== previousPaths.length) {
-    return true;
-  }
-
-  return sorted.some((p, i) => p !== previousPaths[i]);
-}
-
 async function anyFileModifiedSince(projectPath: string, filePaths: string[], since: Date): Promise<boolean> {
   for (const relativePath of filePaths) {
     try {
@@ -349,8 +356,7 @@ export async function createSnapshot(options: {
 
   const snapshotDate = new Date();
   const snapshotTimestamp = timestampForFilename(snapshotDate);
-  const payload = await buildSnapshotPayload(options.projectPath, snapshotTimestamp, options.filePaths);
-  await writeSnapshotArchive(options.snapshotDirectory, snapshotTimestamp, payload);
+  await writeSnapshotArchive(options.projectPath, options.snapshotDirectory, snapshotTimestamp, options.filePaths);
 
   await pruneSnapshots(options.snapshotDirectory, options.snapshotMaxSizeMb * 1024 * 1024);
 

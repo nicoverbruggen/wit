@@ -209,7 +209,7 @@ test.describe("Wit project lifecycle", () => {
 
     const snapshotsDir = path.join(projectPath, ".wit", "snapshots");
     const entries = await fs.readdir(snapshotsDir);
-    expect(entries.some((entry) => entry.endsWith(".json.gz"))).toBe(true);
+    expect(entries.some((entry) => entry.endsWith(".zip"))).toBe(true);
   });
 
   test("recovers gracefully when config.json contains invalid JSON", async () => {

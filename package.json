@@ -59,6 +59,7 @@
   "devDependencies": {
     "@eslint/js": "^9.24.0",
     "@playwright/test": "^1.54.2",
+    "@types/archiver": "^7.0.0",
     "@types/node": "^22.15.2",
     "@typescript-eslint/eslint-plugin": "^8.29.1",
     "@typescript-eslint/parser": "^8.29.1",
@@ -80,6 +81,7 @@
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.41.0",
     "@fontsource/inter": "^5.2.8",
-    "@material-symbols/font-400": "^0.44.0"
+    "@material-symbols/font-400": "^0.44.0",
+    "archiver": "^7.0.1"
   }
 }

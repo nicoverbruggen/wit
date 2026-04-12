@@ -7,7 +7,6 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
-import { gunzipSync } from "node:zlib";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -208,7 +207,7 @@ test("snapshot creation and git snapshot commit flow", async () => {
       gitPushRemote: null
     });
 
-    const snapshotArchive = path.join(snapshotDir, `${snapshotName}.json.gz`);
+    const snapshotArchive = path.join(snapshotDir, `${snapshotName}.zip`);
     assert.equal(fssync.existsSync(snapshotArchive), true);
     const snapshotVersionRaw = await fs.readFile(
       path.join(snapshotDir, snapshotService.SNAPSHOT_VERSION_FILE_NAME),
@@ -217,10 +216,13 @@ test("snapshot creation and git snapshot commit flow", async () => {
     const snapshotVersion = JSON.parse(snapshotVersionRaw);
     assert.equal(snapshotVersion.version, snapshotService.SNAPSHOT_SYSTEM_VERSION);
 
-    const snapshotPayload = JSON.parse(gunzipSync(await fs.readFile(snapshotArchive)).toString("utf8"));
-    assert.equal(snapshotPayload.version, 1);
-    assert.equal(snapshotPayload.createdAt, snapshotName);
-    assert.equal(snapshotPayload.files["chapter.txt"], "Initial");
+    const archiveStat = await fs.stat(snapshotArchive);
+    assert.equal(archiveStat.size > 0, true);
+
+    const latestManifestPath = path.join(snapshotDir, "latest.json");
+    const latestManifest = JSON.parse(await fs.readFile(latestManifestPath, "utf8"));
+    assert.equal(latestManifest.snapshot, snapshotName);
+    assert.deepEqual(latestManifest.files, ["chapter.txt"]);
 
     const metadataAfterSnapshot = await projectService.getProjectMetadata(projectPath);
     assert.equal(metadataAfterSnapshot.latestSnapshotCreatedAt, snapshotName);
@@ -606,7 +608,7 @@ test("snapshot pruning removes oldest snapshots when folder exceeds size limit",
     const padding = "x".repeat(1024);
     for (let i = 0; i < 20; i += 1) {
       const label = String(i).padStart(3, "0");
-      await fs.writeFile(path.join(snapshotDir, `2000-01-01T00-00-00-${label}Z.json.gz`), padding, "utf8");
+      await fs.writeFile(path.join(snapshotDir, `2000-01-01T00-00-00-${label}Z.zip`), padding, "utf8");
     }
 
     // Use a tiny size limit (1 KB) so old snapshots get pruned.
@@ -621,7 +623,7 @@ test("snapshot pruning removes oldest snapshots when folder exceeds size limit",
     });
 
     const entries = await fs.readdir(snapshotDir);
-    const snapshotArchives = entries.filter((entry) => entry.endsWith(".json.gz"));
+    const snapshotArchives = entries.filter((entry) => entry.endsWith(".zip"));
     assert.equal(snapshotArchives.length < 20, true);
     assert.equal(snapshotArchives.length >= 1, true);
     assert.equal(entries.includes(snapshotService.SNAPSHOT_VERSION_FILE_NAME), true);

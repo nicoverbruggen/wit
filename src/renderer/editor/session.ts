@@ -100,6 +100,7 @@ export async function openFileInEditorSession(options: {
   setDirty: (dirty: boolean) => void;
   setSidebarFaded: (faded: boolean) => void;
   renderFileList: () => void;
+  renderStatusFooter: () => void;
   setEditorWritable: (enabled: boolean) => void;
   renderEmptyEditorState: () => void;
   persistLastOpenedFilePath: (relativePath: string | null) => Promise<void>;
@@ -132,6 +133,7 @@ export async function openFileInEditorSession(options: {
     options.setDirty(false);
     options.setSidebarFaded(false);
     options.renderFileList();
+    options.renderStatusFooter();
     options.setEditorWritable(true);
     options.renderEmptyEditorState();
     await options.persistLastOpenedFilePath(options.relativePath);

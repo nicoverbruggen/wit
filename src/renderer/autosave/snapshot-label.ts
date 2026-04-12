@@ -28,16 +28,25 @@ export function createSnapshotLabelController(options: {
   let snapshotCreatedAtMs: number | null = null;
   let timer: number | null = null;
 
+  const renderWithIcon = (label: string): void => {
+    options.element.replaceChildren();
+    const icon = document.createElement("span");
+    icon.className = "material-symbol-icon snapshot-label-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "history";
+    options.element.append(icon, document.createTextNode(label));
+  };
+
   const render = (): void => {
     if (!snapshotCreatedAtMs) {
-      options.element.textContent = "✓ --";
+      renderWithIcon("--");
       options.element.title = "No snapshot yet";
       return;
     }
 
     const elapsedMs = Date.now() - snapshotCreatedAtMs;
     const relative = options.formatRelativeElapsed(elapsedMs);
-    options.element.textContent = `✓ ${relative}`;
+    renderWithIcon(relative);
     options.element.title = `Last snapshot at ${new Date(snapshotCreatedAtMs).toLocaleString()}`;
   };
 

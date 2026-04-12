@@ -20,6 +20,7 @@ type LiveWordCountTracker = {
 
 export type FileSessionController = {
   resetCurrentFileWordCount: () => void;
+  getCurrentFileWordCount: () => number;
   cancelPendingLiveWordCount: () => void;
   scheduleLiveWordCountRefresh: () => void;
   persistCurrentFile: (showStatus?: boolean) => Promise<boolean>;
@@ -174,6 +175,7 @@ export function createFileSessionController(options: {
       setDirty: options.setDirty,
       setSidebarFaded: options.setSidebarFaded,
       renderFileList: options.renderFileList,
+      renderStatusFooter: options.renderStatusFooter,
       setEditorWritable: options.setEditorWritable,
       renderEmptyEditorState: options.renderEmptyEditorState,
       persistLastOpenedFilePath: options.persistLastOpenedFilePath,
@@ -207,6 +209,7 @@ export function createFileSessionController(options: {
 
   return {
     resetCurrentFileWordCount,
+    getCurrentFileWordCount: () => currentFileWordCount,
     cancelPendingLiveWordCount,
     scheduleLiveWordCountRefresh,
     persistCurrentFile,

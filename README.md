@@ -1,6 +1,6 @@
 # Wit
 
-Wit is an Electron desktop app for long-form writing in local plain-text projects, with autosave, compressed full snapshots, and optional Git snapshot commits.
+Wit is an Electron desktop app for long-form writing in local plain-text projects, with autosave, zipped full-project snapshots, and optional Git snapshot commits.
 
 ## Features
 
@@ -9,7 +9,7 @@ Wit is an Electron desktop app for long-form writing in local plain-text project
 - Creates, renames, moves, and deletes files/folders from the UI (including context menus and drag/drop moves)
 - Saves with `Cmd/Ctrl+S` and autosaves on a configurable interval (minimum `5s`)
 - Tracks project word count and accumulated writing time
-- Creates compressed project snapshots in `.wit/snapshots/*.json.gz`
+- Creates project snapshots as zip archives in `.wit/snapshots/*.zip`
 - Optionally creates Git commits during snapshots (Git repo only), with optional remote push
 - Persists per-project settings (writing, editor, autosave, Git snapshot behavior)
 - Restores the last opened project and last opened file on relaunch
@@ -22,14 +22,15 @@ Wit stores project metadata in a hidden `.wit` directory inside each project:
 - `.wit/config.json`: project settings and last opened file path
 - `.wit/stats.json`: accumulated writing time
 - `.wit/snapshots/version.json`: snapshot storage version
-- `.wit/snapshots/<timestamp>.json.gz`: full-project compressed snapshots
+- `.wit/snapshots/<timestamp>.zip`: full-project zip snapshots
+- `.wit/snapshots/latest.json`: rolling manifest listing files in the most recent snapshot (used to detect file-list changes)
 
 Additional behavior:
 
 - If a project has no `.gitignore`, Wit creates one with `.wit/snapshots/`
 - Last opened project path is stored in Electron user data as `last-project.json` (outside the project folder)
 - Snapshots are full backups (not incremental diffs)
-- A new snapshot archive is only created when files or file list changed since the latest snapshot
+- A new snapshot archive is only created when files or the file list have changed since the latest snapshot
 
 ## Project Settings
 

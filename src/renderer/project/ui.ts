@@ -129,7 +129,7 @@ export function createProjectUiController(options: {
     options.projectPathLabel.title = projectPath;
   };
 
-  const renderStatusFooter = (project: ProjectMetadata | null): void => {
+  const renderStatusFooter = (project: ProjectMetadata | null, currentFileWordCount = 0): void => {
     if (!project) {
       options.statusBar.classList.add("status-bar--empty");
       options.statusMessage.textContent = "";
@@ -147,7 +147,7 @@ export function createProjectUiController(options: {
     const totalWords = project.wordCount;
     const totalWritingSeconds = project.totalWritingSeconds;
 
-    options.wordCountLabel.textContent = `Words: ${totalWords.toLocaleString()}`;
+    options.wordCountLabel.textContent = `Words: ${currentFileWordCount.toLocaleString()} / ${totalWords.toLocaleString()}`;
     options.writingTimeLabel.textContent = `Writing: ${options.formatWritingTime(totalWritingSeconds)}`;
 
     options.wordCountLabel.style.display = project.settings.showWordCount ? "inline" : "none";

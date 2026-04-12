@@ -303,7 +303,7 @@ export function createRendererActions(options: RendererActionsOptions): Renderer
   };
 
   const renderStatusFooter = (): void => {
-    projectUi().renderStatusFooter(options.getProject());
+    projectUi().renderStatusFooter(options.getProject(), fileSession().getCurrentFileWordCount());
   };
 
   const renderEditorHeaderVisibility = (): void => {
