@@ -18,7 +18,12 @@ export async function getProjectStats(projectPath: string): Promise<ProjectStats
   await ensureProjectInitialized(projectPath);
 
   const raw = await fs.readFile(getStatsPath(projectPath), "utf8");
-  const parsed = JSON.parse(raw) as Partial<ProjectStats>;
+  let parsed: Partial<ProjectStats>;
+  try {
+    parsed = JSON.parse(raw) as Partial<ProjectStats>;
+  } catch {
+    parsed = {};
+  }
 
   return {
     totalWritingSeconds:
