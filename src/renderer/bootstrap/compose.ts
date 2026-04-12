@@ -521,6 +521,9 @@ export function createRendererComposition(options: {
       options.editor.setValue(content);
       options.state.setSuppressDirtyEvents(false);
     },
+    setEditorSelection: (start, end) => {
+      options.editor.setSelection(start, end);
+    },
     setCurrentFilePath: options.state.setCurrentFilePath,
     setSelectedTreeToFile: projectTreeStateController.setSelectedTreeToFile,
     setActiveFileLabel: (nextPath) => {

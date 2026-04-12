@@ -303,6 +303,15 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
       start: view.state.selection.main.from,
       end: view.state.selection.main.to
     }),
+    setSelection: (start, end = start) => {
+      const docLength = view.state.doc.length;
+      const safeStart = Math.max(0, Math.min(start, docLength));
+      const safeEnd = Math.max(0, Math.min(end, docLength));
+      view.dispatch({
+        selection: CodeMirrorSelection.range(safeStart, safeEnd),
+        scrollIntoView: true
+      });
+    },
     replaceSelection: (value) => {
       const selection = view.state.changeByRange((range) => ({
         changes: { from: range.from, to: range.to, insert: value },

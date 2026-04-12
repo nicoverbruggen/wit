@@ -187,6 +187,50 @@ test.describe("Wit settings dialog", () => {
     await secondRun.app.close();
   });
 
+  test("caret style updates the editor cursor width", async () => {
+    const projectPath = await makeTempDir("wit-e2e-caret-");
+    await fs.writeFile(path.join(projectPath, "caret.txt"), "first line\nsecond line", "utf8");
+
+    const { app, page } = await launchWithProject(projectPath);
+    await page.waitForSelector("#editor .cm-cursor");
+
+    const readCursorState = async () => {
+      return page.evaluate(() => {
+        const editorHost = document.querySelector("#editor") as HTMLElement | null;
+        const cursor = document.querySelector("#editor .cm-cursor") as HTMLElement | null;
+        if (!editorHost || !cursor) {
+          throw new Error("Editor cursor not present.");
+        }
+        return {
+          dataAttr: editorHost.dataset.cursorStyle,
+          borderWidth: window.getComputedStyle(cursor).borderLeftWidth
+        };
+      });
+    };
+
+    const witDefault = await readCursorState();
+    expect(witDefault.dataAttr).toBe("wit-default");
+    expect(witDefault.borderWidth).toBe("3px");
+
+    await openSettingsTab(page, "editor");
+    await page.selectOption("#cursor-style-select", "system-default");
+    await closeSettingsDialog(page);
+
+    const systemDefault = await readCursorState();
+    expect(systemDefault.dataAttr).toBe("system-default");
+    expect(systemDefault.borderWidth).toBe("1px");
+
+    await openSettingsTab(page, "editor");
+    await page.selectOption("#cursor-style-select", "system-wide");
+    await closeSettingsDialog(page);
+
+    const systemWide = await readCursorState();
+    expect(systemWide.dataAttr).toBe("system-wide");
+    expect(systemWide.borderWidth).toBe("2px");
+
+    await app.close();
+  });
+
   test("theme can be switched to dark and resets to light after closing the project", async () => {
     const projectPath = await makeTempDir("wit-e2e-theme-");
     await fs.writeFile(path.join(projectPath, "theme.txt"), "one two", "utf8");

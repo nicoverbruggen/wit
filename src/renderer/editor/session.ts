@@ -91,6 +91,7 @@ export async function openFileInEditorSession(options: {
   countPreviewWords: (text: string) => Promise<number>;
   setEditorSyntaxForFile: (relativePath: string | null) => void;
   setEditorValueSilently: (content: string) => void;
+  setEditorSelection: (start: number, end?: number) => void;
   setCurrentFilePath: (relativePath: string) => void;
   setSelectedTreeToFile: (relativePath: string) => void;
   setCurrentFileWordCount: (wordCount: number) => void;
@@ -120,6 +121,9 @@ export async function openFileInEditorSession(options: {
 
     options.setEditorSyntaxForFile(options.relativePath);
     options.setEditorValueSilently(content);
+    const firstNewlineIndex = content.indexOf("\n");
+    const endOfFirstLine = firstNewlineIndex === -1 ? content.length : firstNewlineIndex;
+    options.setEditorSelection(endOfFirstLine);
     options.setCurrentFilePath(options.relativePath);
     options.setSelectedTreeToFile(options.relativePath);
     options.setCurrentFileWordCount(await options.countPreviewWords(content));

@@ -29,6 +29,7 @@ export type EditorAdapter = {
   setFontSize: (value: number) => void;
   getComputedFontSize: () => number;
   getSelection: () => EditorSelection;
+  setSelection: (start: number, end?: number) => void;
   replaceSelection: (value: string) => void;
   onInput: (listener: () => void) => () => void;
   onKeydown: (listener: (event: KeyboardEvent) => void) => () => void;
@@ -74,6 +75,9 @@ export function createTextareaEditor(element: HTMLTextAreaElement): EditorAdapte
       start: element.selectionStart,
       end: element.selectionEnd
     }),
+    setSelection: (start, end = start) => {
+      element.setSelectionRange(start, end);
+    },
     replaceSelection: (value) => {
       element.focus();
       document.execCommand("insertText", false, value);

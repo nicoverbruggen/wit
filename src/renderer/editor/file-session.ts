@@ -42,6 +42,7 @@ export function createFileSessionController(options: {
   getEditorValue: () => string;
   setEditorSyntaxForFile: (relativePath: string | null) => void;
   setEditorValueSilently: (content: string) => void;
+  setEditorSelection: (start: number, end?: number) => void;
   setCurrentFilePath: (nextPath: string | null) => void;
   setSelectedTreeToFile: (nextPath: string) => void;
   setActiveFileLabel: (nextPath: string) => void;
@@ -160,6 +161,7 @@ export function createFileSessionController(options: {
       countPreviewWords: options.countPreviewWords,
       setEditorSyntaxForFile: options.setEditorSyntaxForFile,
       setEditorValueSilently: options.setEditorValueSilently,
+      setEditorSelection: options.setEditorSelection,
       setCurrentFilePath: (nextPath) => {
         options.setCurrentFilePath(nextPath);
       },
