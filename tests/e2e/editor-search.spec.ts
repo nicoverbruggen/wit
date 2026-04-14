@@ -67,7 +67,7 @@ test.describe("Wit editor search panel", () => {
     await app.close();
   });
 
-  test("replace-all updates the document", async () => {
+  test("only shows the simplified find bar", async () => {
     const projectPath = await makeTempDir("wit-e2e-search-replace-");
     await fs.writeFile(
       path.join(projectPath, "draft.txt"),
@@ -85,16 +85,9 @@ test.describe("Wit editor search panel", () => {
     await expect(panel).toBeVisible();
 
     const fields = panel.locator("input.cm-textfield");
-    await expect(fields).toHaveCount(2);
-    await fields.nth(0).fill("cat");
-    await fields.nth(1).fill("dog");
-
-    await panel.getByRole("button", { name: /replace all/i }).click();
-
-    const content = await page.locator("#editor .cm-content").textContent();
-    expect(content).toContain("dog sat");
-    expect(content).toContain("another dog");
-    expect(content).not.toContain("cat");
+    await expect(fields).toHaveCount(1);
+    await expect(panel.getByRole("button", { name: /replace/i })).toHaveCount(0);
+    await expect(panel.locator('input[type="checkbox"]')).toHaveCount(0);
 
     await app.close();
   });

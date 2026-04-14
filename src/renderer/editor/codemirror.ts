@@ -27,6 +27,7 @@ import {
 } from "@codemirror/view";
 import type { AppSettings } from "../../shared/types";
 import type { EditorAdapter } from "./adapter";
+import { createWitSearchPanel } from "./search-panel.js";
 
 const newlineSpacingDecoration = Decoration.line({
   attributes: {
@@ -201,7 +202,7 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
         EditorView.lineWrapping,
         drawSelection(),
         history(),
-        search({ top: true }),
+        search({ top: true, createPanel: createWitSearchPanel }),
         highlightSelectionMatches(),
         keymap.of([{ key: "Tab", run: handleTabKey }, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
