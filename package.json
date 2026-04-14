@@ -72,7 +72,7 @@
     "playwright": "^1.54.2",
     "rimraf": "^6.0.1",
     "sharp": "^0.34.5",
-    "typescript": "^5.8.3"
+    "typescript": "^6.0.2"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
