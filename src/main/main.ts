@@ -314,6 +314,12 @@ function setupMenu(): void {
         },
         { type: "separator" },
         {
+          label: process.platform === "darwin" ? "Open Quickly…\tCmd+P" : "Open Quickly…\tCtrl+P",
+          enabled: hasActiveProject,
+          click: emitMenuChannel(IPC_CHANNELS.menu.openQuickly)
+        },
+        { type: "separator" },
+        {
           label: "Save",
           accelerator: "CmdOrCtrl+S",
           enabled: hasActiveProject,

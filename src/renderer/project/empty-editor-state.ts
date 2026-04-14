@@ -87,6 +87,8 @@ export function createEmptyEditorStateController(options: {
     options.emptyStateSecondaryButton.hidden = false;
     options.emptyStateSecondaryButton.textContent = "New Folder";
     renderEmptyStateShortcutRows([
+      { label: "Open file quickly", key: options.primaryShortcutLabel("P") },
+      { label: "Find in file", key: options.primaryShortcutLabel("F") },
       { label: "New file", key: options.primaryShortcutLabel("N") },
       { label: "Save file", key: options.primaryShortcutLabel("S") },
       { label: "Toggle sidebar", key: options.primaryShortcutLabel("B") },

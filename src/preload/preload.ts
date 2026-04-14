@@ -52,7 +52,8 @@ const IPC_CHANNELS = {
     zoomInText: "menu:zoom-in-text",
     zoomOutText: "menu:zoom-out-text",
     zoomResetText: "menu:zoom-reset-text",
-    toggleSidebar: "menu:toggle-sidebar"
+    toggleSidebar: "menu:toggle-sidebar",
+    openQuickly: "menu:open-quickly"
   }
 } as const;
 
@@ -107,6 +108,8 @@ const api: WitApi = {
     createMenuListener(IPC_CHANNELS.menu.zoomResetText, listener),
   onMenuToggleSidebar: (listener: () => void): Unsubscribe =>
     createMenuListener(IPC_CHANNELS.menu.toggleSidebar, listener),
+  onMenuOpenQuickly: (listener: () => void): Unsubscribe =>
+    createMenuListener(IPC_CHANNELS.menu.openQuickly, listener),
   onFullscreenChanged: (listener: (isFullscreen: boolean) => void): Unsubscribe => {
     const channel = IPC_CHANNELS.window.fullscreenChanged;
     const wrappedListener = (_event: IpcRendererEvent, isFullscreen: boolean) => {

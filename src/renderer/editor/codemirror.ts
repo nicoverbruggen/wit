@@ -16,7 +16,7 @@ import {
 import { defaultKeymap, history, historyKeymap, indentMore, insertTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { searchKeymap } from "@codemirror/search";
+import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import {
   Decoration,
   drawSelection,
@@ -201,6 +201,8 @@ export function createCodeMirrorEditor(host: HTMLElement): EditorAdapter {
         EditorView.lineWrapping,
         drawSelection(),
         history(),
+        search({ top: true }),
+        highlightSelectionMatches(),
         keymap.of([{ key: "Tab", run: handleTabKey }, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         lineSpacingCompartment.of([]),

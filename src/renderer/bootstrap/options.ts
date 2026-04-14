@@ -41,6 +41,7 @@ export function createRendererBootstrapOptions(options: {
     onMenuZoomOutText: (handler: () => void) => () => void;
     onMenuZoomResetText: (handler: () => void) => () => void;
     onMenuToggleSidebar: (handler: () => void) => () => void;
+    onMenuOpenQuickly: (handler: () => void) => () => void;
     onFullscreenChanged: (handler: (isFullscreen: boolean) => void) => () => void;
   };
   dom: Pick<
@@ -66,6 +67,7 @@ export function createRendererBootstrapOptions(options: {
   editor: EditorAdapter;
   composition: RendererComposition;
   actions: RendererActions;
+  toggleCommandPalette: () => void;
   defaultEditorFont: string;
   normalizeEditorParagraphSpacing: (value: string) => AppSettings["editorParagraphSpacing"];
 }) {
@@ -95,6 +97,7 @@ export function createRendererBootstrapOptions(options: {
     createNewFile: () => options.composition.projectEntryActionsController.createNewFile(),
     openProjectSettings: () => options.composition.settingsDialogController.open(),
     createNewFolder: () => options.composition.projectEntryActionsController.createNewFolder(),
+    toggleCommandPalette: options.toggleCommandPalette,
     toggleSidebarVisibility: options.actions.toggleSidebarVisibility,
     beginSidebarResize: options.actions.beginSidebarResize,
     isSidebarVisible: () => options.composition.sidebarController.isVisible(),

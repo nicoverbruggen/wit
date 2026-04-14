@@ -2169,3 +2169,245 @@ body[data-theme="dark"] .config-corrupted-dismiss {
     padding: 10px 0;
   }
 }
+
+.command-palette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  background: rgb(31 35 40 / 28%);
+}
+
+.command-palette-overlay[hidden] {
+  display: none;
+}
+
+.command-palette {
+  width: min(560px, calc(100vw - 32px));
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-soft);
+  color: var(--text);
+  box-shadow:
+    0 20px 48px rgb(31 35 40 / 22%),
+    0 4px 12px rgb(31 35 40 / 10%);
+  overflow: hidden;
+}
+
+.command-palette-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.command-palette-input::placeholder {
+  color: var(--muted);
+}
+
+.command-palette-results {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  overflow-y: auto;
+  max-height: calc(60vh - 56px);
+}
+
+.command-palette-result {
+  padding: 6px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.command-palette-result.is-selected {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.command-palette-result-name {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.command-palette-result-path {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.command-palette-match {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.command-palette-empty {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.cm-panels {
+  background: color-mix(in srgb, var(--bg) 94%, white);
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.cm-panels.cm-panels-bottom {
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+
+.cm-panel.cm-search {
+  position: relative;
+  padding: 10px 48px 12px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.cm-panel.cm-search br {
+  flex-basis: 100%;
+  height: 0;
+}
+
+.cm-panel.cm-search label {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 92%, #d7dbe1);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 88%, white);
+  font-size: 0.77rem;
+  font-weight: 500;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.cm-panel.cm-search input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.cm-panel.cm-search input.cm-textfield {
+  min-width: 180px;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--line) 92%, #d7dbe1);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 45%);
+}
+
+.cm-panel.cm-search > input.cm-textfield:first-child {
+  flex: 1 1 240px;
+}
+
+.cm-panel.cm-search br + input.cm-textfield {
+  flex: 1 1 240px;
+}
+
+.cm-panel.cm-search input.cm-textfield:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.cm-panel.cm-search button.cm-button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 92%, #d7dbe1);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  background-image: none;
+  font-family: inherit;
+}
+
+.cm-panel.cm-search button.cm-button:hover {
+  background: #f7f8fa;
+  border-color: color-mix(in srgb, var(--line) 70%, #c5ccd6);
+}
+
+.cm-panel.cm-search button[name="close"] {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 1.1rem;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cm-panel.cm-search button[name="close"]:hover {
+  background: color-mix(in srgb, var(--line) 22%, transparent);
+}
+
+.cm-searchMatch {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 2px;
+}
+
+.cm-searchMatch.cm-searchMatch-selected {
+  background: color-mix(in srgb, var(--accent) 48%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.cm-selectionMatch {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+body[data-theme="dark"] .cm-panels {
+  background: #0d1117;
+  border-color: #30363d;
+}
+
+body[data-theme="dark"] .cm-panel.cm-search label,
+body[data-theme="dark"] .cm-panel.cm-search button.cm-button,
+body[data-theme="dark"] .cm-panel.cm-search input.cm-textfield {
+  background: #161b22;
+  border-color: #30363d;
+  color: var(--text);
+  box-shadow: none;
+}
+
+body[data-theme="dark"] .cm-panel.cm-search label {
+  background: #11161d;
+}
+
+body[data-theme="dark"] .cm-panel.cm-search button.cm-button:hover {
+  background: #21262d;
+  border-color: #3a414b;
+}
+
+body[data-theme="dark"] .cm-panel.cm-search button[name="close"]:hover {
+  background: rgb(255 255 255 / 6%);
+}

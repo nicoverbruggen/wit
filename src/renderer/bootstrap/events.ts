@@ -46,6 +46,7 @@ export function bindAppEventBindings(options: {
   openProjectPicker: () => Promise<void>;
   createNewFile: () => Promise<void>;
   createNewFolder: () => Promise<void>;
+  toggleCommandPalette: () => void;
   toggleSidebarVisibility: () => void;
   beginSidebarResize: (pointerClientX: number) => void;
   isSidebarVisible: () => boolean;
@@ -235,6 +236,13 @@ export function bindAppEventBindings(options: {
   document.addEventListener(
     "keydown",
     (event) => {
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        options.closeTreeContextMenu();
+        options.toggleCommandPalette();
+        return;
+      }
+
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
         options.closeTreeContextMenu();

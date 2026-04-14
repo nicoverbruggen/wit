@@ -20,6 +20,7 @@ type WitApiForInitialization = {
   onMenuZoomOutText: (handler: () => void) => () => void;
   onMenuZoomResetText: (handler: () => void) => () => void;
   onMenuToggleSidebar: (handler: () => void) => () => void;
+  onMenuOpenQuickly: (handler: () => void) => () => void;
   onFullscreenChanged: (handler: (isFullscreen: boolean) => void) => () => void;
 };
 
@@ -71,6 +72,7 @@ export async function initializeApp(options: {
   createNewFile: () => Promise<void>;
   createNewFolder: () => Promise<void>;
   openProjectSettings: () => void;
+  toggleCommandPalette: () => void;
   persistCurrentFile: (showStatus?: boolean) => Promise<boolean>;
   stepEditorZoom: (direction: 1 | -1) => void;
   resetEditorZoom: () => void;
@@ -188,6 +190,12 @@ export async function initializeApp(options: {
   options.addSubscription(
     options.witApi.onMenuToggleSidebar(() => {
       options.toggleSidebarVisibility();
+    })
+  );
+
+  options.addSubscription(
+    options.witApi.onMenuOpenQuickly(() => {
+      options.toggleCommandPalette();
     })
   );
 

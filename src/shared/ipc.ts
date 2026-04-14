@@ -60,7 +60,8 @@ export const IPC_CHANNELS = {
     zoomInText: "menu:zoom-in-text",
     zoomOutText: "menu:zoom-out-text",
     zoomResetText: "menu:zoom-reset-text",
-    toggleSidebar: "menu:toggle-sidebar"
+    toggleSidebar: "menu:toggle-sidebar",
+    openQuickly: "menu:open-quickly"
   }
 } as const;
 
@@ -110,5 +111,6 @@ export type WitApi = {
   onMenuZoomOutText: (listener: () => void) => Unsubscribe;
   onMenuZoomResetText: (listener: () => void) => Unsubscribe;
   onMenuToggleSidebar: (listener: () => void) => Unsubscribe;
+  onMenuOpenQuickly: (listener: () => void) => Unsubscribe;
   onFullscreenChanged: (listener: (isFullscreen: boolean) => void) => Unsubscribe;
 };

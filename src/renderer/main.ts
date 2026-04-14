@@ -14,6 +14,7 @@ import { createRendererActions } from "./bootstrap/actions.js";
 import { createRendererBootstrapOptions } from "./bootstrap/options.js";
 import { createRendererComposition, type RendererComposition } from "./bootstrap/compose.js";
 import { resolveRendererDom } from "./bootstrap/dom.js";
+import { installCommandPalette } from "./shell/command-palette.js";
 
 const dom = resolveRendererDom();
 const editor = createCodeMirrorEditor(dom.editorElement);
@@ -122,6 +123,11 @@ composition = createRendererComposition({
   }
 });
 
+const commandPalette = installCommandPalette({
+  getProject: () => project,
+  openFile: (relativePath) => actions.openFile(relativePath)
+});
+
 bootstrapAppController(
   createRendererBootstrapOptions({
     body: document.body,
@@ -148,6 +154,7 @@ bootstrapAppController(
     editor,
     composition,
     actions,
+    toggleCommandPalette: () => commandPalette.toggle(),
     defaultEditorFont: DEFAULT_EDITOR_FONT,
     normalizeEditorParagraphSpacing
   })

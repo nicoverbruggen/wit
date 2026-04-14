@@ -42,6 +42,7 @@ type WitApiForInitialization = {
   onMenuZoomOutText: (handler: () => void) => () => void;
   onMenuZoomResetText: (handler: () => void) => () => void;
   onMenuToggleSidebar: (handler: () => void) => () => void;
+  onMenuOpenQuickly: (handler: () => void) => () => void;
   onFullscreenChanged: (handler: (isFullscreen: boolean) => void) => () => void;
 };
 
@@ -77,6 +78,7 @@ export function bootstrapAppController(options: {
   createNewFile: () => Promise<void>;
   createNewFolder: () => Promise<void>;
   openProjectSettings: () => void;
+  toggleCommandPalette: () => void;
   toggleSidebarVisibility: () => void;
   beginSidebarResize: (pointerClientX: number) => void;
   isSidebarVisible: () => boolean;
@@ -160,6 +162,7 @@ export function bootstrapAppController(options: {
     openProjectPicker: options.openProjectPicker,
     createNewFile: options.createNewFile,
     createNewFolder: options.createNewFolder,
+    toggleCommandPalette: options.toggleCommandPalette,
     toggleSidebarVisibility: options.toggleSidebarVisibility,
     beginSidebarResize: options.beginSidebarResize,
     isSidebarVisible: options.isSidebarVisible,
@@ -236,6 +239,7 @@ export function bootstrapAppController(options: {
     createNewFile: options.createNewFile,
     createNewFolder: options.createNewFolder,
     openProjectSettings: options.openProjectSettings,
+    toggleCommandPalette: options.toggleCommandPalette,
     persistCurrentFile: options.persistCurrentFile,
     stepEditorZoom: options.stepEditorZoom,
     resetEditorZoom: options.resetEditorZoom,
