@@ -50,6 +50,11 @@ import type {
 } from "../shared/types";
 import { IPC_CHANNELS } from "../shared/ipc";
 
+const userDataOverride = process.env.WIT_USER_DATA_DIR;
+if (typeof userDataOverride === "string" && userDataOverride.trim().length > 0) {
+  app.setPath("userData", path.resolve(userDataOverride));
+}
+
 let mainWindow: BrowserWindow | null = null;
 const projectSession = createProjectSessionService({
   getUserDataPath: () => app.getPath("userData")

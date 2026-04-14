@@ -15,6 +15,16 @@ const trackedTempDirs = new Set<string>();
 const pageErrorsByPage = new WeakMap<Page, string[]>();
 const trackedPages = new Set<Page>();
 
+async function getE2EUserDataPath(): Promise<string> {
+  if (cachedUserDataPath) {
+    return cachedUserDataPath;
+  }
+
+  cachedUserDataPath = await fs.mkdtemp(path.join(os.tmpdir(), "wit-e2e-user-data-"));
+  trackedTempDirs.add(cachedUserDataPath);
+  return cachedUserDataPath;
+}
+
 export async function makeTempDir(prefix: string): Promise<string> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   trackedTempDirs.add(dir);
@@ -79,9 +89,14 @@ export async function waitForAppReady(page: Page): Promise<void> {
 }
 
 export async function launchApp(): Promise<{ app: ElectronApplication; page: Page }> {
+  const userDataPath = await getE2EUserDataPath();
   const app = await electron.launch({
     args: [repoRoot],
-    cwd: repoRoot
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      WIT_USER_DATA_DIR: userDataPath
+    }
   });
 
   const page = await app.firstWindow();
@@ -108,21 +123,7 @@ export async function launchWithProject(projectPath: string): Promise<{ app: Ele
 }
 
 async function resolveUserDataPath(): Promise<string> {
-  if (cachedUserDataPath) {
-    return cachedUserDataPath;
-  }
-
-  const app = await electron.launch({
-    args: [repoRoot],
-    cwd: repoRoot
-  });
-
-  try {
-    cachedUserDataPath = await app.evaluate(({ app: electronApp }) => electronApp.getPath("userData"));
-    return cachedUserDataPath;
-  } finally {
-    await app.close();
-  }
+  return getE2EUserDataPath();
 }
 
 export async function clearLastProjectState(): Promise<void> {
