@@ -4,16 +4,10 @@
 
 <h1 align="center">Wit</h1>
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
-  <img src="https://img.shields.io/github/package-json/dependency-version/nicoverbruggen/wit/dev/electron?logo=electron&logoColor=white&color=47848F" alt="Electron">
-  <img src="https://img.shields.io/github/package-json/dependency-version/nicoverbruggen/wit/dev/typescript?logo=typescript&logoColor=white&color=3178C6" alt="TypeScript">
-  <img src="https://img.shields.io/github/package-json/v/nicoverbruggen/wit" alt="Version">
-</p>
+> [!IMPORTANT]
+> **Please keep in mind that this is currently an experimental project**. It's still under development and currently in early access. While it can be used for production use (especially given automatic snapshots ensure the integrity of your data) I recommend using Git, as well.
 
 **Wit** is an Electron desktop app for long-form writing in local plain-text projects, with autosave, zipped full-project snapshots, and optional Git snapshot commits (currently behind a feature flag).
-
-> "There's always another text document to edit."
 
 ## Features
 
