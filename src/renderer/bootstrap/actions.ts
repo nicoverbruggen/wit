@@ -133,6 +133,10 @@ export function createRendererActions(options: RendererActionsOptions): Renderer
 
   const setCurrentFilePathState = (nextFilePath: string | null): void => {
     options.setCurrentFilePath(nextFilePath);
+    const composition = options.getComposition();
+    if (composition) {
+      composition.editorPresentationController.refreshParagraphSpacingForActiveFile();
+    }
   };
 
   const primaryShortcutLabel = (key: string): string => {

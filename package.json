@@ -1,7 +1,7 @@
 {
   "name": "wit",
-  "version": "0.7.0",
-  "description": "Minimalist desktop writing app for plain text projects, with automatic snapshots and optional Git integration.",
+  "version": "0.7.1",
+  "description": "Minimalist desktop writing app for plain text projects, with automatic snapshots.",
   "main": "dist/main/main.js",
   "author": "Nico Verbruggen",
   "homepage": "https://nicoverbruggen.be",

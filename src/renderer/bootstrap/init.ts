@@ -5,6 +5,7 @@
  * Side effects: mutates global body state, subscribes to menu events, and kicks off font discovery.
  */
 import type { AppSettings, ProjectMetadata } from "../../shared/types";
+import { FEATURES } from "../../shared/features.js";
 
 type WitApiForInitialization = {
   getPlatform: () => string;
@@ -79,6 +80,13 @@ export async function initializeApp(options: {
   options.body.dataset.appReady = "false";
   const platform = options.witApi.getPlatform();
   options.body.classList.add(`platform-${platform}`);
+
+  if (!FEATURES.git) {
+    const gitSection = document.getElementById("settings-section-git");
+    if (gitSection) {
+      gitSection.hidden = true;
+    }
+  }
   void options.loadAboutInfo();
 
   options.loadSidebarWidthPreference();

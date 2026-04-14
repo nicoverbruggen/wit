@@ -222,7 +222,8 @@ export function createRendererComposition(options: {
     setStatus: options.callbacks.setStatus,
     persistZoomPercent: (percent) => {
       void options.callbacks.persistSettings({ editorZoomPercent: percent });
-    }
+    },
+    getCurrentFilePath: options.state.getCurrentFilePath
   });
 
   const projectTreeStateController = createProjectTreeStateController({

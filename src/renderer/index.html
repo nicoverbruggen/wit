@@ -310,7 +310,7 @@
                 </label>
                 <label class="setting-card" title="Adjust new-line spacing">
                   <span class="setting-card-title">New-line spacing</span>
-                  <span class="setting-card-description">Adds extra spacing at line breaks in the editor for plain text and Markdown files without changing the file contents.</span>
+                  <span class="setting-card-description">Adds extra spacing at line breaks in the editor for plain text files without changing the file contents. Markdown files are unaffected.</span>
                   <select id="paragraph-spacing-select">
                     <option value="none" selected>None</option>
                     <option value="tight">Tight</option>
@@ -365,7 +365,7 @@
               </div>
             </div>
 
-            <div class="settings-section">
+            <div id="settings-section-git" class="settings-section">
               <div class="settings-section-header">
                 <h3 id="settings-section-snapshots">Git</h3>
                 <p>Each autosave tick also creates a compressed full-project snapshot in `.wit/snapshots`.</p>

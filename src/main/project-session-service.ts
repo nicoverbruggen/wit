@@ -19,6 +19,7 @@ import {
   loadSettings
 } from "./project-service";
 import { createSnapshot } from "./snapshot-service";
+import { FEATURES } from "../shared/features";
 import type { AppSettings, AutosaveTickResult, ProjectMetadata } from "../shared/types";
 
 const LAST_PROJECT_STATE_FILE_NAME = "last-project.json";
@@ -68,14 +69,15 @@ function buildSnapshotOptions(
   gitCommitReady: boolean,
   commitMessage: string
 ): Parameters<typeof createSnapshot>[0] {
+  const gitEnabled = FEATURES.git;
   return {
     projectPath,
     snapshotDirectory: getSnapshotDirectory(projectPath),
     filePaths: files,
     snapshotMaxSizeMb: settings.snapshotMaxSizeMb,
-    createGitCommit: settings.gitSnapshots && gitCommitReady,
-    pushGitCommit: settings.gitSnapshots && settings.gitPushRemote !== null && gitCommitReady,
-    gitPushRemote: settings.gitPushRemote,
+    createGitCommit: gitEnabled && settings.gitSnapshots && gitCommitReady,
+    pushGitCommit: gitEnabled && settings.gitSnapshots && settings.gitPushRemote !== null && gitCommitReady,
+    gitPushRemote: gitEnabled ? settings.gitPushRemote : null,
     commitMessage
   };
 }

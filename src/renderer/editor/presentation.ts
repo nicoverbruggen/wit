@@ -35,6 +35,7 @@ export type EditorPresentationController = {
   setEditorWritable: (enabled: boolean) => void;
   applyEditorLineHeight: (lineHeight: number) => void;
   applyEditorParagraphSpacing: (spacing: AppSettings["editorParagraphSpacing"]) => void;
+  refreshParagraphSpacingForActiveFile: () => void;
   applyEditorCursorStyle: (cursorStyle: AppSettings["editorCursorStyle"]) => void;
   applyEditorMaxWidth: (editorWidth: number) => void;
   applyEditorFont: (fontFamily: string) => void;
@@ -71,7 +72,26 @@ export function createEditorPresentationController(options: {
   zoomPresets: number[];
   setStatus: (message: string, clearAfterMs?: number) => void;
   persistZoomPercent: (percent: number) => void;
+  getCurrentFilePath: () => string | null;
 }): EditorPresentationController {
+  const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown", ".mdx"]);
+
+  const isMarkdownFile = (filePath: string | null): boolean => {
+    if (!filePath) {
+      return false;
+    }
+    const lastDot = filePath.lastIndexOf(".");
+    if (lastDot < 0) {
+      return false;
+    }
+    return MARKDOWN_EXTENSIONS.has(filePath.slice(lastDot).toLowerCase());
+  };
+
+  const effectiveParagraphSpacing = (
+    spacing: AppSettings["editorParagraphSpacing"]
+  ): AppSettings["editorParagraphSpacing"] => {
+    return isMarkdownFile(options.getCurrentFilePath()) ? "none" : spacing;
+  };
   let systemFontFamilies: string[] = [];
   let editorBaseFontSizePx = 0;
   let editorZoomFactor = 1;
@@ -113,7 +133,12 @@ export function createEditorPresentationController(options: {
 
   const applyEditorParagraphSpacing = (spacing: AppSettings["editorParagraphSpacing"]): void => {
     options.paragraphSpacingSelect.value = spacing;
-    options.editor.setParagraphSpacing(spacing);
+    options.editor.setParagraphSpacing(effectiveParagraphSpacing(spacing));
+  };
+
+  const refreshParagraphSpacingForActiveFile = (): void => {
+    const desired = options.paragraphSpacingSelect.value as AppSettings["editorParagraphSpacing"];
+    options.editor.setParagraphSpacing(effectiveParagraphSpacing(desired));
   };
 
   const applyEditorCursorStyle = (cursorStyle: AppSettings["editorCursorStyle"]): void => {
@@ -213,6 +238,7 @@ export function createEditorPresentationController(options: {
     setEditorWritable,
     applyEditorLineHeight,
     applyEditorParagraphSpacing,
+    refreshParagraphSpacingForActiveFile,
     applyEditorCursorStyle,
     applyEditorMaxWidth,
     applyEditorFont,
