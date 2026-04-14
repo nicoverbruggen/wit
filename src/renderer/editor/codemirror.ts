@@ -10,7 +10,8 @@ import {
   EditorState,
   type Range,
   StateField,
-  RangeSetBuilder
+  RangeSetBuilder,
+  type Transaction
 } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap, indentMore, insertTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
@@ -103,10 +104,10 @@ function mergeLineRanges(ranges: LineRange[]): LineRange[] {
   return merged;
 }
 
-function getAffectedLineRanges(state: EditorState, transaction: Parameters<NonNullable<typeof lineSpacingField.spec.update>>[1]): LineRange[] {
+function getAffectedLineRanges(state: EditorState, transaction: Transaction): LineRange[] {
   const ranges: LineRange[] = [];
 
-  transaction.changes.iterChangedRanges((_fromA, _toA, fromB, toB) => {
+  transaction.changes.iterChangedRanges((_fromA: number, _toA: number, fromB: number, toB: number) => {
     if (state.doc.lines < 2) {
       return;
     }

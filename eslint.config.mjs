@@ -9,6 +9,14 @@ export default [
   },
   js.configs.recommended,
   {
+    files: ["**/*.mjs", "**/*.cjs", "**/*.js"],
+    languageOptions: {
+      globals: {
+        ...globals.node
+      }
+    }
+  },
+  {
     files: ["src/**/*.ts"],
     languageOptions: {
       parser: tsParser,
@@ -18,7 +26,8 @@ export default [
         sourceType: "module"
       },
       globals: {
-        ...globals.node
+        ...globals.node,
+        NodeJS: "readonly"
       }
     },
     plugins: {

@@ -11,7 +11,7 @@ import type { AppSettings, ProjectMetadata } from "../../shared/types";
  */
 export type ProjectUiController = {
   syncProjectPathLabels: (projectPath: string, project: ProjectMetadata | null) => void;
-  renderStatusFooter: (project: ProjectMetadata | null) => void;
+  renderStatusFooter: (project: ProjectMetadata | null, currentFileWordCount?: number) => void;
   renderEditorHeaderVisibility: (project: ProjectMetadata | null) => void;
   syncGitSnapshotsAvailability: (project: ProjectMetadata | null) => void;
   syncSettingsInputs: (settings: AppSettings, project: ProjectMetadata | null) => void;

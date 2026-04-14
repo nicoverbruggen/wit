@@ -67,7 +67,7 @@ test("renderer markup contains core writing controls", async () => {
   ];
 
   for (const id of requiredIds) {
-    assert.match(html, new RegExp(`id=\"${id}\"`));
+    assert.match(html, new RegExp(`id="${id}"`));
   }
 });
 
