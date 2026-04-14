@@ -12,6 +12,7 @@ import {
   makeTempDir,
   openSettingsTab
 } from "./helpers";
+import { FEATURES } from "../../src/shared/features";
 
 test.describe("Wit settings dialog", () => {
   test.beforeEach(async () => {
@@ -158,6 +159,7 @@ test.describe("Wit settings dialog", () => {
   });
 
   test("autosave and git settings persist across relaunch", async () => {
+    test.skip(!FEATURES.git, "git feature flag disabled");
     const projectPath = await makeTempDir("wit-e2e-settings-autosave-");
     const remotePath = await makeTempDir("wit-e2e-settings-autosave-remote-");
     await fs.writeFile(path.join(projectPath, "settings.txt"), "one two", "utf8");

@@ -12,8 +12,11 @@ import {
   makeTempDir,
   openSettingsTab
 } from "./helpers";
+import { FEATURES } from "../../src/shared/features";
 
 test.describe("Wit git integration", () => {
+  test.skip(!FEATURES.git, "git feature flag disabled");
+
   test.beforeEach(async () => {
     await clearLastProjectState();
   });
