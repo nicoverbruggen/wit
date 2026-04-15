@@ -6,7 +6,6 @@ cd "$ROOT_DIR"
 
 npm install
 export APPLE_KEYCHAIN_PROFILE="${APPLE_KEYCHAIN_PROFILE:-wit-notary}"
-
 echo "Using notarization profile: $APPLE_KEYCHAIN_PROFILE"
 xcrun notarytool history --keychain-profile "$APPLE_KEYCHAIN_PROFILE" >/dev/null
 

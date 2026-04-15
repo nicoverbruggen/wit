@@ -101,9 +101,10 @@ xcrun notarytool store-credentials "wit-notary" \
   --password "abcd-efgh-ijkl-mnop"
 ```
 
-After that succeeds, export the profile name before building:
+After that succeeds, export the keychain and profile name before building:
 
 ```bash
+export APPLE_KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 export APPLE_KEYCHAIN_PROFILE="wit-notary"
 ```
 
